@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ROS 2 / colcon
+build/
+install/
+log/
+
+# Local benchmark and dashboard outputs
+benchmark_results/
+raw_results/
+parsed_results/
+grafana/data/
+prometheus/data/
+*.jsonl
+*.prom
+
+# Editors and local environment
+.vscode/
+.idea/
+.env
+.venv/
+venv/
+
