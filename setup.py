@@ -40,6 +40,8 @@ setup(
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [],
+        'console_scripts': [
+            "ros2-performance-monitoring=ros2_performance_monitoring.cli:main"
+        ],
     },
 )

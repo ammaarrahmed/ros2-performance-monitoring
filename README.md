@@ -67,7 +67,8 @@ colcon test-result --verbose
 ```
 
 At scaffold stage, these checks only validate package shape and lint rules.
-
+## MILESTONE 1 : Automated Benchmark Container & Minimal Pub/Sub with rclcpp artifact parsing and generation
+- [x] Part A : Add CLI Options such as run and doctor for ros2-performance-monitoring CLI tool
 ## License
 
 New code in this repository is licensed under the Apache License, Version 2.0.
