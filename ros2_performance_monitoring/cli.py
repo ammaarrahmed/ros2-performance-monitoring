@@ -16,10 +16,19 @@ import argparse
 import sys
 
 from .config import RunDefaults
+from .container_provider import setup_container_repo
+from .run_metadata import generation_rundata
 
 
 def run_command(args):
     print('Running Performance Monitor...')
+    commit_hash = setup_container_repo(
+        container_repo_url=args.container_repo_url,
+        container_ref=args.container_ref,
+        cache_dir=args.cache_dir,
+    )
+    print(f'Container Repo Loaded is ready now! checked out commit : {commit_hash}')
+    generation_rundata(args, args.results_dir, commit_hash)
 
 
 def doctor_command(args):
@@ -50,7 +59,7 @@ def main():
         help='Executor',
     )
     run_parser.add_argument(
-        'results-dir', nargs='?', default=defaults.results_dir,
+        'results_dir', nargs='?', default=defaults.results_dir,
         help='Results directory for Container Run Results',
     )
     run_parser.add_argument(

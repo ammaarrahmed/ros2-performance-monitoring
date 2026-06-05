@@ -15,12 +15,18 @@
 import importlib
 import sys
 
+import pytest
+
 import ros2_performance_monitoring.cli as cli
 from ros2_performance_monitoring.config import RunDefaults
+
+pytestmark = pytest.mark.smoke
 
 
 def test_run_command_prints_message(monkeypatch, capsys):
     importlib.reload(cli)
+    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'run', '60'])
     cli.main()
     captured = capsys.readouterr()
@@ -35,15 +41,22 @@ def test_doctor_command(monkeypatch, capsys):
     assert 'Checking environment...' in captured.out
 
 
-def test_run_uses_config_defaults(monkeypatch):
+def test_run_with_default_smoke(monkeypatch):
     importlib.reload(cli)
     defaults = RunDefaults()
     received = {}
 
-    def fake_run(args):
-        received['args'] = args
+    def fake_setup_container_repo(**kwargs):
+        received['container_kwargs'] = kwargs
+        return 'abc123'
 
-    monkeypatch.setattr(cli, 'run_command', fake_run)
+    def fake_generation_rundata(args, results_dir, commit_hash):
+        received['args'] = args
+        received['results_dir'] = results_dir
+        received['commit_hash'] = commit_hash
+
+    monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
+    monkeypatch.setattr(cli, 'generation_rundata', fake_generation_rundata)
     monkeypatch.setattr(
         sys,
         'argv',
@@ -54,3 +67,5 @@ def test_run_uses_config_defaults(monkeypatch):
     assert received['args'].executor == defaults.executor
     assert received['args'].container_repo_url == defaults.container_repo_url
     assert received['args'].container_ref == defaults.container_ref
+    assert received['results_dir'] == defaults.results_dir
+    assert received['commit_hash'] == 'abc123'
