@@ -48,6 +48,16 @@ def test_doctor_command(monkeypatch, capsys):
     assert 'Checking environment...' in captured.out
 
 
+def test_build_container_command(monkeypatch, capsys):
+    importlib.reload(cli)
+    monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
+    monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'build-container'])
+    cli.main()
+    captured = capsys.readouterr()
+    assert 'Building the container now...' in captured.out
+    assert 'successfully built container at : container/path' in captured.out
+
+
 def test_run_with_default_smoke(monkeypatch):
     importlib.reload(cli)
     defaults = RunDefaults()
