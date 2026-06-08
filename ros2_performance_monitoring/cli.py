@@ -17,10 +17,10 @@ import subprocess
 import sys
 from typing import Any
 
+from .benchmark_runner import benchmark_runner
 from .config import RunDefaults
 from .container_build import build_container
 from .container_provider import get_default_container_repo, setup_container_repo
-from .run_metadata import generation_rundata
 
 
 def run_command(args: argparse.Namespace) -> None:
@@ -36,7 +36,18 @@ def run_command(args: argparse.Namespace) -> None:
         cache_dir=args.cache_dir,
     )
     print(f'Container Repo Loaded is ready now! checked out commit : {commit_hash}')
-    generation_rundata(args, args.results_dir, commit_hash)
+    rel_path = build_container(
+        ros_distro=args.ros_distro,
+        cache_dir=args.cache_dir,
+    )
+    print(f'successfully built container at : {rel_path}')
+    benchmark_runner(
+        cache_dir=args.cache_dir,
+        results_dir=args.results_dir,
+        benchmark_option=args.suite,
+        duration=args.duration,
+        ros_distro=args.ros_distro,
+    )
 
 
 def doctor_command(args: argparse.Namespace) -> None:
@@ -103,6 +114,10 @@ def main() -> Any:
     run_parser.add_argument(
         'container_ref', nargs='?',
         help='Container Repository Ref',
+    )
+    run_parser.add_argument(
+        '--suite', default=defaults.default_benchmark,
+        help='Runs a Minimal Pub/Sub rclcpp benchmark',
     )
     build_container_parser.add_argument(
         'ros_distro', nargs='?', default=defaults.ros_distro,
