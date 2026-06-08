@@ -20,7 +20,11 @@ import platform
 import sys
 
 
-def generation_rundata(args: argparse.Namespace, results_dir: str, commit_hash: str) -> None:
+def generation_rundata(
+    args: argparse.Namespace,
+    results_dir: str,
+    commit_hash: str,
+) -> None:
     run_timestamp = datetime.now(timezone.utc)
     file_timestamp = run_timestamp.strftime('%Y%m%d_%H%M%S')
     iso_format = run_timestamp.isoformat()
@@ -29,28 +33,26 @@ def generation_rundata(args: argparse.Namespace, results_dir: str, commit_hash: 
     os_name = platform.system()
     run_data = {
         'host_environment': {
-            'timestamp ': iso_format,
+            'timestamp': iso_format,
             'Python version': py_ver,
             'architecture': machine,
             'OS': os_name,
         },
-
         'run_configuration': {
             'ros_distro': args.ros_distro,
             'executor': args.executor,
             'duration': args.duration,
         },
-
         'target_repo': {
             'url': args.container_repo_url,
             'ref': args.container_ref,
             'resolved_commit_hash': commit_hash,
-        }
+        },
     }
 
     output_dir = Path(results_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     metadata_file = output_dir / f'metadata_{file_timestamp}.json'
-    with open(metadata_file, 'w') as f:
-        json.dump(run_data, f, indent=4)
+    with open(metadata_file, 'w') as metadata_stream:
+        json.dump(run_data, metadata_stream, indent=4)
     print(f'Run metadata saved to : {output_dir} / {metadata_file}')
