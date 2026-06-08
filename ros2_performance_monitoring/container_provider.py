@@ -24,8 +24,8 @@ CONTAINER_REPOS_FILE: Path = Path(__file__).with_name('ros2_benchmark_container.
 def get_default_container_repo() -> Tuple[Optional[str], Optional[str]]:
     repo_url: Optional[str] = None
     repo_version: Optional[str] = None
-    with open(CONTAINER_REPOS_FILE) as f:
-        for line in f:
+    with open(CONTAINER_REPOS_FILE) as repos_file:
+        for line in repos_file:
             stripped_line = line.strip()
             if stripped_line.startswith('url:'):
                 repo_url = stripped_line.split(':', 1)[1].strip()
@@ -38,6 +38,7 @@ def update_existing_cache_remote(absolute_path: Path, container_repo_url: str) -
     git_folder = absolute_path / '.git'
     if not git_folder.is_dir():
         return
+
     result = subprocess.run(
         ['git', 'remote', 'get-url', 'origin'],
         capture_output=True,
@@ -89,8 +90,8 @@ def setup_container_repo(container_repo_url: str, container_ref: str, cache_dir:
                     'type': 'git',
                     'url': container_repo_url,
                     'version': container_ref,
-                }
-            }
+                },
+            },
         })
         subprocess.run(
             ['vcs', 'import', '--recursive', '--input', '-', str(absolute_path)],
