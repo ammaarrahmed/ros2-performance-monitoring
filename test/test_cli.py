@@ -34,6 +34,7 @@ def test_run_command_prints_message(monkeypatch, capsys):
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
     monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
     monkeypatch.setattr(cli, 'benchmark_runner', lambda **kwargs: None)
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'run', '60'])
@@ -116,6 +117,7 @@ def test_run_with_default_smoke(monkeypatch):
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
     monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
+    monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
     monkeypatch.setattr(cli, 'benchmark_runner', fake_benchmark_runner)
     monkeypatch.setattr(
