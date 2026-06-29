@@ -31,6 +31,7 @@ def generation_rundata(
     py_ver = sys.version.split()[0]
     machine = platform.machine()
     os_name = platform.system()
+    client_library_ref = args.client_library_ref or f'ros-{args.ros_distro}-packages'
     run_data = {
         'host_environment': {
             'timestamp': iso_format,
@@ -42,11 +43,18 @@ def generation_rundata(
             'ros_distro': args.ros_distro,
             'executor': args.executor,
             'duration': args.duration,
+            'client_library': args.client_library,
         },
-        'target_repo': {
+        'benchmark_repo': {
             'url': args.container_repo_url,
             'ref': args.container_ref,
             'resolved_commit_hash': commit_hash,
+        },
+        'client_library_under_test': {
+            'name': args.client_library,
+            'ref': client_library_ref,
+            'resolved_commit_hash': args.client_library_commit,
+            'source': args.client_library_source,
         },
     }
 

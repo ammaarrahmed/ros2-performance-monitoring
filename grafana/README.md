@@ -1,14 +1,26 @@
 # Grafana
 
-Grafana dashboard assets will be added in later pull requests.
+The local dashboard stack provisions Grafana automatically from files under
+`config/grafana`.
 
-The initial dashboard work should remain local-first and consume metrics emitted
-by this repository from normalized benchmark artifacts.
+Run:
 
-This scaffold intentionally does not include:
+```bash
+ros2-performance-monitoring dashboard up --input <results-dir>/normalized_metrics.jsonl
+```
 
-- Dashboard JSON.
-- Grafana provisioning files.
-- Docker Compose services.
-- Prometheus configuration.
+Then open:
 
+```text
+http://localhost:3000
+```
+
+The stack creates a Prometheus datasource pointing at `http://prometheus:9090`
+and loads the `ROS 2 Pub/Sub Client Library Performance Comparison` dashboard from
+`config/grafana/dashboards/rclcpp_pubsub_overview.json`.
+
+Stop the containers with:
+
+```bash
+ros2-performance-monitoring dashboard down
+```
