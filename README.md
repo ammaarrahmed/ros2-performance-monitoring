@@ -1,63 +1,227 @@
 # ROS 2 Performance Monitoring
 
-Local-first dashboard and exporter tooling for ROS 2 performance visibility.
+This repository turns local ROS 2 benchmark output into something you can inspect
+quickly: normalized JSONL, Prometheus metrics, and a Grafana dashboard running on
+your machine.
 
-This repository is being prepared as part of the GSoC 2026 client library system
-performance monitoring work. Its first goal is to make existing benchmark output
-easy for ROS 2 developers to inspect through normalized artifacts and a local
-Grafana dashboard.
+The current path is intentionally small and local-first. It targets the
+`rclcpp` pub/sub benchmark artifacts produced by the benchmark container fork,
+then makes those results visible in Grafana.
 
-## Current Scope
-
-This initial repository scaffold does not implement benchmark parsing, metric
-export, or dashboards yet. It establishes the project structure, license posture,
-and contribution expectations before functional pull requests begin.
-
-The first functional pull request is expected to target:
-
-- `rclcpp` pub/sub benchmark artifacts.
-- One fixed payload size.
-- Local result parsing.
-- Normalized artifacts suitable for Prometheus and Grafana.
-
-## Planned Data Flow
-
-The intended MVP data flow is:
+## What This Does
 
 ```text
-external benchmark run
-  -> raw benchmark result artifacts
-  -> normalized exporter artifacts
-  -> Prometheus-compatible metrics
-  -> local Grafana dashboard
+benchmark container run
+  -> raw benchmark artifacts
+  -> normalized_metrics.jsonl
+  -> local Prometheus exporter
+  -> Prometheus
+  -> Grafana
 ```
 
-## Relationship To Benchmark Repositories
+It does not detect regressions yet, and it does not run hosted infrastructure.
+The dashboard is organized to make performance changes visible across ROS client
+library refs, ROS distros, RMW implementations, communication modes, and payload
+sizes.
 
-This repository does not vendor benchmark engines.
+## Prerequisites
+
+- Docker is installed and running.
+- Docker Compose plugin is installed.
+- Ports `3000`, `9090`, and `9108` are free.
+- The `ros2-performance-monitoring` command is available on your `PATH`.
+
+For local source development, one simple setup is:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+## Full Local Workflow
+
+Run these commands from the repository root.
+
+### 1. Run The Benchmark
+
+This fetches the benchmark container repo if needed, builds the Docker image,
+runs the minimal `rclcpp` pub/sub benchmark, and writes raw artifacts under
+`./results`.
+
+```bash
+ros2-performance-monitoring run
+```
+
+The default run uses:
+
+```text
+duration: 60 seconds
+ros_distro: lyrical
+suite: pubsub-rclcpp-minimal
+results_dir: ./results
+cache_dir: ~/.cache/ros2-performance-monitoring
+```
+
+To make those values explicit:
+
+```bash
+ros2-performance-monitoring run 60 lyrical single-threaded ./results ~/.cache/ros2-performance-monitoring
+```
+
+If you are comparing a specific client-library branch or commit, record it with
+the run:
+
+```bash
+ros2-performance-monitoring run \
+  --client-library rclcpp \
+  --client-library-ref <rclcpp-branch-or-ref> \
+  --client-library-commit <rclcpp-commit-sha>
+```
+
+The benchmark container ref and the client-library ref are tracked separately.
+The default Docker flow uses ROS distro packages, so the client-library commit is
+`unknown` unless you pass it explicitly.
+
+The current runner writes benchmark artifacts under paths like:
+
+```text
+results/benhcmark/lyrical/pub-sub_single_process/...
+```
+
+### 2. Normalize The Artifacts
+
+Convert the raw benchmark files into the normalized JSONL format consumed by the
+exporter and dashboard:
+
+```bash
+ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
+```
+
+You should see output similar to:
+
+```text
+Wrote 840 normalized metrics to ./results/normalized_metrics.jsonl
+```
+
+The normalized records include separate benchmark harness and client-library
+provenance. In Grafana, use `client_library_ref`, `client_library_commit`, and
+`ros_distro` to compare performance across branches, commits, and distributions.
+
+### 3. Check The Exporter Directly
+
+This step is optional, but useful when you want to verify the metrics before
+starting Grafana:
+
+```bash
+ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl --port 9108
+```
+
+Then open:
+
+```text
+http://localhost:9108/metrics
+```
+
+Stop the exporter with `Ctrl+C`.
+
+### 4. Start Grafana And Prometheus
+
+Start the local dashboard stack:
+
+```bash
+ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
+```
+
+This starts Prometheus and Grafana with Docker Compose, then keeps the metrics
+exporter running in the foreground. Keep this terminal open while using the
+dashboard.
+
+Open Grafana:
+
+```text
+http://localhost:3000
+```
+
+The dashboard is provisioned automatically. Look for:
+
+```text
+ROS 2 Pub/Sub Client Library Performance Comparison
+```
+
+### 5. Stop The Dashboard
+
+Press `Ctrl+C` in the terminal running `dashboard up`, then stop the containers:
+
+```bash
+ros2-performance-monitoring dashboard down
+```
+
+## Useful Commands
+
+Build only the benchmark container:
+
+```bash
+ros2-performance-monitoring build-container
+```
+
+Parse into a run directory instead of the top-level results directory:
+
+```bash
+ros2-performance-monitoring parse ./results --output ./results/benhcmark/lyrical/pub-sub_single_process/normalized_metrics.jsonl
+```
+
+Run the dashboard from that file:
+
+```bash
+ros2-performance-monitoring dashboard up --input ./results/benhcmark/lyrical/pub-sub_single_process/normalized_metrics.jsonl
+```
+
+## Troubleshooting
+
+If parsing fails with `PermissionError`, the raw artifact directory was probably
+created by Docker as `root`. New benchmark runs hand ownership back to your host
+user when the run finishes. For older results, fix ownership once:
+
+```bash
+sudo chown -R "$USER:$USER" ./results/benhcmark
+```
+
+If Grafana is empty, check the exporter first:
+
+```text
+http://localhost:9108/metrics
+```
+
+Then check Prometheus targets:
+
+```text
+http://localhost:9090/targets
+```
+
+If a port is already in use, stop the process using `3000`, `9090`, or `9108`
+before starting the dashboard.
+
+If Docker Compose fails, check:
+
+```bash
+docker compose version
+docker info
+```
+
+## Repository Boundary
+
+This repository does not vendor the benchmark engines.
 
 - `ros2-performance` is treated as an external ROS 2 benchmark framework.
 - `ros2-benchmark-container` is treated as an external benchmark runner and
   artifact producer.
-- Neither repository is included here as a git submodule.
-- No iRobot benchmark source code or result files are copied into this scaffold.
+- No iRobot benchmark source code or result files are copied into this project.
 
-The exporter will consume result artifacts produced by external tools instead of
-owning benchmark execution itself. That keeps this repository focused on
-developer-facing visibility: parsing, normalization, export, and dashboards.
+The goal here is the local visibility layer: artifact parsing, normalization,
+export, and dashboards.
 
-## Non-Goals For The Scaffold
-
-This initial commit intentionally does not include:
-
-- Parser implementation.
-- Prometheus exporter implementation.
-- Grafana dashboard JSON.
-- Docker Compose or hosted infrastructure.
-- Benchmark runner wrappers.
-- Copied benchmark outputs.
-
-## Local Development
+## Development Checks
 
 This package can be installed either as a regular Python package with `pip` or
 as a ROS 2 package with `colcon`. Use one workflow at a time.
@@ -245,9 +409,6 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test --packages-select ros2_performance_
 colcon test-result --verbose
 ```
 
-At scaffold stage, these checks only validate package shape and lint rules.
-## MILESTONE 1 : Automated Benchmark Container & Minimal Pub/Sub with rclcpp artifact parsing and generation
-- [x] Part A : Add CLI Options such as run and doctor for ros2-performance-monitoring CLI tool
 ## License
 
 New code in this repository is licensed under the Apache License, Version 2.0.

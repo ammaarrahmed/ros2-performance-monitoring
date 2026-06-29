@@ -16,7 +16,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,10 @@ class MetricRecord:
     schema_version: int
     run_id: str
     timestamp: str
+    benchmark_ref: str
+    benchmark_commit: str
+    client_library_ref: str
+    client_library_commit: str
     client_library: str
     ros_distro: str
     rmw_implementation: str
