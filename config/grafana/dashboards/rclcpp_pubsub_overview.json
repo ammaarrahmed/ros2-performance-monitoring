@@ -1,0 +1,773 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "count(ros2_perf_run_info{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\"})",
+          "instant": true,
+          "legendFormat": "selected configs",
+          "refId": "A"
+        }
+      ],
+      "title": "Selected configs",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "avg(ros2_perf_latency_us{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\",metric=\"subscription_latency\",aggregation=\"mean\"})",
+          "instant": true,
+          "legendFormat": "mean",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean latency",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "avg(ros2_perf_latency_us{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\",metric=\"subscription_latency\",aggregation=\"p95\"})",
+          "instant": true,
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "p95 latency",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "KBs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "avg(ros2_perf_throughput_kb_per_second{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\"})",
+          "instant": true,
+          "legendFormat": "throughput",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean throughput",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 12,
+        "namePlacement": "left",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "avg by (client_library, client_library_ref, client_library_commit, benchmark_ref, ros_distro, run_id, rmw, comm, payload_bytes) (ros2_perf_latency_us{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\",metric=\"subscription_latency\",aggregation=\"mean\"})",
+          "instant": true,
+          "legendFormat": "{{client_library_ref}} | {{client_library_commit}} | {{ros_distro}} | {{run_id}} | {{rmw}} | {{comm}} | {{payload_bytes}} B",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean latency comparison",
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 6,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 12,
+        "namePlacement": "left",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "avg by (client_library, client_library_ref, client_library_commit, benchmark_ref, ros_distro, run_id, rmw, comm, payload_bytes) (ros2_perf_latency_us{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\",metric=\"subscription_latency\",aggregation=\"p95\"})",
+          "instant": true,
+          "legendFormat": "{{client_library_ref}} | {{client_library_commit}} | {{ros_distro}} | {{run_id}} | {{rmw}} | {{comm}} | {{payload_bytes}} B",
+          "refId": "A"
+        }
+      ],
+      "title": "p95 latency comparison",
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "KBs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 12
+      },
+      "id": 7,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 12,
+        "namePlacement": "left",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "avg by (client_library, client_library_ref, client_library_commit, benchmark_ref, ros_distro, run_id, rmw, comm, payload_bytes) (ros2_perf_throughput_kb_per_second{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\"})",
+          "instant": true,
+          "legendFormat": "{{client_library_ref}} | {{client_library_commit}} | {{ros_distro}} | {{rmw}} | {{comm}} | {{payload_bytes}} B",
+          "refId": "A"
+        }
+      ],
+      "title": "Throughput comparison",
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 12
+      },
+      "id": 8,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 12,
+        "namePlacement": "left",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "max by (client_library, client_library_ref, client_library_commit, benchmark_ref, ros_distro, run_id, rmw, comm, payload_bytes) (ros2_perf_cpu_percent{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\",metric=\"resource_cpu\",aggregation=\"max\"})",
+          "instant": true,
+          "legendFormat": "{{client_library_ref}} | {{client_library_commit}} | {{ros_distro}} | {{rmw}} | {{comm}} | {{payload_bytes}} B",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU max comparison",
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "mbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 12
+      },
+      "id": 9,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 12,
+        "namePlacement": "left",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "max by (client_library, client_library_ref, client_library_commit, benchmark_ref, ros_distro, run_id, rmw, comm, payload_bytes) (ros2_perf_memory_megabytes{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\",metric=\"resource_memory_rss\",aggregation=\"max\"})",
+          "instant": true,
+          "legendFormat": "{{client_library_ref}} | {{client_library_commit}} | {{ros_distro}} | {{rmw}} | {{comm}} | {{payload_bytes}} B",
+          "refId": "A"
+        }
+      ],
+      "title": "RSS max comparison",
+      "type": "bargauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "id": 10,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "max by (client_library, client_library_ref, client_library_commit, benchmark_ref, ros_distro, run_id, rmw, comm, payload_bytes, metric) (ros2_perf_messages_percent{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\",metric=~\"total_messages_(late|lost|too_late)\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "title": "Reliability comparison",
+      "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "id": 11,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "avg by (client_library, client_library_ref, client_library_commit, benchmark_ref, ros_distro, run_id, rmw, comm, payload_bytes, aggregation) (ros2_perf_latency_us{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\",metric=\"subscription_latency\",aggregation=~\"mean|min|max|p95|p99\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency summary table",
+      "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 12,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "ros2_perf_run_info{benchmark_ref=~\"$benchmark_ref\",client_library=~\"$client_library\",client_library_ref=~\"$client_library_ref\",client_library_commit=~\"$client_library_commit\",run_id=~\"$run_id\",ros_distro=~\"$ros_distro\",rmw=~\"$rmw\",executor=~\"$executor\",comm=~\"$comm\",topology=~\"$topology\",payload_bytes=~\"$payload_bytes\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "title": "Run matrix",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "ros2",
+    "performance",
+    "comparison"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, benchmark_ref)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "benchmark_ref",
+        "multi": true,
+        "name": "benchmark_ref",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, benchmark_ref)",
+          "refId": "Prometheus-benchmark_ref-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, client_library)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "client_library",
+        "multi": true,
+        "name": "client_library",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, client_library)",
+          "refId": "Prometheus-client_library-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, client_library_ref)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "client_library_ref",
+        "multi": true,
+        "name": "client_library_ref",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, client_library_ref)",
+          "refId": "Prometheus-client_library_ref-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, client_library_commit)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "client_library_commit",
+        "multi": true,
+        "name": "client_library_commit",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, client_library_commit)",
+          "refId": "Prometheus-client_library_commit-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, run_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "run_id",
+        "multi": true,
+        "name": "run_id",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, run_id)",
+          "refId": "Prometheus-run_id-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, ros_distro)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "ros_distro",
+        "multi": true,
+        "name": "ros_distro",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, ros_distro)",
+          "refId": "Prometheus-ros_distro-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, rmw)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "rmw",
+        "multi": true,
+        "name": "rmw",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, rmw)",
+          "refId": "Prometheus-rmw-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, executor)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "executor",
+        "multi": true,
+        "name": "executor",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, executor)",
+          "refId": "Prometheus-executor-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, comm)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "comm",
+        "multi": true,
+        "name": "comm",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, comm)",
+          "refId": "Prometheus-comm-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, topology)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "topology",
+        "multi": true,
+        "name": "topology",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, topology)",
+          "refId": "Prometheus-topology-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, payload_bytes)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "payload_bytes",
+        "multi": true,
+        "name": "payload_bytes",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info, payload_bytes)",
+          "refId": "Prometheus-payload_bytes-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ROS 2 Pub/Sub Client Library Performance Comparison",
+  "uid": "rclcpp-pubsub-overview",
+  "version": 2,
+  "weekStart": ""
+}
