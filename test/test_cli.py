@@ -25,6 +25,11 @@ pytestmark = pytest.mark.smoke
 
 def test_run_command_prints_message(monkeypatch, capsys):
     importlib.reload(cli)
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: ('https://example.com/repo.git', 'main'),
+    )
     monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
     monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'run', '60'])
@@ -55,6 +60,11 @@ def test_run_with_default_smoke(monkeypatch):
         received['results_dir'] = results_dir
         received['commit_hash'] = commit_hash
 
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: ('https://example.com/repo.git', 'main'),
+    )
     monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
     monkeypatch.setattr(cli, 'generation_rundata', fake_generation_rundata)
     monkeypatch.setattr(
@@ -65,7 +75,7 @@ def test_run_with_default_smoke(monkeypatch):
     cli.main()
     assert received['args'].ros_distro == defaults.ros_distro
     assert received['args'].executor == defaults.executor
-    assert received['args'].container_repo_url == defaults.container_repo_url
-    assert received['args'].container_ref == defaults.container_ref
+    assert received['args'].container_repo_url == 'https://example.com/repo.git'
+    assert received['args'].container_ref == 'main'
     assert received['results_dir'] == defaults.results_dir
     assert received['commit_hash'] == 'abc123'

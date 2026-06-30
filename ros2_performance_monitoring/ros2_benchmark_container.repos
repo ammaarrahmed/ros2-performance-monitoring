@@ -1,0 +1,5 @@
+repositories:
+  .:
+    type: git
+    url: https://github.com/ammaarrahmed/ros2-benchmark-container
+    version: gitsubmodule-commit-fix
