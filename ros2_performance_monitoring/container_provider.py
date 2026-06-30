@@ -1,12 +1,13 @@
 from pathlib import Path
 import json
 import subprocess
+from typing import Optional, Tuple
 
-CONTAINER_REPOS_FILE=Path(__file__).with_name("ros2_benchmark_container.repos")
+CONTAINER_REPOS_FILE: Path=Path(__file__).with_name("ros2_benchmark_container.repos")
 
-def get_default_container_repo():
-    repo_url=None
-    repo_version=None
+def get_default_container_repo() -> Tuple[Optional[str], Optional[str]]:
+    repo_url: Optional[str]=None
+    repo_version: Optional[str]=None
     with open(CONTAINER_REPOS_FILE) as f:
         for line in f:
             stripped_line=line.strip()
@@ -16,7 +17,7 @@ def get_default_container_repo():
                 repo_version=stripped_line.split(":",1)[1].strip()
     return repo_url,repo_version
 
-def update_existing_cache_remote(absolute_path,container_repo_url):
+def update_existing_cache_remote(absolute_path: Path,container_repo_url: str) -> None:
     git_folder=absolute_path / ".git"
     if(not git_folder.is_dir()):
         return
@@ -31,7 +32,7 @@ def update_existing_cache_remote(absolute_path,container_repo_url):
     elif(result.stdout.strip() != container_repo_url):
         subprocess.run(["git","remote","set-url","origin",container_repo_url],cwd=absolute_path,check=True)
 
-def setup_container_repo(container_repo_url, container_ref,cache_dir):
+def setup_container_repo(container_repo_url: str, container_ref: str,cache_dir: str) -> str:
     relative_path=Path(cache_dir)
     absolute_path=relative_path.expanduser().resolve()
     absolute_path.mkdir(parents=True,exist_ok=True)

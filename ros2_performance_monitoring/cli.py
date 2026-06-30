@@ -15,12 +15,14 @@
 import argparse
 import sys
 
+from typing import Any
+
 from .config import RunDefaults
 from .container_provider import get_default_container_repo, setup_container_repo
 from .run_metadata import generation_rundata
 
 
-def run_command(args):
+def run_command(args: argparse.Namespace) -> None:
     print('Running Performance Monitor...')
     container_repo_url, container_ref = get_default_container_repo()
     if args.container_repo_url is None:
@@ -36,11 +38,11 @@ def run_command(args):
     generation_rundata(args, args.results_dir, commit_hash)
 
 
-def doctor_command(args):
+def doctor_command(args: argparse.Namespace) -> None:
     print('Checking environment...')
 
 
-def main():
+def main() -> Any:
     defaults = RunDefaults()
     parser = argparse.ArgumentParser(prog='ros2-performance-monitoring')
     subparsers = parser.add_subparsers(dest='command', required=True)
