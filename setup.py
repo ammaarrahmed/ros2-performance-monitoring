@@ -38,10 +38,9 @@ setup(
     maintainer_email='ammaarlatif53@gmail.com',
     description='Local-first dashboard and exporter tooling for ROS 2 performance visibility.',
     license='Apache-2.0',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            "ros2-performance-monitoring=ros2_performance_monitoring.cli:main"
+            'ros2-performance-monitoring=ros2_performance_monitoring.cli:main',
         ],
     },
 )
