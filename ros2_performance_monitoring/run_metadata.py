@@ -1,3 +1,4 @@
+import argparse
 from datetime import datetime,timezone
 import platform
 import sys
@@ -6,7 +7,7 @@ from pathlib import Path
 
 
 
-def generation_rundata(args,results_dir,commit_hash):
+def generation_rundata(args: argparse.Namespace,results_dir: str,commit_hash: str) -> None:
     run_timestamp=datetime.now(timezone.utc)
     file_timestamp=run_timestamp.strftime("%Y%m%d_%H%M%S")
     iso_format=run_timestamp.isoformat()
