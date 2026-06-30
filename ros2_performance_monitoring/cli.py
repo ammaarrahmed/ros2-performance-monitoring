@@ -16,12 +16,17 @@ import argparse
 import sys
 
 from .config import RunDefaults
-from .container_provider import setup_container_repo
+from .container_provider import get_default_container_repo, setup_container_repo
 from .run_metadata import generation_rundata
 
 
 def run_command(args):
     print('Running Performance Monitor...')
+    container_repo_url, container_ref = get_default_container_repo()
+    if args.container_repo_url is None:
+        args.container_repo_url = container_repo_url
+    if args.container_ref is None:
+        args.container_ref = container_ref
     commit_hash = setup_container_repo(
         container_repo_url=args.container_repo_url,
         container_ref=args.container_ref,
@@ -67,11 +72,11 @@ def main():
         help='Cache Directory for Container repo',
     )
     run_parser.add_argument(
-        'container_repo_url', nargs='?', default=defaults.container_repo_url,
+        'container_repo_url', nargs='?',
         help='Container Repo URL',
     )
     run_parser.add_argument(
-        'container_ref', nargs='?', default=defaults.container_ref,
+        'container_ref', nargs='?',
         help='Container Repository Ref',
     )
     args = parser.parse_args()
