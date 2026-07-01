@@ -59,19 +59,74 @@ This initial commit intentionally does not include:
 
 ## Local Development
 
-Place this package inside a ROS 2 workspace and run:
+This package can be installed either as a regular Python package with `pip` or
+as a ROS 2 package with `colcon`. Use one workflow at a time.
+
+### Python virtual environment
+
+From a clean checkout, create a virtual environment, install the development
+dependencies, and install the package:
 
 ```bash
-colcon test --packages-select ros2_performance_monitoring
+source /opt/ros/lyrical/setup.bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+python3 -m pip install .
+```
+
+Run the CLI:
+
+```bash
+ros2-performance-monitoring run
+ros2-performance-monitoring doctor
+```
+
+Run the Python tests:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest
+```
+
+The `ament-copyright`, `ament-flake8`, and `ament-pep257` test helpers are
+provided by the sourced ROS 2 installation.
+
+### ROS 2 workspace
+
+Place this package inside a ROS 2 workspace, build it with `colcon`, and source
+the workspace:
+
+```bash
+source /opt/ros/lyrical/setup.bash
+mkdir -p ~/ros2_performance_ws/src
+cd ~/ros2_performance_ws/src
+git clone https://github.com/ammaarrahmed/ros2-performance-monitoring.git
+cd ..
+colcon build --packages-select ros2_performance_monitoring
+source install/setup.bash
+```
+
+Run the CLI through ROS 2:
+
+```bash
+ros2 run ros2_performance_monitoring ros2-performance-monitoring run
+ros2 run ros2_performance_monitoring ros2-performance-monitoring doctor
+```
+
+Run the ROS 2 package tests:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test --packages-select ros2_performance_monitoring --python-testing pytest
 colcon test-result --verbose
 ```
 
 At scaffold stage, these checks only validate package shape and lint rules.
-
+## MILESTONE 1 : Automated Benchmark Container & Minimal Pub/Sub with rclcpp artifact parsing and generation
+- [x] Part A : Add CLI Options such as run and doctor for ros2-performance-monitoring CLI tool
 ## License
 
 New code in this repository is licensed under the Apache License, Version 2.0.
 
 Optional external benchmark tools referenced by this project may use different
 open source licenses. See `THIRD_PARTY_NOTICES.md`.
-
