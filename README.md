@@ -81,6 +81,7 @@ Run the CLI:
 ```bash
 ros2-performance-monitoring run
 ros2-performance-monitoring doctor
+ros2-performance-monitoring build-container
 ```
 
 Run the Python tests:
@@ -112,7 +113,46 @@ Run the CLI through ROS 2:
 ```bash
 ros2 run ros2_performance_monitoring ros2-performance-monitoring run
 ros2 run ros2_performance_monitoring ros2-performance-monitoring doctor
+ros2 run ros2_performance_monitoring ros2-performance-monitoring build-container
 ```
+
+### Benchmark container build
+
+The `build-container` command builds the external benchmark container. It
+requires Docker and Docker Buildx to be installed and available on `PATH` in the
+same shell that runs the command:
+
+```bash
+docker version
+docker buildx version
+```
+
+The Docker build scripts are not stored in this repository. They come from the
+external `ros2-benchmark-container` checkout in the cache directory. By default
+that cache directory is:
+
+```bash
+~/.cache/ros2-performance-monitoring
+```
+
+On a fresh machine, fetch the benchmark container first with the `run` command,
+or pass a cache directory that already contains the benchmark container checkout:
+
+```bash
+ros2-performance-monitoring run
+ros2-performance-monitoring build-container
+```
+
+With a ROS 2 workspace build, use the equivalent `ros2 run` commands:
+
+```bash
+ros2 run ros2_performance_monitoring ros2-performance-monitoring run
+ros2 run ros2_performance_monitoring ros2-performance-monitoring build-container
+```
+
+If `build-container` is not listed as an available command, rebuild or reinstall
+this package in the active environment. That usually means the shell is still
+finding an older installed `ros2-performance-monitoring` executable.
 
 Run the ROS 2 package tests:
 
