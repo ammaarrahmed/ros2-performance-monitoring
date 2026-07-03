@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import importlib
+import subprocess
 import sys
 
 import pytest
@@ -50,12 +51,50 @@ def test_doctor_command(monkeypatch, capsys):
 
 def test_build_container_command(monkeypatch, capsys):
     importlib.reload(cli)
+    received = {}
+
+    def fake_setup_container_repo(**kwargs):
+        received['container_kwargs'] = kwargs
+        return 'abc123'
+
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
+    )
+    monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
     monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'build-container'])
     cli.main()
     captured = capsys.readouterr()
+    assert received['container_kwargs'] == {
+        'container_repo_url': DEFAULT_CONTAINER_REPO_URL,
+        'container_ref': DEFAULT_CONTAINER_REF,
+        'cache_dir': RunDefaults().cache_dir,
+    }
     assert 'Building the container now...' in captured.out
+    assert 'Container Repo Loaded is ready now! checked out commit : abc123' in captured.out
     assert 'successfully built container at : container/path' in captured.out
+
+
+def test_build_container_command_returns_subprocess_error(monkeypatch, capsys):
+    importlib.reload(cli)
+
+    def fake_build_container(**kwargs):
+        raise subprocess.CalledProcessError(7, ['docker/build', '-d', 'lyrical'])
+
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
+    )
+    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(cli, 'build_container', fake_build_container)
+    monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'build-container'])
+    assert cli.main() == 7
+    captured = capsys.readouterr()
+    assert 'successfully built container' not in captured.out
+    assert 'Command failed with exit code 7' in captured.err
 
 
 def test_run_with_default_smoke(monkeypatch):

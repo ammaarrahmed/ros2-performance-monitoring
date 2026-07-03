@@ -14,6 +14,7 @@
 
 import json
 from pathlib import Path
+import shutil
 import subprocess
 from typing import Optional, Tuple
 
@@ -58,6 +59,9 @@ def update_existing_cache_remote(absolute_path: Path, container_repo_url: str) -
 
 
 def setup_container_repo(container_repo_url: str, container_ref: str, cache_dir: str) -> str:
+    if shutil.which('vcs') is None:
+        raise RuntimeError('vcstool executable "vcs" was not found on PATH')
+
     relative_path = Path(cache_dir)
     absolute_path = relative_path.expanduser().resolve()
     absolute_path.mkdir(parents=True, exist_ok=True)
@@ -94,6 +98,16 @@ def setup_container_repo(container_repo_url: str, container_ref: str, cache_dir:
             text=True,
             check=True,
         )
+    subprocess.run(
+        ['git', 'submodule', 'sync', '--recursive'],
+        cwd=absolute_path,
+        check=True,
+    )
+    subprocess.run(
+        ['git', 'submodule', 'update', '--init', '--recursive', '--checkout'],
+        cwd=absolute_path,
+        check=True,
+    )
     result = subprocess.run(
         ['git', 'rev-parse', 'HEAD'],
         capture_output=True,

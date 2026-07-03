@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import subprocess
 import sys
 from typing import Any
 
@@ -44,6 +45,13 @@ def doctor_command(args: argparse.Namespace) -> None:
 
 def build_container_command(args: argparse.Namespace) -> None:
     print('Building the container now...')
+    container_repo_url, container_ref = get_default_container_repo()
+    commit_hash = setup_container_repo(
+        container_repo_url=container_repo_url,
+        container_ref=container_ref,
+        cache_dir=args.cache_dir,
+    )
+    print(f'Container Repo Loaded is ready now! checked out commit : {commit_hash}')
     rel_path = build_container(
         ros_distro=args.ros_distro,
         cache_dir=args.cache_dir,
@@ -105,7 +113,14 @@ def main() -> Any:
         help='Cache Directory where fetched repo code is',
     )
     args = parser.parse_args()
-    return args.func(args)
+    try:
+        return args.func(args)
+    except subprocess.CalledProcessError as error:
+        print(f'Command failed with exit code {error.returncode}: {error.cmd}', file=sys.stderr)
+        return error.returncode
+    except RuntimeError as error:
+        print(f'Error: {error}', file=sys.stderr)
+        return 1
 
 
 if __name__ == '__main__':
