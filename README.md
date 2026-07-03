@@ -127,28 +127,35 @@ docker version
 docker buildx version
 ```
 
-The Docker build scripts are not stored in this repository. They come from the
-external `ros2-benchmark-container` checkout in the cache directory. By default
-that cache directory is:
+It also uses `vcstool` to fetch the external benchmark container repository.
+For pip installs, this is installed as a Python package dependency. For ROS 2
+workspace installs, `rosdep` installs it from the `python3-vcstool` package.
+The Docker image build pulls and exports a large ROS 2 base image, so make sure
+Docker has several GB of free disk space available.
+
+The Docker build scripts are not stored in this repository. The command fetches
+or updates the external `ros2-benchmark-container` checkout in the cache
+directory before starting Docker. By default that cache directory is:
 
 ```bash
 ~/.cache/ros2-performance-monitoring
 ```
 
-On a fresh machine, fetch the benchmark container first with the `run` command,
-or pass a cache directory that already contains the benchmark container checkout:
+On a fresh machine, `build-container` can be run directly:
 
 ```bash
-ros2-performance-monitoring run
 ros2-performance-monitoring build-container
 ```
 
 With a ROS 2 workspace build, use the equivalent `ros2 run` commands:
 
 ```bash
-ros2 run ros2_performance_monitoring ros2-performance-monitoring run
 ros2 run ros2_performance_monitoring ros2-performance-monitoring build-container
 ```
+
+If Docker is not installed, Docker is not available on `PATH`, or the current
+user cannot access the Docker daemon, the command exits with an error instead of
+printing a successful build message.
 
 If `build-container` is not listed as an available command, rebuild or reinstall
 this package in the active environment. That usually means the shell is still

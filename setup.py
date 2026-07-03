@@ -33,7 +33,7 @@ setup(
         (os.path.join('share', package_name, 'doc'), glob('doc/*.md')),
         (os.path.join('share', package_name, 'grafana'), glob('grafana/*.md')),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools<81', 'vcstool'],
     zip_safe=True,
     maintainer='Ammaar Ahmed',
     maintainer_email='ammaarlatif53@gmail.com',
