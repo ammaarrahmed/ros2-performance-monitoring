@@ -13,17 +13,22 @@
 # limitations under the License.
 
 from pathlib import Path
+import shutil
 import subprocess
 
 
 def build_container(ros_distro: str, cache_dir: str) -> Path:
     relative_path = Path(cache_dir)
     absolute_path = relative_path.expanduser().resolve()
-    subprocess.run(['docker', 'buildx', 'create', '--use'], cwd=absolute_path)
+    if shutil.which('docker') is None:
+        raise RuntimeError('Docker executable was not found on PATH')
+
+    subprocess.run(['docker', 'buildx', 'create', '--use'], cwd=absolute_path, check=True)
     subprocess.run(
         ['chmod', '+x', 'docker/build', 'docker/run', 'docker/deploy', 'docker/attach'],
         cwd=absolute_path,
+        check=True,
     )
-    subprocess.run(['docker/build', '-d', ros_distro], cwd=absolute_path)
+    subprocess.run(['docker/build', '-d', ros_distro], cwd=absolute_path, check=True)
     print(f'Container Successfully built for {ros_distro} at : {relative_path}')
     return relative_path
