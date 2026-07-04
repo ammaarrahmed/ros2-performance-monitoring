@@ -165,6 +165,12 @@ Build only the benchmark container:
 ros2-performance-monitoring build-container
 ```
 
+Serve Prometheus metrics without starting Grafana:
+
+```bash
+ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl --port 9108
+```
+
 Parse into a run directory instead of the top-level results directory:
 
 ```bash
@@ -176,6 +182,15 @@ Run the dashboard from that file:
 ```bash
 ros2-performance-monitoring dashboard up --input ./results/benhcmark/lyrical/pub-sub_single_process/normalized_metrics.jsonl
 ```
+
+The local dashboard stack is defined by:
+
+- `compose.dashboard.yml` for the Prometheus and Grafana containers.
+- `config/prometheus/prometheus.yml` for the Prometheus scrape target.
+- `config/grafana/provisioning/` for automatic Grafana datasource and
+  dashboard provisioning.
+- `config/grafana/dashboards/rclcpp_pubsub_overview.json` for the current
+  pub/sub dashboard.
 
 ## Troubleshooting
 
@@ -246,6 +261,9 @@ Run the CLI:
 ros2-performance-monitoring run
 ros2-performance-monitoring doctor
 ros2-performance-monitoring build-container
+ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
+ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl
+ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
 ```
 
 Run the Python tests:
@@ -278,6 +296,8 @@ Run the CLI through ROS 2:
 ros2 run ros2_performance_monitoring ros2-performance-monitoring run
 ros2 run ros2_performance_monitoring ros2-performance-monitoring doctor
 ros2 run ros2_performance_monitoring ros2-performance-monitoring build-container
+ros2 run ros2_performance_monitoring ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
+ros2 run ros2_performance_monitoring ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
 ```
 
 ### Benchmark container build
