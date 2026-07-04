@@ -161,6 +161,45 @@ If `build-container` is not listed as an available command, rebuild or reinstall
 this package in the active environment. That usually means the shell is still
 finding an older installed `ros2-performance-monitoring` executable.
 
+### Minimal benchmark run
+
+The `run` command executes the current MVP benchmark path:
+
+1. Fetch or update the external `ros2-benchmark-container` checkout.
+2. Build the benchmark container image for the selected ROS distro.
+3. Start the container and run the `pubsub-rclcpp-minimal` suite.
+4. Write raw benchmark outputs under the results directory.
+
+The default run uses ROS `lyrical`, a 60 second duration, the
+`pubsub-rclcpp-minimal` suite, `./results` for outputs, and
+`~/.cache/ros2-performance-monitoring` for the external container checkout:
+
+```bash
+ros2-performance-monitoring run
+```
+
+The positional arguments are:
+
+```bash
+ros2-performance-monitoring run \
+  <duration> \
+  <ros-distro> \
+  <executor> \
+  <results-dir> \
+  <cache-dir> \
+  <container-repo-url> \
+  <container-ref>
+```
+
+The only supported suite in this branch is:
+
+```bash
+ros2-performance-monitoring run --suite pubsub-rclcpp-minimal
+```
+
+The benchmark runner requires Docker access because it starts the built
+benchmark container and mounts the Docker socket into it.
+
 Run the ROS 2 package tests:
 
 ```bash
