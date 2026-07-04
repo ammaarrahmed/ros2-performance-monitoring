@@ -19,8 +19,8 @@ import re
 
 BENCHMARK_ROOTS = ('benchmark',)
 REQUIRED_FILES = ('metadata.txt', 'resources.txt', 'latency_all.txt', 'latency_total.txt')
-SUPPORTED_FAMILY = 'pub-sub_single_process'
-TOPOLOGY_RE = re.compile(r'^pub_sub_\d+(?:\.\d+)?hz_\d+(?:b|kb|mb)$', re.IGNORECASE)
+SUPPORTED_FAMILIES = ('pub-sub_single_process', 'pub-sub_multi_process')
+TOPOLOGY_RE = re.compile(r'^pub_sub_\d+(?:\.\d+)?hz_(?:10b|100kb)$', re.IGNORECASE)
 RMW_RE = re.compile(r'^(cyclonedds|fastrtps|zenoh)_(ipc_on|ipc_off|loaned)$')
 
 
@@ -50,18 +50,23 @@ def discover_benchmark_artifacts(results_dir, ros_distro=None):
     artifacts = []
     errors = []
     for root in roots:
-        pattern = f'{ros_distro}/{SUPPORTED_FAMILY}' if ros_distro else f'*/{SUPPORTED_FAMILY}'
-        for family in root.glob(pattern):
-            if not family.is_dir():
+        distro_dirs = (root / ros_distro,) if ros_distro else root.iterdir()
+        for distro in distro_dirs:
+            if not distro.is_dir():
                 continue
-            for leaf in family.glob('pub_sub_*/*'):
-                if leaf.is_dir():
-                    _collect_leaf(leaf, artifacts, errors)
+            for family_name in SUPPORTED_FAMILIES:
+                family = distro / family_name
+                if not family.is_dir():
+                    continue
+                for leaf in family.glob('pub_sub_*/*'):
+                    if leaf.is_dir():
+                        _collect_leaf(leaf, artifacts, errors)
 
     if errors:
         raise ArtifactError('incomplete benchmark artifacts:\n' + '\n'.join(errors))
     if not artifacts:
-        raise ArtifactError(f'no supported {SUPPORTED_FAMILY} artifacts found under {results_dir}')
+        names = ', '.join(SUPPORTED_FAMILIES)
+        raise ArtifactError(f'no supported pub/sub artifacts found under {results_dir} ({names})')
     return tuple(sorted(artifacts, key=lambda item: str(item.directory)))
 
 

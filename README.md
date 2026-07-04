@@ -406,10 +406,11 @@ the newest metadata file and only discovers artifacts for that run's recorded
 ROS distribution. This prevents retained artifacts from another distribution
 from being labelled as part of the newest run.
 
-The parser currently targets `ros2-benchmark-container` pub/sub artifacts from
-the MVP single-process suite. It looks under the results directory for a
-benchmark artifact root named `benchmark`, then discovers leaves with these
-files:
+The parser targets the reduced `ros2-benchmark-container` pub/sub matrix. It
+looks under the results directory for a benchmark artifact root named
+`benchmark`, then discovers single-process and multi-process pub/sub leaves for
+`10b` and `100kb` payloads, including Fast DDS and Cyclone DDS result
+directories where present. Each discovered leaf must include these files:
 
 ```text
 metadata.txt
