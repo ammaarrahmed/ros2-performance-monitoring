@@ -202,6 +202,42 @@ Docker daemon. The current user must be able to run Docker commands without
 `sudo`. The runner starts a privileged container and mounts
 `/var/run/docker.sock` into it.
 
+### Parse benchmark artifacts
+
+The `parse` command reads raw benchmark outputs from a results directory and
+writes normalized JSONL metrics:
+
+```bash
+ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
+```
+
+The parser currently targets `ros2-benchmark-container` pub/sub artifacts from
+the MVP single-process suite. It looks under the results directory for a
+benchmark artifact root named `benchmark` or `benhcmark`, then discovers leaves
+with these files:
+
+```text
+metadata.txt
+resources.txt
+latency_all.txt
+latency_total.txt
+```
+
+Each JSONL record keeps the dimensions needed for local analysis:
+
+- ROS distro.
+- RMW implementation.
+- executor.
+- topology and process mode.
+- communication mode.
+- payload size and frequency.
+- metric name, value, unit, and aggregation.
+- source artifact file.
+
+If required artifact files are missing or the directory layout is unsupported,
+the command exits with a clear error instead of silently producing partial
+metrics.
+
 Run the ROS 2 package tests:
 
 ```bash
