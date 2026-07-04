@@ -13,6 +13,7 @@ log/
 
 # Local benchmark and dashboard outputs
 results/
+custom-results/
 benchmark_results/
 raw_results/
 parsed_results/
@@ -27,4 +28,3 @@ prometheus/data/
 .env
 .venv/
 venv/
-
