@@ -1,7 +1,8 @@
 # Local Dashboard
 
 The local dashboard consumes normalized JSONL metrics and shows them in Grafana
-through a local Prometheus scrape.
+through a local Prometheus scrape. It supports the reduced pub/sub matrix and
+initial service visibility for request/response latency, CPU, and RSS metrics.
 
 ## Prerequisites
 
@@ -22,6 +23,10 @@ The normalized records keep benchmark harness provenance separate from client
 library provenance. Use `client_library_ref`, `client_library_commit`, and
 `ros_distro` to compare performance across client-library branches, commits, and
 distributions.
+
+Supported service artifacts currently include `cli-srv_single_process` leaves
+named `cli_srv_10b`, `cli_srv_100kb`, `cli_srv_1mb`, and `cli_srv_4mb`, and
+`cli-srv_multi_process` leaves named `10b`, `100kb`, `1mb`, and `4mb`.
 
 The dashboard does not run benchmarks, parse raw artifacts, or detect
 regressions. It starts from the normalized JSONL file.
@@ -81,7 +86,16 @@ http://localhost:9108/metrics
 - Reliability comparison shows late, too-late, and lost message percentages.
 - Latency summary table keeps exact mean/min/max/p95/p99 values available for
   review.
+- Service latency panels show client/server request-response latency when
+  service artifacts are present.
+- Service CPU max and RSS max panels show resource behavior for service runs.
 - Run matrix lists the selected normalized run metadata.
+
+## Deferred Matrix Items
+
+The dashboard intentionally does not cover long-running actions, multiple-client
+service sweeps, a full Zenoh matrix, remote-host tests, executor sweeps, or a
+CI-gating regression policy.
 
 ## Troubleshooting
 
