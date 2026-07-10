@@ -4,9 +4,9 @@ This repository turns local ROS 2 benchmark output into something you can inspec
 quickly: normalized JSONL, Prometheus metrics, and a Grafana dashboard running on
 your machine.
 
-The current path is intentionally small and local-first. It targets the
-`rclcpp` pub/sub benchmark artifacts produced by the benchmark container fork,
-then makes those results visible in Grafana.
+The current path is intentionally small and local-first. It runs reduced
+`rclcpp` pub/sub and service benchmark suites, normalizes the resulting
+artifacts, and makes those results visible in Grafana.
 
 ## What This Does
 
@@ -46,8 +46,9 @@ Run these commands from the repository root.
 ### 1. Run The Benchmark
 
 This fetches the benchmark container repo if needed, builds the Docker image,
-runs the minimal `rclcpp` pub/sub benchmark, writes raw artifacts under
-`./results`, and normalizes them to `./results/normalized_metrics.jsonl`.
+runs the reduced `rclcpp` pub/sub and service benchmarks, and writes raw
+artifacts under `./results` before normalizing them to
+`./results/normalized_metrics.jsonl`.
 
 ```bash
 ros2-performance-monitoring run
@@ -58,7 +59,7 @@ The default run uses:
 ```text
 duration: 60 seconds
 ros_distro: lyrical
-suite: pubsub-rclcpp-minimal
+suite: rclcpp-minimal
 results_dir: ./results
 cache_dir: ~/.cache/ros2-performance-monitoring
 ```
@@ -87,6 +88,9 @@ The current runner writes benchmark artifacts under paths like:
 
 ```text
 results/benchmark/lyrical/pub-sub_single_process/...
+results/benchmark/lyrical/pub-sub_multi_process/...
+results/benchmark/lyrical/cli-srv_single_process/...
+results/benchmark/lyrical/cli-srv_multi_process/...
 ```
 
 ### 2. Inspect Or Reprocess The Artifacts
@@ -101,7 +105,7 @@ ros2-performance-monitoring parse ./results --output ./results/normalized_metric
 You should see output similar to:
 
 ```text
-Wrote 840 normalized metrics to ./results/normalized_metrics.jsonl
+Wrote <count> normalized metrics to ./results/normalized_metrics.jsonl
 ```
 
 The normalized records include separate benchmark harness and client-library
@@ -146,7 +150,7 @@ http://localhost:3000
 The dashboard is provisioned automatically. Look for:
 
 ```text
-ROS 2 Pub/Sub Client Library Performance Comparison
+ROS 2 Client Library Performance Comparison
 ```
 
 ### 5. Stop The Dashboard
@@ -190,7 +194,7 @@ The local dashboard stack is defined by:
 - `config/grafana/provisioning/` for automatic Grafana datasource and
   dashboard provisioning.
 - `config/grafana/dashboards/rclcpp_pubsub_overview.json` for the current
-  pub/sub dashboard.
+  pub/sub and service dashboard.
 
 ## Troubleshooting
 
@@ -347,16 +351,16 @@ finding an older installed `ros2-performance-monitoring` executable.
 
 ### Minimal benchmark run
 
-The `run` command executes the current MVP benchmark path:
+The `run` command executes the current local benchmark path:
 
 1. Fetch or update the external `ros2-benchmark-container` checkout.
 2. Build the benchmark container image for the selected ROS distro.
-3. Start the container and run the `pubsub-rclcpp-minimal` suite.
+3. Start the container and run the selected reduced benchmark suite.
 4. Write raw benchmark outputs under the results directory.
 5. Normalize the benchmark outputs to `normalized_metrics.jsonl`.
 
 The default run uses ROS `lyrical`, a 60 second duration, the
-`pubsub-rclcpp-minimal` suite, `./results` for outputs, and
+`rclcpp-minimal` suite, `./results` for outputs, and
 `~/.cache/ros2-performance-monitoring` for the external container checkout:
 
 ```bash
@@ -377,11 +381,18 @@ The container repository is cached under
 `~/.cache/ros2-performance-monitoring` by default. Use `--cache-dir` to place
 the checkout elsewhere, such as on a persistent CI cache volume.
 
-The only supported suite in this branch is:
+Supported suites are:
 
 ```bash
+ros2-performance-monitoring run --suite rclcpp-minimal
 ros2-performance-monitoring run --suite pubsub-rclcpp-minimal
+ros2-performance-monitoring run --suite service-rclcpp-minimal
 ```
+
+The default `rclcpp-minimal` suite runs the reduced pub/sub and service
+topologies covered by the parser: single-process and multi-process pub/sub, plus
+single-process and multi-process client/service. It covers `10b`, `100kb`,
+`1mb`, and `4mb` payloads.
 
 The benchmark runner requires Docker with the Buildx plugin and a running
 Docker daemon. The current user must be able to run Docker commands without
@@ -430,6 +441,11 @@ Each JSONL record keeps the dimensions needed for local analysis:
 If required artifact files are missing or the directory layout is unsupported,
 the command exits with a clear error instead of silently producing partial
 metrics.
+
+Service support includes request/response latency, CPU, and RSS visibility for
+the local `10b`, `100kb`, `1mb`, and `4mb` layouts. Long-running actions,
+multiple-client service sweeps, a full Zenoh matrix, remote-host tests, executor
+sweeps, and CI-gating regression policy are deferred.
 
 Run the ROS 2 package tests:
 
