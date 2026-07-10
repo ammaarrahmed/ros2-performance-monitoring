@@ -397,11 +397,13 @@ also read existing raw benchmark outputs and write normalized JSONL metrics:
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ```
 
-The parser targets the reduced `ros2-benchmark-container` pub/sub matrix. It
+The parser targets the reduced `ros2-benchmark-container` pub/sub and service
+matrix. It
 looks under the results directory for a benchmark artifact root named
-`benchmark`, then discovers single-process and multi-process pub/sub leaves for
-`10b` and `100kb` payloads, including Fast DDS and Cyclone DDS result
-directories where present. Each discovered leaf must include these files:
+`benchmark`, then discovers single-process and multi-process pub/sub leaves plus
+initial client/service leaves for `10b`, `100kb`, `1mb`, and `4mb` payloads,
+including Fast DDS and Cyclone DDS result directories where present. Each
+discovered leaf must include these files:
 
 ```text
 metadata.txt
@@ -416,11 +418,12 @@ Each JSONL record keeps the dimensions needed for local analysis:
 - RMW implementation normalized to ROS identifiers such as `rmw_fastrtps_cpp`
   and `rmw_cyclonedds_cpp`.
 - executor.
-- topology as `pub-sub`.
+- topology as `pub-sub` or `service`.
 - process mode as `single_process` or `multi_process`.
 - communication mode as `ipc_on`, `ipc_off`, or `loaned`.
-- payload size in bytes, such as `10` for `10b` and `102400` for `100kb`.
-- frequency as numeric Hz.
+- payload size in bytes, such as `10` for `10b`, `102400` for `100kb`,
+  `1048576` for `1mb`, and `4194304` for `4mb`.
+- frequency as numeric Hz for pub/sub records, or `0.0` for service records.
 - metric name, value, unit, and aggregation.
 - source artifact file.
 
