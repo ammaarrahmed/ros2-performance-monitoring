@@ -23,9 +23,12 @@ from ros2_performance_monitoring.model import SCHEMA_VERSION
 
 
 SIZE_UNITS = {'b': 1, 'kb': 1024, 'mb': 1024 * 1024}
+csv.field_size_limit(sys.maxsize)
 SUPPORTED_FAMILIES = {
     'pub-sub_single_process': ('pub-sub', 'single_process'),
     'pub-sub_multi_process': ('pub-sub', 'multi_process'),
+    'cli-srv_single_process': ('service', 'single_process'),
+    'cli-srv_multi_process': ('service', 'multi_process'),
 }
 RMW_NAMES = {
     'cyclonedds': 'rmw_cyclonedds_cpp',
@@ -33,10 +36,15 @@ RMW_NAMES = {
     'zenoh': 'rmw_zenoh_cpp',
 }
 COMMUNICATION_MODES = ('ipc_on', 'ipc_off', 'loaned')
-TOPOLOGY_RE = re.compile(
-    r'^pub_sub_(?P<freq>\d+(?:\.\d+)?)hz_(?P<size>10b|100kb)$',
+SUPPORTED_PAYLOADS_RE = r'(?P<size>10b|100kb|1mb|4mb)'
+PUBSUB_TOPOLOGY_RE = re.compile(
+    rf'^pub_sub_(?P<freq>\d+(?:\.\d+)?)hz_{SUPPORTED_PAYLOADS_RE}$',
     re.IGNORECASE,
 )
+PUBSUB_MULTI_TOPOLOGY_RE = re.compile(rf'^{SUPPORTED_PAYLOADS_RE}$', re.IGNORECASE)
+SERVICE_SINGLE_TOPOLOGY_RE = re.compile(rf'^cli_srv_{SUPPORTED_PAYLOADS_RE}$', re.IGNORECASE)
+SERVICE_MULTI_TOPOLOGY_RE = re.compile(rf'^{SUPPORTED_PAYLOADS_RE}$', re.IGNORECASE)
+RMW_RE = re.compile(r'^(cyclonedds|fastrtps|zenoh)_(ipc_on|ipc_off|loaned)$')
 
 SUBSCRIPTION_METRICS = {
     'received_msgs': ('subscription_messages_received', 'count', 'total'),
@@ -69,6 +77,12 @@ RESOURCE_METRICS = {
     'rss_KB': ('resource_memory_rss', 'KB'),
     'vsz_KB': ('resource_memory_vsz', 'KB'),
 }
+SERVICE_LATENCY_METRICS = {
+    'mean_us': 'mean',
+    'sd_us': 'sd',
+    'min_us': 'min',
+    'max_us': 'max',
+}
 
 
 def parse_artifact(artifact, run_metadata):
@@ -89,8 +103,13 @@ def parse_artifact(artifact, run_metadata):
     }
 
     records = []
-    records.extend(_parse_latency_all(artifact.latency_all, base))
-    records.extend(_parse_latency_total(artifact.latency_total, base))
+    if base['topology'] == 'service':
+        records.extend(_parse_service_latency_all(artifact.latency_all, base))
+    else:
+        latency_records = _parse_latency_all(artifact.latency_all, base)
+        records.extend(latency_records)
+        if latency_records:
+            records.extend(_parse_latency_total(artifact.latency_total, base))
     records.extend(_parse_resources(artifact.resources, base))
     return records
 
@@ -130,28 +149,42 @@ def parse_metadata_txt(path):
 
 def infer_topology(directory):
     leaf = Path(directory)
-    shape = leaf.parent.name
-    family_name = leaf.parent.parent.name
-    distro = leaf.parent.parent.parent.name
+    if RMW_RE.match(leaf.parent.name):
+        shape = leaf.parent.parent.name
+        rmw_directory = leaf.parent.name
+        family_name = leaf.parent.parent.parent.name
+        distro = leaf.parent.parent.parent.parent.name
+        node_role = _node_role(leaf.name)
+    else:
+        shape = leaf.parent.name
+        rmw_directory = leaf.name
+        family_name = leaf.parent.parent.name
+        distro = leaf.parent.parent.parent.name
+        node_role = ''
     if family_name not in SUPPORTED_FAMILIES:
         raise ValueError(f'{directory}: unsupported benchmark family {family_name}')
 
-    match = TOPOLOGY_RE.match(shape)
-    if not match:
-        raise ValueError(f'{directory}: unsupported topology directory {shape}')
+    if '_' not in rmw_directory:
+        raise ValueError(f'{directory}: unsupported RMW directory {rmw_directory}')
 
-    if '_' not in leaf.name:
-        raise ValueError(f'{directory}: unsupported RMW directory {leaf.name}')
-
-    rmw, communication_mode = leaf.name.split('_', 1)
+    rmw, communication_mode = rmw_directory.split('_', 1)
     if rmw not in RMW_NAMES:
-        raise ValueError(f'{directory}: unsupported RMW directory {leaf.name}')
+        raise ValueError(f'{directory}: unsupported RMW directory {rmw_directory}')
     if communication_mode not in COMMUNICATION_MODES:
         raise ValueError(f'{directory}: unsupported communication mode {communication_mode}')
 
     topology, process_mode = SUPPORTED_FAMILIES[family_name]
-    size_match = re.match(r'(?P<count>\d+)(?P<unit>b|kb)$', match.group('size'), re.IGNORECASE)
+    match = _match_topology(topology, process_mode, shape)
+    if not match:
+        raise ValueError(f'{directory}: unsupported topology directory {shape}')
+
+    size_match = re.match(
+        r'(?P<count>\d+)(?P<unit>b|kb|mb)$',
+        match.group('size'),
+        re.IGNORECASE,
+    )
     size = int(size_match.group('count')) * SIZE_UNITS[size_match.group('unit').lower()]
+    frequency = float(match.group('freq')) if 'freq' in match.groupdict() else 0.0
     return {
         'ros_distro': distro,
         'rmw_implementation': RMW_NAMES[rmw],
@@ -159,22 +192,42 @@ def infer_topology(directory):
         'process_mode': process_mode,
         'communication_mode': communication_mode,
         'payload_size': size,
-        'frequency': float(match.group('freq')),
+        'frequency': frequency,
+        'node_role': node_role,
     }
 
 
-def _parse_latency_all(path, base):
-    lines = Path(path).read_text().splitlines()
-    try:
-        start = lines.index('Subscriptions stats:') + 1
-    except ValueError as exc:
-        raise ValueError(f'{path}: missing Subscriptions stats section') from exc
+def _node_role(name):
+    if name.startswith('pub_'):
+        return 'publisher'
+    if name.startswith('sub_'):
+        return 'subscription'
+    if name.startswith('cli_'):
+        return 'client'
+    if name.startswith('srv_'):
+        return 'service'
+    return ''
 
-    section = []
-    for line in lines[start:]:
-        if not line.strip() or line.endswith('stats:'):
-            break
-        section.append(line)
+
+def _match_topology(topology, process_mode, shape):
+    if topology == 'pub-sub':
+        if process_mode == 'multi_process':
+            return PUBSUB_MULTI_TOPOLOGY_RE.match(shape)
+        return PUBSUB_TOPOLOGY_RE.match(shape)
+    if process_mode == 'single_process':
+        return SERVICE_SINGLE_TOPOLOGY_RE.match(shape)
+    return SERVICE_MULTI_TOPOLOGY_RE.match(shape)
+
+
+def _parse_latency_all(path, base):
+    section = _latency_section(
+        Path(path).read_text().splitlines(),
+        'Subscriptions stats:',
+        path,
+        required=base.get('node_role') != 'publisher',
+    )
+    if not section:
+        return []
     if len(section) < 2:
         raise ValueError(f'{path}: empty subscription stats section')
 
@@ -187,6 +240,51 @@ def _parse_latency_all(path, base):
             if percentile is not None:
                 records.append(_record(base, 'subscription_latency', percentile, 'us', name, path))
     return records
+
+
+def _parse_service_latency_all(path, base):
+    lines = Path(path).read_text().splitlines()
+    records = []
+    for heading, metric_name in (
+        ('Clients stats:', 'service_client_latency'),
+        ('Services stats:', 'service_server_latency'),
+    ):
+        section = _latency_section(lines, heading, path, required=False)
+        if not section:
+            continue
+        if len(section) < 2:
+            raise ValueError(f'{path}: empty {heading.removesuffix(":").lower()} section')
+        for row in csv.DictReader(section):
+            for column, aggregation in SERVICE_LATENCY_METRICS.items():
+                value = row.get(column)
+                if value not in (None, ''):
+                    records.append(
+                        _record(base, metric_name, float(value), 'us', aggregation, path)
+                    )
+            latencies = _latency_list(row.get('all_lat', ''))
+            for name, value in (('p50', 0.50), ('p95', 0.95), ('p99', 0.99)):
+                percentile = _percentile(latencies, value)
+                if percentile is not None:
+                    records.append(_record(base, metric_name, percentile, 'us', name, path))
+    if not records:
+        raise ValueError(f'{path}: missing Clients stats or Services stats section')
+    return records
+
+
+def _latency_section(lines, heading, path, required=True):
+    try:
+        start = lines.index(heading) + 1
+    except ValueError as exc:
+        if not required:
+            return []
+        raise ValueError(f'{path}: missing {heading.removesuffix(":")} section') from exc
+
+    section = []
+    for line in lines[start:]:
+        if not line.strip() or line.endswith('stats:'):
+            break
+        section.append(line)
+    return section
 
 
 def _parse_latency_total(path, base):
