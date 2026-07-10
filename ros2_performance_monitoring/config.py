@@ -26,4 +26,4 @@ class RunDefaults:
     duration: int = 60
     cache_dir: str = '~/.cache/ros2-performance-monitoring'
     results_dir: str = './results'
-    default_benchmark: str = 'pubsub-rclcpp-minimal'
+    default_benchmark: str = 'rclcpp-minimal'

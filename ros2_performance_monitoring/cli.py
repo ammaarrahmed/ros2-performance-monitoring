@@ -186,7 +186,7 @@ def main() -> Any:
     )
     run_parser.add_argument(
         '--suite', default=defaults.default_benchmark,
-        help='Runs a Minimal Pub/Sub rclcpp benchmark',
+        help='Benchmark suite to run',
     )
     run_parser.add_argument(
         '--client-library', default=defaults.client_library,
