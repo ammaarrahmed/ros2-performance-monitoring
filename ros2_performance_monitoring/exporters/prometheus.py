@@ -34,6 +34,7 @@ PROMETHEUS_LABEL_FIELDS = (
     ('topology', 'topology'),
     ('payload_bytes', 'payload_size'),
     ('process_mode', 'process_mode'),
+    ('node_role', 'node_role'),
 )
 
 METRIC_FAMILIES = {

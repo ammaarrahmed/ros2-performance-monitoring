@@ -54,7 +54,33 @@ def test_ros_distro_label_uses_record_value():
     assert 'ros_distro="rolling"' in output
 
 
-def _record(metric_name, value, unit, aggregation, ros_distro='lyrical'):
+def test_records_to_prometheus_reuses_generic_families_for_service_metrics():
+    """Test service records flow through existing Prometheus families."""
+    records = [
+        _record('service_client_latency', 40.0, 'us', 'p95', topology='service'),
+        _record('service_server_latency', 50.0, 'us', 'p95', topology='service'),
+        _record('resource_cpu', 30.0, '%', 'max', topology='service'),
+        _record('resource_memory_rss', 2048.0, 'KB', 'max', topology='service'),
+    ]
+
+    output = records_to_prometheus(records)
+
+    assert 'ros2_perf_latency_us{' in output
+    assert 'metric="service_client_latency"' in output
+    assert 'metric="service_server_latency"' in output
+    assert 'ros2_perf_cpu_percent{' in output
+    assert 'ros2_perf_memory_megabytes{' in output
+    assert 'topology="service"' in output
+
+
+def _record(
+    metric_name,
+    value,
+    unit,
+    aggregation,
+    topology='pub-sub',
+    ros_distro='lyrical',
+):
     return {
         'schema_version': 1,
         'run_id': 'run-a',
@@ -67,7 +93,7 @@ def _record(metric_name, value, unit, aggregation, ros_distro='lyrical'):
         'ros_distro': ros_distro,
         'rmw_implementation': 'rmw_fastrtps_cpp',
         'executor': 'EventsExecutor',
-        'topology': 'pub-sub',
+        'topology': topology,
         'process_mode': 'single_process',
         'communication_mode': 'ipc_off',
         'payload_size': 10,
