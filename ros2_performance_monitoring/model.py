@@ -42,6 +42,7 @@ class MetricRecord:
     unit: str
     aggregation: str
     source_file: str
+    node_role: str = ''
 
     def to_dict(self):
         return asdict(self)
