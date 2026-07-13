@@ -16,6 +16,7 @@ import csv
 import json
 from pathlib import Path
 import re
+import sys
 
 from ros2_performance_monitoring.model import MetricRecord
 from ros2_performance_monitoring.model import SCHEMA_VERSION
@@ -90,6 +91,12 @@ def latest_run_metadata(results_dir):
     files = sorted(results_dir.glob('metadata_*.json'))
     if not files:
         raise FileNotFoundError(f'no run metadata found in {results_dir}')
+    if len(files) > 1:
+        print(
+            f'Warning: found {len(files)} run metadata files in {results_dir}; '
+            'using the newest metadata for all discovered artifacts',
+            file=sys.stderr,
+        )
 
     metadata_file = max(files, key=lambda path: (path.stat().st_mtime, path.name))
     with metadata_file.open() as stream:
