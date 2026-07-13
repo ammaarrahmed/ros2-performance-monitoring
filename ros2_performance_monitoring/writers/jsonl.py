@@ -18,15 +18,17 @@ from pathlib import Path
 
 
 def write_jsonl(records, output_path):
+    lines = []
+    for record in records:
+        item = record.to_dict()
+        value = item.get('numeric_value')
+        if not math.isfinite(value):
+            raise ValueError(f'non-finite metric value for {item.get("metric_name")}')
+        lines.append(json.dumps(item, sort_keys=True, separators=(',', ':')))
+
     output_path = Path(output_path).expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    count = 0
     with output_path.open('w') as stream:
-        for record in records:
-            item = record.to_dict()
-            value = item.get('numeric_value')
-            if not math.isfinite(value):
-                raise ValueError(f'non-finite metric value for {item.get("metric_name")}')
-            stream.write(json.dumps(item, sort_keys=True, separators=(',', ':')) + '\n')
-            count += 1
-    return count
+        for line in lines:
+            stream.write(line + '\n')
+    return len(lines)
