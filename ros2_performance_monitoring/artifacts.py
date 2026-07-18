@@ -17,7 +17,7 @@ from pathlib import Path
 import re
 
 
-BENCHMARK_ROOTS = ('benchmark', 'benhcmark')
+BENCHMARK_ROOTS = ('benchmark',)
 REQUIRED_FILES = ('metadata.txt', 'resources.txt', 'latency_all.txt', 'latency_total.txt')
 SUPPORTED_FAMILY = 'pub-sub_single_process'
 TOPOLOGY_RE = re.compile(r'^pub_sub_\d+(?:\.\d+)?hz_\d+(?:b|kb|mb)$', re.IGNORECASE)
