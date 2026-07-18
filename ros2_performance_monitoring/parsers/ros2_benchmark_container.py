@@ -209,7 +209,7 @@ def _record(base, metric_name, value, unit, aggregation, source_file):
         numeric_value=float(value),
         unit=unit,
         aggregation=aggregation,
-        source_file=str(Path(source_file)),
+        source_file=Path(source_file).name,
         **base,
     )
 

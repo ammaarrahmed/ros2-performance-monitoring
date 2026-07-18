@@ -17,7 +17,9 @@ import os
 
 import pytest
 
+from ros2_performance_monitoring.artifacts import BenchmarkArtifact
 from ros2_performance_monitoring.parsers.ros2_benchmark_container import latest_run_metadata
+from ros2_performance_monitoring.parsers.ros2_benchmark_container import parse_artifact
 
 
 def test_latest_run_metadata_warns_and_selects_newest_file(tmp_path, capsys):
@@ -41,3 +43,38 @@ def test_latest_run_metadata_reports_missing_results_directory(tmp_path):
 
     with pytest.raises(FileNotFoundError, match='results directory does not exist'):
         latest_run_metadata(results_dir)
+
+
+def test_parse_artifact_uses_portable_source_filenames(tmp_path):
+    directory = (
+        tmp_path / 'benchmark' / 'lyrical' / 'pub-sub_single_process' /
+        'pub_sub_10hz_10b' / 'fastrtps_ipc_on'
+    )
+    directory.mkdir(parents=True)
+    metadata = directory / 'metadata.txt'
+    resources = directory / 'resources.txt'
+    latency_all = directory / 'latency_all.txt'
+    latency_total = directory / 'latency_total.txt'
+    metadata.write_text('system_executor: EventsExecutor\n')
+    resources.write_text('cpu_perc,rss_KB\n10,100\n')
+    latency_all.write_text(
+        'Subscriptions stats:\n'
+        'received_msgs,mean_us,all_lat\n'
+        '1,5,[5]\n'
+    )
+    latency_total.write_text('received_msgs,mean_us\n1,5\n')
+    artifact = BenchmarkArtifact(
+        directory=directory,
+        metadata=metadata,
+        resources=resources,
+        latency_all=latency_all,
+        latency_total=latency_total,
+    )
+
+    records = parse_artifact(artifact, {'run_id': 'test-run'})
+
+    assert {record.source_file for record in records} == {
+        'latency_all.txt',
+        'latency_total.txt',
+        'resources.txt',
+    }
