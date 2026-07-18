@@ -213,8 +213,8 @@ ros2-performance-monitoring parse ./results --output ./results/normalized_metric
 
 The parser currently targets `ros2-benchmark-container` pub/sub artifacts from
 the MVP single-process suite. It looks under the results directory for a
-benchmark artifact root named `benchmark` or `benhcmark`, then discovers leaves
-with these files:
+benchmark artifact root named `benchmark`, then discovers leaves with these
+files:
 
 ```text
 metadata.txt
