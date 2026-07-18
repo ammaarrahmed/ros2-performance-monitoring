@@ -88,6 +88,8 @@ def parse_artifact(artifact, run_metadata):
 
 def latest_run_metadata(results_dir):
     results_dir = Path(results_dir).expanduser().resolve()
+    if not results_dir.exists():
+        raise FileNotFoundError(f'results directory does not exist: {results_dir}')
     files = sorted(results_dir.glob('metadata_*.json'))
     if not files:
         raise FileNotFoundError(f'no run metadata found in {results_dir}')
