@@ -73,21 +73,21 @@ def parse_command(args: argparse.Namespace) -> None:
     print(f'Wrote {count} normalized metrics to {args.output}')
 
 
-def dashboard_up_command(args: argparse.Namespace) -> None:
+def bring_up_dashboard(args: argparse.Namespace) -> None:
     try:
         dashboard_up(args.input)
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
 
-def dashboard_down_command(args: argparse.Namespace) -> None:
+def bring_down_dashboard(args: argparse.Namespace) -> None:
     try:
         dashboard_down()
     except (FileNotFoundError, RuntimeError) as exc:
         raise SystemExit(str(exc)) from exc
 
 
-def serve_prometheus_command(args: argparse.Namespace) -> None:
+def serve_prometheus(args: argparse.Namespace) -> None:
     try:
         serve_metrics(args.input, args.port)
     except (FileNotFoundError, ValueError) as exc:
@@ -141,15 +141,15 @@ def main() -> Any:
         required=True,
     )
     dashboard_up_parser = dashboard_subparsers.add_parser('up', help='Start local dashboard')
-    dashboard_up_parser.set_defaults(func=dashboard_up_command)
+    dashboard_up_parser.set_defaults(func=bring_up_dashboard)
     dashboard_down_parser = dashboard_subparsers.add_parser('down', help='Stop local dashboard')
-    dashboard_down_parser.set_defaults(func=dashboard_down_command)
+    dashboard_down_parser.set_defaults(func=bring_down_dashboard)
 
     serve_prometheus_parser = subparsers.add_parser(
         'serve-prometheus',
         help='Serve normalized metrics for Prometheus',
     )
-    serve_prometheus_parser.set_defaults(func=serve_prometheus_command)
+    serve_prometheus_parser.set_defaults(func=serve_prometheus)
 
     run_parser.add_argument(
         'duration', nargs='?', type=int, default=defaults.duration,
