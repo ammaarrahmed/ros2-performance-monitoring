@@ -23,7 +23,7 @@ def build_container(ros_distro: str, cache_dir: str) -> Path:
     if shutil.which('docker') is None:
         raise RuntimeError('Docker executable was not found on PATH')
 
-    builder_name = f'ros2-benchmark-container-{ros_distro}-amd64'
+    builder_name = f'ros2-performance-monitoring-{ros_distro}-builder'
     result = subprocess.run(['docker', 'buildx', 'inspect', builder_name], capture_output=True)
     if result.returncode != 0:
         subprocess.run(
