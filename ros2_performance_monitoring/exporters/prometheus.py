@@ -19,7 +19,8 @@ import math
 from pathlib import Path
 
 
-BASE_LABELS = (
+# Maps stable Prometheus label names to normalized JSONL record fields.
+PROMETHEUS_LABEL_FIELDS = (
     ('run_id', 'run_id'),
     ('benchmark_ref', 'benchmark_ref'),
     ('benchmark_commit', 'benchmark_commit'),
@@ -202,7 +203,7 @@ def _resource_counts(records):
 
 def _base_labels(record):
     labels = {}
-    for label, field in BASE_LABELS:
+    for label, field in PROMETHEUS_LABEL_FIELDS:
         value = record.get(field, '')
         if label == 'benchmark_ref' and not value:
             value = record.get('target_ref', '')
