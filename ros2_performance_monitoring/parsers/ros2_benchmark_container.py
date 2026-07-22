@@ -23,13 +23,18 @@ from ros2_performance_monitoring.model import SCHEMA_VERSION
 
 
 SIZE_UNITS = {'b': 1, 'kb': 1024, 'mb': 1024 * 1024}
+SUPPORTED_FAMILIES = {
+    'pub-sub_single_process': ('pub-sub', 'single_process'),
+    'pub-sub_multi_process': ('pub-sub', 'multi_process'),
+}
 RMW_NAMES = {
     'cyclonedds': 'rmw_cyclonedds_cpp',
     'fastrtps': 'rmw_fastrtps_cpp',
     'zenoh': 'rmw_zenoh_cpp',
 }
+COMMUNICATION_MODES = ('ipc_on', 'ipc_off', 'loaned')
 TOPOLOGY_RE = re.compile(
-    r'^pub_sub_(?P<freq>\d+(?:\.\d+)?)hz_(?P<size>\d+)(?P<unit>b|kb|mb)$',
+    r'^pub_sub_(?P<freq>\d+(?:\.\d+)?)hz_(?P<size>10b|100kb)$',
     re.IGNORECASE,
 )
 
@@ -126,18 +131,30 @@ def parse_metadata_txt(path):
 def infer_topology(directory):
     leaf = Path(directory)
     shape = leaf.parent.name
-    family = leaf.parent.parent.name
+    family_name = leaf.parent.parent.name
     distro = leaf.parent.parent.parent.name
-    match = TOPOLOGY_RE.match(shape)
-    if not match or '_' not in family or '_' not in leaf.name:
-        raise ValueError(f'{directory}: unsupported benchmark layout')
+    if family_name not in SUPPORTED_FAMILIES:
+        raise ValueError(f'{directory}: unsupported benchmark family {family_name}')
 
-    topology, process_mode = family.split('_', 1)
+    match = TOPOLOGY_RE.match(shape)
+    if not match:
+        raise ValueError(f'{directory}: unsupported topology directory {shape}')
+
+    if '_' not in leaf.name:
+        raise ValueError(f'{directory}: unsupported RMW directory {leaf.name}')
+
     rmw, communication_mode = leaf.name.split('_', 1)
-    size = int(match.group('size')) * SIZE_UNITS[match.group('unit').lower()]
+    if rmw not in RMW_NAMES:
+        raise ValueError(f'{directory}: unsupported RMW directory {leaf.name}')
+    if communication_mode not in COMMUNICATION_MODES:
+        raise ValueError(f'{directory}: unsupported communication mode {communication_mode}')
+
+    topology, process_mode = SUPPORTED_FAMILIES[family_name]
+    size_match = re.match(r'(?P<count>\d+)(?P<unit>b|kb)$', match.group('size'), re.IGNORECASE)
+    size = int(size_match.group('count')) * SIZE_UNITS[size_match.group('unit').lower()]
     return {
         'ros_distro': distro,
-        'rmw_implementation': RMW_NAMES.get(rmw, rmw),
+        'rmw_implementation': RMW_NAMES[rmw],
         'topology': topology,
         'process_mode': process_mode,
         'communication_mode': communication_mode,

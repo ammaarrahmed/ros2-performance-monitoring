@@ -413,11 +413,14 @@ latency_total.txt
 Each JSONL record keeps the dimensions needed for local analysis:
 
 - ROS distro.
-- RMW implementation.
+- RMW implementation normalized to ROS identifiers such as `rmw_fastrtps_cpp`
+  and `rmw_cyclonedds_cpp`.
 - executor.
-- topology and process mode.
-- communication mode.
-- payload size and frequency.
+- topology as `pub-sub`.
+- process mode as `single_process` or `multi_process`.
+- communication mode as `ipc_on`, `ipc_off`, or `loaned`.
+- payload size in bytes, such as `10` for `10b` and `102400` for `100kb`.
+- frequency as numeric Hz.
 - metric name, value, unit, and aggregation.
 - source artifact file.
 
