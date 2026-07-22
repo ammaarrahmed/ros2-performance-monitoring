@@ -197,8 +197,10 @@ The only supported suite in this branch is:
 ros2-performance-monitoring run --suite pubsub-rclcpp-minimal
 ```
 
-The benchmark runner requires Docker access because it starts the built
-benchmark container and mounts the Docker socket into it.
+The benchmark runner requires Docker with the Buildx plugin and a running
+Docker daemon. The current user must be able to run Docker commands without
+`sudo`. The runner starts a privileged container and mounts
+`/var/run/docker.sock` into it.
 
 Run the ROS 2 package tests:
 
