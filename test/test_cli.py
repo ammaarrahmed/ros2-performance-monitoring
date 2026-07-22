@@ -194,7 +194,7 @@ def test_run_with_explicit_arguments(monkeypatch):
             '--container-ref',
             DEFAULT_CONTAINER_REF,
             '--suite',
-            'pubsub-rclcpp-minimal',
+            'service-rclcpp-minimal',
         ],
     )
     cli.main()
@@ -206,7 +206,7 @@ def test_run_with_explicit_arguments(monkeypatch):
     assert received['benchmark_kwargs'] == {
         'cache_dir': '~/.cache/custom-ros2-performance-monitoring',
         'results_dir': './custom-results',
-        'benchmark_option': 'pubsub-rclcpp-minimal',
+        'benchmark_option': 'service-rclcpp-minimal',
         'duration': 120,
         'ros_distro': 'rolling',
     }
