@@ -47,7 +47,7 @@ def test_doctor_command(monkeypatch, capsys):
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'doctor'])
     cli.main()
     captured = capsys.readouterr()
-    assert 'Checking environment...' in captured.out
+    assert 'Doctor checks are not implemented yet.' in captured.out
 
 
 def test_build_container_command(monkeypatch, capsys):
