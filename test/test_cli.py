@@ -124,7 +124,7 @@ def test_run_with_default_smoke(monkeypatch):
     monkeypatch.setattr(
         sys,
         'argv',
-        ['ros2-performance-monitoring', 'run', str(defaults.duration)],
+        ['ros2-performance-monitoring', 'run', '--duration', str(defaults.duration)],
     )
     cli.main()
     assert received['container_kwargs'] == {
@@ -167,12 +167,18 @@ def test_run_with_explicit_arguments(monkeypatch):
         [
             'ros2-performance-monitoring',
             'run',
+            '--duration',
             '120',
+            '--ros-distro',
             'rolling',
+            '--executor',
             'MultiThreadedExecutor',
             './custom-results',
+            '--cache-dir',
             '~/.cache/custom-ros2-performance-monitoring',
+            '--container-repo-url',
             DEFAULT_CONTAINER_REPO_URL,
+            '--container-ref',
             DEFAULT_CONTAINER_REF,
             '--suite',
             'pubsub-rclcpp-minimal',
@@ -199,7 +205,7 @@ def test_run_with_invalid_duration_exits(monkeypatch):
     monkeypatch.setattr(
         sys,
         'argv',
-        ['ros2-performance-monitoring', 'run', 'not-a-number'],
+        ['ros2-performance-monitoring', 'run', '--duration', 'not-a-number'],
     )
     with pytest.raises(SystemExit):
         cli.main()
