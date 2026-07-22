@@ -46,7 +46,7 @@ def benchmark_runner(
         '-v', f'{benchmark_folder}:/ws/src/ros2_benchmark_container/benchmark',
         '-v', '/var/run/docker.sock:/var/run/docker.sock',
         '-e', 'ROS_DOMAIN_ID=28',
-        '-e', 'SYSTEM_EXECUTOR=EventsExecutor',
+        '-e', 'SYSTEM_EXECUTOR=EventsCBGExecutor',
         '--name', container_name,
         f'ros2-benchmark-container:{ros_distro}-amd64',
         'sleep', 'infinity',
