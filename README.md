@@ -46,8 +46,8 @@ Run these commands from the repository root.
 ### 1. Run The Benchmark
 
 This fetches the benchmark container repo if needed, builds the Docker image,
-runs the minimal `rclcpp` pub/sub benchmark, and writes raw artifacts under
-`./results`.
+runs the minimal `rclcpp` pub/sub benchmark, writes raw artifacts under
+`./results`, and normalizes them to `./results/normalized_metrics.jsonl`.
 
 ```bash
 ros2-performance-monitoring run
@@ -89,10 +89,10 @@ The current runner writes benchmark artifacts under paths like:
 results/benchmark/lyrical/pub-sub_single_process/...
 ```
 
-### 2. Normalize The Artifacts
+### 2. Inspect Or Reprocess The Artifacts
 
-Convert the raw benchmark files into the normalized JSONL format consumed by the
-exporter and dashboard:
+The `run` command automatically creates the normalized JSONL consumed by the
+exporter and dashboard. To reprocess existing raw benchmark files, run:
 
 ```bash
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
@@ -353,6 +353,7 @@ The `run` command executes the current MVP benchmark path:
 2. Build the benchmark container image for the selected ROS distro.
 3. Start the container and run the `pubsub-rclcpp-minimal` suite.
 4. Write raw benchmark outputs under the results directory.
+5. Normalize the benchmark outputs to `normalized_metrics.jsonl`.
 
 The default run uses ROS `lyrical`, a 60 second duration, the
 `pubsub-rclcpp-minimal` suite, `./results` for outputs, and
@@ -389,8 +390,8 @@ Docker daemon. The current user must be able to run Docker commands without
 
 ### Parse benchmark artifacts
 
-The `parse` command reads raw benchmark outputs from a results directory and
-writes normalized JSONL metrics:
+The `run` command invokes normalization automatically. The `parse` command can
+also read existing raw benchmark outputs and write normalized JSONL metrics:
 
 ```bash
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl

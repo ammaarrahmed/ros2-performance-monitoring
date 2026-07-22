@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+from pathlib import Path
 import subprocess
 import sys
 from typing import Any
@@ -58,6 +59,10 @@ def run_command(args: argparse.Namespace) -> None:
         duration=args.duration,
         ros_distro=args.ros_distro,
     )
+    parse_command(argparse.Namespace(
+        results_dir=args.results_dir,
+        output=Path(args.results_dir) / 'normalized_metrics.jsonl',
+    ))
 
 
 def parse_command(args: argparse.Namespace) -> None:
