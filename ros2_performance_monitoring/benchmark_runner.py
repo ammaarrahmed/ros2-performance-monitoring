@@ -34,7 +34,7 @@ def benchmark_runner(
     if benchmark_option != 'pubsub-rclcpp-minimal':
         raise ValueError('Unsupported Benchmark option')
 
-    benchmark_results_dir = results_absolute_path / 'benhcmark' / ros_distro
+    benchmark_results_dir = results_absolute_path / 'benchmark' / ros_distro
     benchmark_results_dir.mkdir(parents=True, exist_ok=True)
     container_name = f'ros2-benchmark-container-{ros_distro}-amd64'
     host_owner = f'{os.getuid()}:{os.getgid()}'
