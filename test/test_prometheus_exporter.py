@@ -46,7 +46,15 @@ def test_records_to_prometheus_converts_normalized_metrics():
     assert 'source_file' not in output
 
 
-def _record(metric_name, value, unit, aggregation):
+def test_ros_distro_label_uses_record_value():
+    output = records_to_prometheus([
+        _record('subscription_latency', 25.0, 'us', 'mean', ros_distro='rolling'),
+    ])
+
+    assert 'ros_distro="rolling"' in output
+
+
+def _record(metric_name, value, unit, aggregation, ros_distro='lyrical'):
     return {
         'schema_version': 1,
         'run_id': 'run-a',
@@ -56,7 +64,7 @@ def _record(metric_name, value, unit, aggregation):
         'client_library_ref': 'client-branch',
         'client_library_commit': 'abc123',
         'client_library': 'rclcpp',
-        'ros_distro': 'lyrical',
+        'ros_distro': ros_distro,
         'rmw_implementation': 'rmw_fastrtps_cpp',
         'executor': 'EventsExecutor',
         'topology': 'pub-sub',
