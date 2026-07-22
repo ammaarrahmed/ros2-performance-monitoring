@@ -34,7 +34,8 @@ def test_run_command_prints_message(monkeypatch, capsys):
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
     monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
-    monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
+    monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
+    monkeypatch.setattr(cli, 'benchmark_runner', lambda **kwargs: None)
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'run', '60'])
     cli.main()
     captured = capsys.readouterr()
@@ -46,7 +47,7 @@ def test_doctor_command(monkeypatch, capsys):
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'doctor'])
     cli.main()
     captured = capsys.readouterr()
-    assert 'Checking environment...' in captured.out
+    assert 'Doctor checks are not implemented yet.' in captured.out
 
 
 def test_build_container_command(monkeypatch, capsys):
@@ -106,10 +107,8 @@ def test_run_with_default_smoke(monkeypatch):
         received['container_kwargs'] = kwargs
         return 'abc123'
 
-    def fake_generation_rundata(args, results_dir, commit_hash):
-        received['args'] = args
-        received['results_dir'] = results_dir
-        received['commit_hash'] = commit_hash
+    def fake_benchmark_runner(**kwargs):
+        received['benchmark_kwargs'] = kwargs
 
     monkeypatch.setattr(
         cli,
@@ -117,7 +116,8 @@ def test_run_with_default_smoke(monkeypatch):
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
     monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
-    monkeypatch.setattr(cli, 'generation_rundata', fake_generation_rundata)
+    monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
+    monkeypatch.setattr(cli, 'benchmark_runner', fake_benchmark_runner)
     monkeypatch.setattr(
         sys,
         'argv',
@@ -129,12 +129,13 @@ def test_run_with_default_smoke(monkeypatch):
         'container_ref': DEFAULT_CONTAINER_REF,
         'cache_dir': defaults.cache_dir,
     }
-    assert received['args'].ros_distro == defaults.ros_distro
-    assert received['args'].executor == defaults.executor
-    assert received['args'].container_repo_url == DEFAULT_CONTAINER_REPO_URL
-    assert received['args'].container_ref == DEFAULT_CONTAINER_REF
-    assert received['results_dir'] == defaults.results_dir
-    assert received['commit_hash'] == 'abc123'
+    assert received['benchmark_kwargs'] == {
+        'cache_dir': defaults.cache_dir,
+        'results_dir': defaults.results_dir,
+        'benchmark_option': defaults.default_benchmark,
+        'duration': defaults.duration,
+        'ros_distro': defaults.ros_distro,
+    }
 
 
 def test_run_with_explicit_arguments(monkeypatch):
@@ -145,10 +146,8 @@ def test_run_with_explicit_arguments(monkeypatch):
         received['container_kwargs'] = kwargs
         return 'abc123'
 
-    def fake_generation_rundata(args, results_dir, commit_hash):
-        received['args'] = args
-        received['results_dir'] = results_dir
-        received['commit_hash'] = commit_hash
+    def fake_benchmark_runner(**kwargs):
+        received['benchmark_kwargs'] = kwargs
 
     monkeypatch.setattr(
         cli,
@@ -156,7 +155,8 @@ def test_run_with_explicit_arguments(monkeypatch):
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
     monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
-    monkeypatch.setattr(cli, 'generation_rundata', fake_generation_rundata)
+    monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
+    monkeypatch.setattr(cli, 'benchmark_runner', fake_benchmark_runner)
     monkeypatch.setattr(
         sys,
         'argv',
@@ -170,6 +170,8 @@ def test_run_with_explicit_arguments(monkeypatch):
             '~/.cache/custom-ros2-performance-monitoring',
             DEFAULT_CONTAINER_REPO_URL,
             DEFAULT_CONTAINER_REF,
+            '--suite',
+            'pubsub-rclcpp-minimal',
         ],
     )
     cli.main()
@@ -178,11 +180,13 @@ def test_run_with_explicit_arguments(monkeypatch):
         'container_ref': DEFAULT_CONTAINER_REF,
         'cache_dir': '~/.cache/custom-ros2-performance-monitoring',
     }
-    assert received['args'].duration == 120
-    assert received['args'].ros_distro == 'rolling'
-    assert received['args'].executor == 'multi-threaded'
-    assert received['results_dir'] == './custom-results'
-    assert received['commit_hash'] == 'abc123'
+    assert received['benchmark_kwargs'] == {
+        'cache_dir': '~/.cache/custom-ros2-performance-monitoring',
+        'results_dir': './custom-results',
+        'benchmark_option': 'pubsub-rclcpp-minimal',
+        'duration': 120,
+        'ros_distro': 'rolling',
+    }
 
 
 def test_run_with_invalid_duration_exits(monkeypatch):
