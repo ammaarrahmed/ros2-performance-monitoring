@@ -397,10 +397,11 @@ also read existing raw benchmark outputs and write normalized JSONL metrics:
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ```
 
-The parser currently targets `ros2-benchmark-container` pub/sub artifacts from
-the MVP single-process suite. It looks under the results directory for a
-benchmark artifact root named `benchmark`, then discovers leaves with these
-files:
+The parser targets the reduced `ros2-benchmark-container` pub/sub matrix. It
+looks under the results directory for a benchmark artifact root named
+`benchmark`, then discovers single-process and multi-process pub/sub leaves for
+`10b` and `100kb` payloads, including Fast DDS and Cyclone DDS result
+directories where present. Each discovered leaf must include these files:
 
 ```text
 metadata.txt

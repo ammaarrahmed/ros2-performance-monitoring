@@ -15,12 +15,17 @@
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import warnings
 
 
 BENCHMARK_ROOTS = ('benchmark',)
 REQUIRED_FILES = ('metadata.txt', 'resources.txt', 'latency_all.txt', 'latency_total.txt')
-SUPPORTED_FAMILY = 'pub-sub_single_process'
-TOPOLOGY_RE = re.compile(r'^pub_sub_\d+(?:\.\d+)?hz_\d+(?:b|kb|mb)$', re.IGNORECASE)
+SUPPORTED_FAMILIES = ('pub-sub_single_process', 'pub-sub_multi_process')
+SUPPORTED_PAYLOADS = ('10b', '100kb')
+TOPOLOGY_RE = re.compile(
+    r'^pub_sub_\d+(?:\.\d+)?hz_(?P<payload>\d+(?:b|kb|mb))$',
+    re.IGNORECASE,
+)
 RMW_RE = re.compile(r'^(cyclonedds|fastrtps|zenoh)_(ipc_on|ipc_off|loaned)$')
 
 
@@ -50,23 +55,33 @@ def discover_benchmark_artifacts(results_dir):
     artifacts = []
     errors = []
     for root in roots:
-        for family in root.glob(f'*/{SUPPORTED_FAMILY}'):
-            if not family.is_dir():
+        for distro in root.iterdir():
+            if not distro.is_dir():
                 continue
-            for leaf in family.glob('pub_sub_*/*'):
-                if leaf.is_dir():
-                    _collect_leaf(leaf, artifacts, errors)
+            for family_name in SUPPORTED_FAMILIES:
+                family = distro / family_name
+                if not family.is_dir():
+                    continue
+                for leaf in family.glob('pub_sub_*/*'):
+                    if leaf.is_dir():
+                        _collect_leaf(leaf, artifacts, errors)
 
     if errors:
         raise ArtifactError('incomplete benchmark artifacts:\n' + '\n'.join(errors))
     if not artifacts:
-        raise ArtifactError(f'no supported {SUPPORTED_FAMILY} artifacts found under {results_dir}')
+        names = ', '.join(SUPPORTED_FAMILIES)
+        raise ArtifactError(f'no supported pub/sub artifacts found under {results_dir} ({names})')
     return tuple(sorted(artifacts, key=lambda item: str(item.directory)))
 
 
 def _collect_leaf(leaf, artifacts, errors):
-    if not TOPOLOGY_RE.match(leaf.parent.name):
+    match = TOPOLOGY_RE.match(leaf.parent.name)
+    if not match:
         errors.append(f'{leaf}: malformed topology directory')
+        return
+    payload = match.group('payload').lower()
+    if payload not in SUPPORTED_PAYLOADS:
+        warnings.warn(f'{leaf}: skipping unsupported payload {payload}', stacklevel=2)
         return
     if not RMW_RE.match(leaf.name):
         errors.append(f'{leaf}: malformed RMW directory')
