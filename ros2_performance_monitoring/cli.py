@@ -51,7 +51,8 @@ def run_command(args: argparse.Namespace) -> None:
 
 
 def doctor_command(args: argparse.Namespace) -> None:
-    print('Checking environment...')
+    # TODO: Implement environment checks for the doctor command.
+    print('Doctor checks are not implemented yet.')
 
 
 def build_container_command(args: argparse.Namespace) -> None:
