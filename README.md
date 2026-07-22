@@ -86,7 +86,7 @@ The default Docker flow uses ROS distro packages, so the client-library commit i
 The current runner writes benchmark artifacts under paths like:
 
 ```text
-results/benhcmark/lyrical/pub-sub_single_process/...
+results/benchmark/lyrical/pub-sub_single_process/...
 ```
 
 ### 2. Normalize The Artifacts
@@ -174,13 +174,13 @@ ros2-performance-monitoring serve-prometheus --input ./results/normalized_metric
 Parse into a run directory instead of the top-level results directory:
 
 ```bash
-ros2-performance-monitoring parse ./results --output ./results/benhcmark/lyrical/pub-sub_single_process/normalized_metrics.jsonl
+ros2-performance-monitoring parse ./results --output ./results/benchmark/lyrical/pub-sub_single_process/normalized_metrics.jsonl
 ```
 
 Run the dashboard from that file:
 
 ```bash
-ros2-performance-monitoring dashboard up --input ./results/benhcmark/lyrical/pub-sub_single_process/normalized_metrics.jsonl
+ros2-performance-monitoring dashboard up --input ./results/benchmark/lyrical/pub-sub_single_process/normalized_metrics.jsonl
 ```
 
 The local dashboard stack is defined by:
@@ -199,7 +199,7 @@ created by Docker as `root`. New benchmark runs hand ownership back to your host
 user when the run finishes. For older results, fix ownership once:
 
 ```bash
-sudo chown -R "$USER:$USER" ./results/benhcmark
+sudo chown -R "$USER:$USER" ./results/benchmark
 ```
 
 If Grafana is empty, check the exporter first:
