@@ -14,6 +14,7 @@
 
 import argparse
 import importlib
+from pathlib import Path
 import subprocess
 import sys
 
@@ -38,7 +39,8 @@ def test_run_command_prints_message(monkeypatch, capsys):
     monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
     monkeypatch.setattr(cli, 'benchmark_runner', lambda **kwargs: None)
-    monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'run', '60'])
+    monkeypatch.setattr(cli, 'parse_command', lambda args: None)
+    monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'run', '--duration', '60'])
     cli.main()
     captured = capsys.readouterr()
     assert 'Running Performance Monitor...' in captured.out
@@ -122,6 +124,11 @@ def test_run_with_default_smoke(monkeypatch):
     monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
     monkeypatch.setattr(cli, 'benchmark_runner', fake_benchmark_runner)
     monkeypatch.setattr(
+        cli,
+        'parse_command',
+        lambda args: received.update(parse_args=args),
+    )
+    monkeypatch.setattr(
         sys,
         'argv',
         ['ros2-performance-monitoring', 'run', '--duration', str(defaults.duration)],
@@ -140,6 +147,8 @@ def test_run_with_default_smoke(monkeypatch):
         'ros_distro': defaults.ros_distro,
         'executor': defaults.executor,
     }
+    assert received['parse_args'].results_dir == defaults.results_dir
+    assert received['parse_args'].output == Path(defaults.results_dir) / 'normalized_metrics.jsonl'
 
 
 def test_run_with_explicit_arguments(monkeypatch):
@@ -159,8 +168,14 @@ def test_run_with_explicit_arguments(monkeypatch):
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
     monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
+    monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
     monkeypatch.setattr(cli, 'benchmark_runner', fake_benchmark_runner)
+    monkeypatch.setattr(
+        cli,
+        'parse_command',
+        lambda args: received.update(parse_args=args),
+    )
     monkeypatch.setattr(
         sys,
         'argv',
@@ -198,6 +213,8 @@ def test_run_with_explicit_arguments(monkeypatch):
         'ros_distro': 'rolling',
         'executor': 'MultiThreadedExecutor',
     }
+    assert received['parse_args'].results_dir == './custom-results'
+    assert received['parse_args'].output == Path('./custom-results/normalized_metrics.jsonl')
 
 
 def test_run_with_invalid_duration_exits(monkeypatch):
