@@ -17,10 +17,16 @@ import subprocess
 import sys
 from typing import Any
 
+from .artifacts import ArtifactError
+from .artifacts import discover_benchmark_artifacts
 from .benchmark_runner import benchmark_runner
 from .config import RunDefaults
 from .container_build import build_container
 from .container_provider import get_default_container_repo, setup_container_repo
+from .parsers.ros2_benchmark_container import latest_run_metadata
+from .parsers.ros2_benchmark_container import parse_artifact
+from .run_metadata import generation_rundata
+from .writers.jsonl import write_jsonl
 
 
 def run_command(args: argparse.Namespace) -> None:
@@ -36,6 +42,7 @@ def run_command(args: argparse.Namespace) -> None:
         cache_dir=args.cache_dir,
     )
     print(f'Container Repo Loaded is ready now! checked out commit : {commit_hash}')
+    generation_rundata(args, args.results_dir, commit_hash)
     rel_path = build_container(
         ros_distro=args.ros_distro,
         cache_dir=args.cache_dir,
@@ -48,6 +55,19 @@ def run_command(args: argparse.Namespace) -> None:
         duration=args.duration,
         ros_distro=args.ros_distro,
     )
+
+
+def parse_command(args: argparse.Namespace) -> None:
+    try:
+        run_metadata = latest_run_metadata(args.results_dir)
+        artifacts = discover_benchmark_artifacts(args.results_dir)
+        records = []
+        for artifact in artifacts:
+            records.extend(parse_artifact(artifact, run_metadata))
+        count = write_jsonl(records, args.output)
+    except (ArtifactError, FileNotFoundError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
+    print(f'Wrote {count} normalized metrics to {args.output}')
 
 
 def doctor_command(args: argparse.Namespace) -> None:
@@ -87,6 +107,9 @@ def main() -> Any:
         help='Builds the container',
     )
     build_container_parser.set_defaults(func=build_container_command)
+
+    parse_parser = subparsers.add_parser('parse', help='Parse raw benchmark artifacts')
+    parse_parser.set_defaults(func=parse_command)
 
     run_parser.add_argument(
         'duration', nargs='?', type=int, default=defaults.duration,
@@ -128,6 +151,8 @@ def main() -> Any:
         'cache_dir', nargs='?', default=defaults.cache_dir,
         help='Cache Directory where fetched repo code is',
     )
+    parse_parser.add_argument('results_dir', help='Results directory created by run')
+    parse_parser.add_argument('--output', required=True, help='JSONL output path')
     args = parser.parse_args()
     try:
         return args.func(args)
