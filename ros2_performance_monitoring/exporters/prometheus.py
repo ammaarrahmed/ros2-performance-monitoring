@@ -106,46 +106,6 @@ def records_to_prometheus(records):
     return '\n'.join(lines)
 
 
-def serve_metrics(input_path, port=9108, host='0.0.0.0'):
-    path = Path(input_path).expanduser().resolve()
-    if not path.exists():
-        raise FileNotFoundError(f'normalized metrics file does not exist: {path}')
-    if not path.is_file():
-        raise ValueError(f'normalized metrics path is not a file: {path}')
-
-    class MetricsHandler(BaseHTTPRequestHandler):
-
-        def do_GET(self):
-            if self.path not in ('/metrics', '/metrics/'):
-                self.send_response(404)
-                self.end_headers()
-                return
-
-            try:
-                body = records_to_prometheus(load_records(path)).encode()
-                self.send_response(200)
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
-                body = str(exc).encode()
-                self.send_response(500)
-            self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
-            self.send_header('Content-Length', str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, _format, *args):
-            return
-
-    server = HTTPServer((host, port), MetricsHandler)
-    print(f'Serving Prometheus metrics from {path}')
-    print(f'Exporter: http://localhost:{port}/metrics')
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print('Stopping Prometheus exporter')
-    finally:
-        server.server_close()
-
-
 def _record_sample(record):
     family = _family_for_record(record)
     if family is None:
@@ -233,3 +193,43 @@ def _format_number(value):
     if value.is_integer():
         return str(int(value))
     return repr(value)
+
+
+def serve_metrics(input_path, port=9108, host='0.0.0.0'):
+    path = Path(input_path).expanduser().resolve()
+    if not path.exists():
+        raise FileNotFoundError(f'normalized metrics file does not exist: {path}')
+    if not path.is_file():
+        raise ValueError(f'normalized metrics path is not a file: {path}')
+
+    class MetricsHandler(BaseHTTPRequestHandler):
+
+        def do_GET(self):
+            if self.path not in ('/metrics', '/metrics/'):
+                self.send_response(404)
+                self.end_headers()
+                return
+
+            try:
+                body = records_to_prometheus(load_records(path)).encode()
+                self.send_response(200)
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                body = str(exc).encode()
+                self.send_response(500)
+            self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, _format, *args):
+            return
+
+    server = HTTPServer((host, port), MetricsHandler)
+    print(f'Serving Prometheus metrics from {path}')
+    print(f'Exporter: http://localhost:{port}/metrics')
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print('Stopping Prometheus exporter')
+    finally:
+        server.server_close()
