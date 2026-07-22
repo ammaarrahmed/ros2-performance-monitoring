@@ -20,12 +20,18 @@ import warnings
 
 BENCHMARK_ROOTS = ('benchmark',)
 REQUIRED_FILES = ('metadata.txt', 'resources.txt', 'latency_all.txt', 'latency_total.txt')
-SUPPORTED_FAMILIES = ('pub-sub_single_process', 'pub-sub_multi_process')
-SUPPORTED_PAYLOADS = ('10b', '100kb')
-TOPOLOGY_RE = re.compile(
-    r'^pub_sub_\d+(?:\.\d+)?hz_(?P<payload>\d+(?:b|kb|mb))$',
+SUPPORTED_PUBSUB_FAMILIES = ('pub-sub_single_process', 'pub-sub_multi_process')
+SUPPORTED_SERVICE_FAMILIES = ('cli-srv_single_process', 'cli-srv_multi_process')
+SUPPORTED_FAMILIES = SUPPORTED_PUBSUB_FAMILIES + SUPPORTED_SERVICE_FAMILIES
+SUPPORTED_PAYLOADS = ('10b', '100kb', '1mb', '4mb')
+PAYLOAD_RE = r'(?P<payload>\d+(?:b|kb|mb))'
+PUBSUB_TOPOLOGY_RE = re.compile(
+    rf'^pub_sub_\d+(?:\.\d+)?hz_{PAYLOAD_RE}$',
     re.IGNORECASE,
 )
+PUBSUB_MULTI_TOPOLOGY_RE = re.compile(rf'^{PAYLOAD_RE}$', re.IGNORECASE)
+SERVICE_SINGLE_TOPOLOGY_RE = re.compile(rf'^cli_srv_{PAYLOAD_RE}$', re.IGNORECASE)
+SERVICE_MULTI_TOPOLOGY_RE = re.compile(rf'^{PAYLOAD_RE}$', re.IGNORECASE)
 RMW_RE = re.compile(r'^(cyclonedds|fastrtps|zenoh)_(ipc_on|ipc_off|loaned)$')
 
 
@@ -58,24 +64,53 @@ def discover_benchmark_artifacts(results_dir):
         for distro in root.iterdir():
             if not distro.is_dir():
                 continue
-            for family_name in SUPPORTED_FAMILIES:
+            for family_name in SUPPORTED_PUBSUB_FAMILIES:
                 family = distro / family_name
                 if not family.is_dir():
                     continue
-                for leaf in family.glob('pub_sub_*/*'):
+                if family_name == 'pub-sub_multi_process':
+                    leaves = family.glob('*/*/*')
+                    nested = True
+                else:
+                    leaves = family.glob('pub_sub_*/*')
+                    nested = False
+                for leaf in leaves:
                     if leaf.is_dir():
-                        _collect_leaf(leaf, artifacts, errors)
+                        topology_re = PUBSUB_MULTI_TOPOLOGY_RE if nested else PUBSUB_TOPOLOGY_RE
+                        _collect_leaf(leaf, topology_re, artifacts, errors, nested)
+
+            family = distro / 'cli-srv_single_process'
+            if family.is_dir():
+                for leaf in family.glob('cli_srv_*/*'):
+                    if leaf.is_dir():
+                        _collect_leaf(leaf, SERVICE_SINGLE_TOPOLOGY_RE, artifacts, errors)
+
+            family = distro / 'cli-srv_multi_process'
+            if family.is_dir():
+                for leaf in family.glob('*/*/*'):
+                    if leaf.is_dir():
+                        _collect_leaf(
+                            leaf,
+                            SERVICE_MULTI_TOPOLOGY_RE,
+                            artifacts,
+                            errors,
+                            True,
+                        )
 
     if errors:
         raise ArtifactError('incomplete benchmark artifacts:\n' + '\n'.join(errors))
     if not artifacts:
         names = ', '.join(SUPPORTED_FAMILIES)
-        raise ArtifactError(f'no supported pub/sub artifacts found under {results_dir} ({names})')
+        raise ArtifactError(
+            f'no supported pub/sub or service artifacts found under {results_dir} ({names})'
+        )
     return tuple(sorted(artifacts, key=lambda item: str(item.directory)))
 
 
-def _collect_leaf(leaf, artifacts, errors):
-    match = TOPOLOGY_RE.match(leaf.parent.name)
+def _collect_leaf(leaf, topology_re, artifacts, errors, nested=False):
+    topology_name = leaf.parent.parent.name if nested else leaf.parent.name
+    rmw_name = leaf.parent.name if nested else leaf.name
+    match = topology_re.match(topology_name)
     if not match:
         errors.append(f'{leaf}: malformed topology directory')
         return
@@ -83,7 +118,7 @@ def _collect_leaf(leaf, artifacts, errors):
     if payload not in SUPPORTED_PAYLOADS:
         warnings.warn(f'{leaf}: skipping unsupported payload {payload}', stacklevel=2)
         return
-    if not RMW_RE.match(leaf.name):
+    if not RMW_RE.match(rmw_name):
         errors.append(f'{leaf}: malformed RMW directory')
         return
 

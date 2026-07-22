@@ -44,8 +44,8 @@ def test_discovers_multi_process_100kb_cyclonedds_artifact(tmp_path):
         'benchmark',
         'rolling',
         'pub-sub_multi_process',
-        'pub_sub_10hz_100kb',
-        'cyclonedds_ipc_off',
+        '100kb',
+        'cyclonedds_ipc_off/sub_100kb',
     )
 
     artifacts = discover_benchmark_artifacts(tmp_path)
@@ -55,14 +55,78 @@ def test_discovers_multi_process_100kb_cyclonedds_artifact(tmp_path):
     assert artifacts[0].resources == leaf / 'resources.txt'
 
 
+def test_discovers_single_process_1mb_pubsub_artifact(tmp_path):
+    leaf = _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'lyrical',
+        'pub-sub_single_process',
+        'pub_sub_200hz_1mb',
+        'fastrtps_ipc_off',
+    )
+
+    artifacts = discover_benchmark_artifacts(tmp_path)
+
+    assert len(artifacts) == 1
+    assert artifacts[0].directory == leaf
+
+
+def test_discovers_single_process_service_artifact(tmp_path):
+    leaf = _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'lyrical',
+        'cli-srv_single_process',
+        'cli_srv_10b',
+        'fastrtps_ipc_on',
+    )
+
+    artifacts = discover_benchmark_artifacts(tmp_path)
+
+    assert len(artifacts) == 1
+    assert artifacts[0].directory == leaf
+
+
+def test_discovers_multi_process_service_artifact(tmp_path):
+    leaf = _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'lyrical',
+        'cli-srv_multi_process',
+        '100kb',
+        'cyclonedds_ipc_off/cli_100kb',
+    )
+
+    artifacts = discover_benchmark_artifacts(tmp_path)
+
+    assert len(artifacts) == 1
+    assert artifacts[0].directory == leaf
+
+
+def test_discovers_single_process_4mb_service_artifact(tmp_path):
+    leaf = _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'lyrical',
+        'cli-srv_single_process',
+        'cli_srv_4mb',
+        'fastrtps_ipc_off',
+    )
+
+    artifacts = discover_benchmark_artifacts(tmp_path)
+
+    assert len(artifacts) == 1
+    assert artifacts[0].directory == leaf
+
+
 def test_discovers_supported_families_in_sorted_order(tmp_path):
     first = _artifact_leaf(
         tmp_path,
         'benchmark',
         'lyrical',
         'pub-sub_multi_process',
-        'pub_sub_100hz_100kb',
-        'fastrtps_ipc_off',
+        '100kb',
+        'fastrtps_ipc_off/sub_100kb',
     )
     second = _artifact_leaf(
         tmp_path,
@@ -102,22 +166,37 @@ def test_mixed_payloads_warns_and_discovers_supported_artifacts(tmp_path):
         'benchmark',
         'lyrical',
         'pub-sub_multi_process',
-        'pub_sub_10hz_100kb',
-        'cyclonedds_ipc_off',
+        '100kb',
+        'cyclonedds_ipc_off/sub_100kb',
     )
     _artifact_leaf(
         tmp_path,
         'benchmark',
         'lyrical',
         'pub-sub_multi_process',
-        'pub_sub_10hz_1mb',
-        'cyclonedds_ipc_off',
+        '5mb',
+        'cyclonedds_ipc_off/sub_5mb',
     )
 
-    with pytest.warns(UserWarning, match='skipping unsupported payload 1mb'):
+    with pytest.warns(UserWarning, match='skipping unsupported payload 5mb'):
         artifacts = discover_benchmark_artifacts(tmp_path)
 
     assert tuple(artifact.directory for artifact in artifacts) == (supported,)
+
+
+def test_unsupported_service_payload_raises_clear_error(tmp_path):
+    _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'lyrical',
+        'cli-srv_single_process',
+        'cli_srv_5mb',
+        'fastrtps_ipc_on',
+    )
+
+    with pytest.warns(UserWarning, match='skipping unsupported payload 5mb'):
+        with pytest.raises(ArtifactError, match='no supported pub/sub or service artifacts'):
+            discover_benchmark_artifacts(tmp_path)
 
 
 def _artifact_leaf(tmp_path, root, distro, family, topology, rmw, missing=()):
