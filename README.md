@@ -66,7 +66,7 @@ cache_dir: ~/.cache/ros2-performance-monitoring
 To make those values explicit:
 
 ```bash
-ros2-performance-monitoring run 60 lyrical single-threaded ./results ~/.cache/ros2-performance-monitoring
+ros2-performance-monitoring run -t 60 -d lyrical -x single-threaded ./results
 ```
 
 If you are comparing a specific client-library branch or commit, record it with
@@ -362,18 +362,19 @@ The default run uses ROS `lyrical`, a 60 second duration, the
 ros2-performance-monitoring run
 ```
 
-The positional arguments are:
+The run options are:
 
 ```bash
 ros2-performance-monitoring run \
-  <duration> \
-  <ros-distro> \
-  <executor> \
-  <results-dir> \
-  <cache-dir> \
-  <container-repo-url> \
-  <container-ref>
+  -t <duration> \
+  -d <ros-distro> \
+  -x <executor> \
+  <results-dir>
 ```
+
+The container repository is cached under
+`~/.cache/ros2-performance-monitoring` by default. Use `--cache-dir` to place
+the checkout elsewhere, such as on a persistent CI cache volume.
 
 The only supported suite in this branch is:
 

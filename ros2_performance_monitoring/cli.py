@@ -152,15 +152,15 @@ def main() -> Any:
     serve_prometheus_parser.set_defaults(func=serve_prometheus)
 
     run_parser.add_argument(
-        'duration', nargs='?', type=int, default=defaults.duration,
+        '-t', '--duration', type=int, default=defaults.duration,
         help='Duration in Seconds',
     )
     run_parser.add_argument(
-        'ros_distro', nargs='?', default=defaults.ros_distro,
+        '-d', '--ros-distro', default=defaults.ros_distro,
         help='ROS Distro',
     )
     run_parser.add_argument(
-        'executor', nargs='?', default=defaults.executor,
+        '-x', '--executor', default=defaults.executor,
         help='Executor',
     )
     run_parser.add_argument(
@@ -168,15 +168,15 @@ def main() -> Any:
         help='Results directory for Container Run Results',
     )
     run_parser.add_argument(
-        'cache_dir', nargs='?', default=defaults.cache_dir,
-        help='Cache Directory for Container repo',
+        '--cache-dir', default=defaults.cache_dir,
+        help='Cache directory for the container repository',
     )
     run_parser.add_argument(
-        'container_repo_url', nargs='?',
+        '--container-repo-url',
         help='Container Repo URL',
     )
     run_parser.add_argument(
-        'container_ref', nargs='?',
+        '--container-ref',
         help='Container Repository Ref',
     )
     run_parser.add_argument(
