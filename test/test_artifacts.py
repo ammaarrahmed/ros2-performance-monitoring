@@ -41,7 +41,7 @@ def test_discovers_single_process_10b_fastdds_artifact(tmp_path):
 def test_discovers_multi_process_100kb_cyclonedds_artifact(tmp_path):
     leaf = _artifact_leaf(
         tmp_path,
-        'benhcmark',
+        'benchmark',
         'rolling',
         'pub-sub_multi_process',
         'pub_sub_10hz_100kb',
@@ -96,8 +96,16 @@ def test_missing_required_artifact_file_raises_clear_error(tmp_path):
     assert 'missing latency_total.txt' in str(exc_info.value)
 
 
-def test_unsupported_payload_raises_clear_error(tmp_path):
-    leaf = _artifact_leaf(
+def test_mixed_payloads_warns_and_discovers_supported_artifacts(tmp_path):
+    supported = _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'lyrical',
+        'pub-sub_multi_process',
+        'pub_sub_10hz_100kb',
+        'cyclonedds_ipc_off',
+    )
+    _artifact_leaf(
         tmp_path,
         'benchmark',
         'lyrical',
@@ -106,11 +114,10 @@ def test_unsupported_payload_raises_clear_error(tmp_path):
         'cyclonedds_ipc_off',
     )
 
-    with pytest.raises(ArtifactError) as exc_info:
-        discover_benchmark_artifacts(tmp_path)
+    with pytest.warns(UserWarning, match='skipping unsupported payload 1mb'):
+        artifacts = discover_benchmark_artifacts(tmp_path)
 
-    assert str(leaf) in str(exc_info.value)
-    assert 'malformed topology directory' in str(exc_info.value)
+    assert tuple(artifact.directory for artifact in artifacts) == (supported,)
 
 
 def _artifact_leaf(tmp_path, root, distro, family, topology, rmw, missing=()):

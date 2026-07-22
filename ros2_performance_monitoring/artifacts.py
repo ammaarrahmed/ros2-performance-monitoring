@@ -15,12 +15,17 @@
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import warnings
 
 
 BENCHMARK_ROOTS = ('benchmark',)
 REQUIRED_FILES = ('metadata.txt', 'resources.txt', 'latency_all.txt', 'latency_total.txt')
 SUPPORTED_FAMILIES = ('pub-sub_single_process', 'pub-sub_multi_process')
-TOPOLOGY_RE = re.compile(r'^pub_sub_\d+(?:\.\d+)?hz_(?:10b|100kb)$', re.IGNORECASE)
+SUPPORTED_PAYLOADS = ('10b', '100kb')
+TOPOLOGY_RE = re.compile(
+    r'^pub_sub_\d+(?:\.\d+)?hz_(?P<payload>\d+(?:b|kb|mb))$',
+    re.IGNORECASE,
+)
 RMW_RE = re.compile(r'^(cyclonedds|fastrtps|zenoh)_(ipc_on|ipc_off|loaned)$')
 
 
@@ -70,8 +75,13 @@ def discover_benchmark_artifacts(results_dir):
 
 
 def _collect_leaf(leaf, artifacts, errors):
-    if not TOPOLOGY_RE.match(leaf.parent.name):
+    match = TOPOLOGY_RE.match(leaf.parent.name)
+    if not match:
         errors.append(f'{leaf}: malformed topology directory')
+        return
+    payload = match.group('payload').lower()
+    if payload not in SUPPORTED_PAYLOADS:
+        warnings.warn(f'{leaf}: skipping unsupported payload {payload}', stacklevel=2)
         return
     if not RMW_RE.match(leaf.name):
         errors.append(f'{leaf}: malformed RMW directory')
