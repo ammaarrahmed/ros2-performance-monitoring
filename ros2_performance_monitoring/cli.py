@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+from pathlib import Path
 import subprocess
 import sys
 from typing import Any
@@ -23,6 +24,9 @@ from .benchmark_runner import benchmark_runner
 from .config import RunDefaults
 from .container_build import build_container
 from .container_provider import get_default_container_repo, setup_container_repo
+from .dashboard import dashboard_down
+from .dashboard import dashboard_up
+from .exporters.prometheus import serve_metrics
 from .parsers.ros2_benchmark_container import latest_run_metadata
 from .parsers.ros2_benchmark_container import parse_artifact
 from .run_metadata import generation_rundata
@@ -55,6 +59,10 @@ def run_command(args: argparse.Namespace) -> None:
         duration=args.duration,
         ros_distro=args.ros_distro,
     )
+    parse_command(argparse.Namespace(
+        results_dir=args.results_dir,
+        output=Path(args.results_dir) / 'normalized_metrics.jsonl',
+    ))
 
 
 def parse_command(args: argparse.Namespace) -> None:
@@ -68,6 +76,27 @@ def parse_command(args: argparse.Namespace) -> None:
     except (ArtifactError, FileNotFoundError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
     print(f'Wrote {count} normalized metrics to {args.output}')
+
+
+def bring_up_dashboard(args: argparse.Namespace) -> None:
+    try:
+        dashboard_up(args.input)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+def bring_down_dashboard(args: argparse.Namespace) -> None:
+    try:
+        dashboard_down()
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+def serve_prometheus(args: argparse.Namespace) -> None:
+    try:
+        serve_metrics(args.input, args.port)
+    except (FileNotFoundError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def doctor_command(args: argparse.Namespace) -> None:
@@ -111,16 +140,32 @@ def main() -> Any:
     parse_parser = subparsers.add_parser('parse', help='Parse raw benchmark artifacts')
     parse_parser.set_defaults(func=parse_command)
 
+    dashboard_parser = subparsers.add_parser('dashboard', help='Manage local dashboard')
+    dashboard_subparsers = dashboard_parser.add_subparsers(
+        dest='dashboard_command',
+        required=True,
+    )
+    dashboard_up_parser = dashboard_subparsers.add_parser('up', help='Start local dashboard')
+    dashboard_up_parser.set_defaults(func=bring_up_dashboard)
+    dashboard_down_parser = dashboard_subparsers.add_parser('down', help='Stop local dashboard')
+    dashboard_down_parser.set_defaults(func=bring_down_dashboard)
+
+    serve_prometheus_parser = subparsers.add_parser(
+        'serve-prometheus',
+        help='Serve normalized metrics for Prometheus',
+    )
+    serve_prometheus_parser.set_defaults(func=serve_prometheus)
+
     run_parser.add_argument(
-        'duration', nargs='?', type=int, default=defaults.duration,
+        '-t', '--duration', type=int, default=defaults.duration,
         help='Duration in Seconds',
     )
     run_parser.add_argument(
-        'ros_distro', nargs='?', default=defaults.ros_distro,
+        '-d', '--ros-distro', default=defaults.ros_distro,
         help='ROS Distro',
     )
     run_parser.add_argument(
-        'executor', nargs='?', default=defaults.executor,
+        '-x', '--executor', default=defaults.executor,
         help='Executor',
     )
     run_parser.add_argument(
@@ -128,20 +173,36 @@ def main() -> Any:
         help='Results directory for Container Run Results',
     )
     run_parser.add_argument(
-        'cache_dir', nargs='?', default=defaults.cache_dir,
-        help='Cache Directory for Container repo',
+        '--cache-dir', default=defaults.cache_dir,
+        help='Cache directory for the container repository',
     )
     run_parser.add_argument(
-        'container_repo_url', nargs='?',
+        '--container-repo-url',
         help='Container Repo URL',
     )
     run_parser.add_argument(
-        'container_ref', nargs='?',
+        '--container-ref',
         help='Container Repository Ref',
     )
     run_parser.add_argument(
         '--suite', default=defaults.default_benchmark,
         help='Runs a Minimal Pub/Sub rclcpp benchmark',
+    )
+    run_parser.add_argument(
+        '--client-library', default=defaults.client_library,
+        help='Client library under test',
+    )
+    run_parser.add_argument(
+        '--client-library-ref', default=defaults.client_library_ref,
+        help='Client library branch or ref under test',
+    )
+    run_parser.add_argument(
+        '--client-library-commit', default=defaults.client_library_commit,
+        help='Resolved client library commit under test',
+    )
+    run_parser.add_argument(
+        '--client-library-source', default=defaults.client_library_source,
+        help='Where the client library under test came from',
     )
     build_container_parser.add_argument(
         'ros_distro', nargs='?', default=defaults.ros_distro,
@@ -153,6 +214,17 @@ def main() -> Any:
     )
     parse_parser.add_argument('results_dir', help='Results directory created by run')
     parse_parser.add_argument('--output', required=True, help='JSONL output path')
+    dashboard_up_parser.add_argument(
+        '--input',
+        required=True,
+        help='Normalized metrics JSONL path',
+    )
+    serve_prometheus_parser.add_argument(
+        '--input',
+        required=True,
+        help='Normalized metrics JSONL path',
+    )
+    serve_prometheus_parser.add_argument('--port', type=int, default=9108, help='Exporter port')
     args = parser.parse_args()
     try:
         return args.func(args)

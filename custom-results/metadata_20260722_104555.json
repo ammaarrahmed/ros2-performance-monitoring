@@ -1,0 +1,25 @@
+{
+    "host_environment": {
+        "timestamp": "2026-07-22T10:45:55.298662+00:00",
+        "Python version": "3.14.4",
+        "architecture": "x86_64",
+        "OS": "Linux"
+    },
+    "run_configuration": {
+        "ros_distro": "rolling",
+        "executor": "multi-threaded",
+        "duration": 120,
+        "client_library": "rclcpp"
+    },
+    "benchmark_repo": {
+        "url": "https://github.com/ammaarrahmed/ros2-benchmark-container",
+        "ref": "gitsubmodule-commit-fix",
+        "resolved_commit_hash": "abc123"
+    },
+    "client_library_under_test": {
+        "name": "rclcpp",
+        "ref": "ros-rolling-packages",
+        "resolved_commit_hash": "unknown",
+        "source": "ros_distro_package"
+    }
+}

@@ -7,9 +7,9 @@ performance results.
 
 Benchmark execution remains outside this repository.
 
-The exporter should read artifacts produced by external tools such as
-`ros2-performance` or `ros2-benchmark-container`, normalize them into a stable
-internal representation, and expose them to dashboard tooling.
+The parser reads artifacts produced by external tools such as `ros2-performance`
+or `ros2-benchmark-container`, normalizes them into a stable internal
+representation, and exposes them to dashboard tooling.
 
 This keeps the project focused on:
 
@@ -27,10 +27,15 @@ It avoids taking ownership of:
 
 ## Planned Bridge Shape
 
-The planned design uses a small adapter boundary:
+The design uses a small adapter boundary:
 
 ```text
-artifact source -> normalized metric model -> output sink
+container runner
+  -> raw artifacts
+  -> normalized JSONL
+  -> Prometheus exporter
+  -> Prometheus
+  -> Grafana
 ```
 
 Examples of future artifact sources:
@@ -44,7 +49,6 @@ Examples of future output sinks:
 - JSONL files for local inspection and regression artifacts.
 - Prometheus-compatible metrics for Grafana.
 
-The first implementation pull request should keep this boundary narrow and
-target only the minimum `rclcpp` pub/sub artifacts needed for an end-to-end
-dashboard demonstration.
-
+The current dashboard path starts from `normalized_metrics.jsonl`. It does not
+run benchmarks, parse raw artifacts, or detect regressions as part of dashboard
+startup.

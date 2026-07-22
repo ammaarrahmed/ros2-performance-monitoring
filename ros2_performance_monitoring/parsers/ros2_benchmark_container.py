@@ -74,6 +74,10 @@ def parse_artifact(artifact, run_metadata):
         'schema_version': SCHEMA_VERSION,
         'run_id': run['run_id'],
         'timestamp': run['timestamp'],
+        'benchmark_ref': run['benchmark_ref'],
+        'benchmark_commit': run['benchmark_commit'],
+        'client_library_ref': run['client_library_ref'],
+        'client_library_commit': run['client_library_commit'],
         'client_library': run['client_library'],
         'executor': metadata.get('system_executor') or run['executor'],
         **attrs,
@@ -232,11 +236,18 @@ def _percentile(values, quantile):
 def _run_context(metadata):
     config = metadata.get('run_configuration', {})
     host = metadata.get('host_environment', {})
+    benchmark = metadata.get('benchmark_repo') or metadata.get('target_repo', {})
+    client = metadata.get('client_library_under_test', {})
     timestamp = metadata.get('timestamp') or host.get('timestamp') or host.get('timestamp ') or ''
+    client_library = config.get('client_library') or client.get('name') or _client_library(config)
     return {
         'run_id': metadata.get('run_id') or metadata.get('_file_run_id') or 'unknown',
         'timestamp': timestamp,
-        'client_library': config.get('client_library') or _client_library(config),
+        'benchmark_ref': benchmark.get('ref', 'unknown'),
+        'benchmark_commit': benchmark.get('resolved_commit_hash', 'unknown'),
+        'client_library_ref': client.get('ref', 'unknown'),
+        'client_library_commit': client.get('resolved_commit_hash', 'unknown'),
+        'client_library': client_library,
         'executor': config.get('executor', ''),
     }
 

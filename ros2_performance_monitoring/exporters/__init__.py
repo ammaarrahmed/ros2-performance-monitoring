@@ -11,19 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class RunDefaults:
-    client_library: str = 'rclcpp'
-    client_library_ref: str = ''
-    client_library_commit: str = 'unknown'
-    client_library_source: str = 'ros_distro_package'
-    ros_distro: str = 'lyrical'
-    executor: str = 'single-threaded'
-    duration: int = 60
-    cache_dir: str = '~/.cache/ros2-performance-monitoring'
-    results_dir: str = './results'
-    default_benchmark: str = 'pubsub-rclcpp-minimal'
+"""Metric exporters for ROS 2 performance monitoring."""

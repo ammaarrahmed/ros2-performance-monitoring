@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from pathlib import Path
 import subprocess
 
@@ -36,6 +37,7 @@ def benchmark_runner(
     benchmark_results_dir = results_absolute_path / 'benchmark' / ros_distro
     benchmark_results_dir.mkdir(parents=True, exist_ok=True)
     container_name = f'ros2-benchmark-container-{ros_distro}-amd64'
+    host_owner = f'{os.getuid()}:{os.getgid()}'
 
     cmd = [
         'docker', 'run', '-d',
@@ -72,4 +74,8 @@ def benchmark_runner(
         subprocess.run(exec_cmd, check=True)
         print('Benchmark Completed Successfully :)')
     finally:
+        subprocess.run(
+            ['docker', 'exec', container_name, 'chown', '-R', host_owner, '/benchmark_results'],
+            check=False,
+        )
         subprocess.run(['docker', 'rm', '-f', container_name], check=False)
