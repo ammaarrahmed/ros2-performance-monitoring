@@ -1,0 +1,350 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": {"h": 2, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:2px 8px\"><div><b style=\"font-size:18px\">Run details</b><span style=\"color:#a8b3cf;font-size:14px\"> · Context, coverage, and measurements for one benchmark run.</span></div><div style=\"display:flex;gap:8px\"><a href=\"/d/ros2-regression-overview/default-views?var-library=$library&var-topology=$topology\" style=\"padding:7px 11px;border:1px solid #384152;border-radius:6px;color:#c7d0e0;text-decoration:none\">← Default views</a><a href=\"/d/rclcpp-pubsub-overview/manual-explorer?var-library=$library&var-topology=$topology\" style=\"padding:7px 11px;border:1px solid #384152;border-radius:6px;color:#c7d0e0;text-decoration:none\">Manual explorer</a></div></div>",
+        "mode": "html"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 2},
+      "id": 2,
+      "options": {
+        "content": "<div style=\"height:100%;box-sizing:border-box;padding:14px 18px;border-top:3px solid #5794f2;background:rgba(87,148,242,.08);border-radius:5px\"><div style=\"font-size:11px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">RUN IDENTITY</div><div style=\"font-size:23px;font-weight:650;margin:8px 0 5px\">$run_ref</div><div style=\"color:#c7d0e0\">Library <b>$library</b></div><div style=\"font-family:monospace;color:#a8b3cf;margin-top:4px\">$run_commit</div><div style=\"font-size:12px;color:#737f96;margin-top:7px\">Run $run</div></div>",
+        "mode": "html"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 2},
+      "id": 3,
+      "options": {
+        "content": "<div style=\"height:100%;box-sizing:border-box;padding:14px 18px;border-top:3px solid #73bf69;background:rgba(115,191,105,.08);border-radius:5px\"><div style=\"font-size:11px;font-weight:700;letter-spacing:.12em;color:#8bd680\">TEST ENVIRONMENT</div><div style=\"font-size:20px;font-weight:650;margin:8px 0 7px\">ROS $run_distro</div><div style=\"color:#c7d0e0\">Executor <b>$run_executor</b></div><div style=\"font-size:12px;color:#737f96;margin-top:10px\">Captured $run_timestamp</div></div>",
+        "mode": "html"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 2},
+      "id": 4,
+      "options": {
+        "content": "<div style=\"height:100%;box-sizing:border-box;padding:14px 18px;border-top:3px solid #ff9830;background:rgba(255,152,48,.08);border-radius:5px\"><div style=\"font-size:11px;font-weight:700;letter-spacing:.12em;color:#ffb357\">BENCHMARK PROVENANCE</div><div style=\"font-size:20px;font-weight:650;margin:8px 0 7px\">$benchmark_ref</div><div style=\"color:#c7d0e0\">Benchmark repository commit</div><div style=\"font-family:monospace;color:#a8b3cf;margin-top:4px\">$benchmark_commit</div></div>",
+        "mode": "html"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 7},
+      "id": 5,
+      "panels": [],
+      "title": "What this run contains",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Distinct workload, process, payload, RMW, transport, and executor scenarios in this run.",
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}, "decimals": 0, "noValue": "0"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+      "id": 6,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "count(count by (topology,process_mode,payload_bytes,rmw,comm,executor) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}))", "instant": true, "legendFormat": "Scenarios", "refId": "A"}],
+      "title": "Scenario count",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}, "decimals": 0, "noValue": "0"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+      "id": 7,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "count(count by (topology) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}))", "instant": true, "legendFormat": "Benchmark types", "refId": "A"}],
+      "title": "Benchmark types",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}, "decimals": 0, "noValue": "0"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+      "id": 8,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "count(count by (payload_bytes) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}))", "instant": true, "legendFormat": "Payload sizes", "refId": "A"}],
+      "title": "Payload sizes",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}, "decimals": 0, "noValue": "0"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+      "id": 9,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "count(count by (rmw) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}))", "instant": true, "legendFormat": "RMW implementations", "refId": "A"}],
+      "title": "RMW coverage",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Every benchmark combination and node role recorded for this run.",
+      "fieldConfig": {"defaults": {"custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "decimals": 0}, "overrides": []},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 12},
+      "id": 10,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "targets": [{"expr": "count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"})", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "title": "Scenario inventory",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true}, "indexByName": {"topology": 0, "process_mode": 1, "payload_bytes": 2, "rmw": 3, "comm": 4, "executor": 5, "node_role": 6}, "renameByName": {"comm": "Transport", "executor": "Executor", "node_role": "Node role", "payload_bytes": "Payload (bytes)", "process_mode": "Process", "rmw": "RMW", "topology": "Benchmark"}}}],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 20},
+      "id": 11,
+      "panels": [],
+      "title": "Performance profile",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Latency profile for the selected workload, averaged across the run's configurations at each payload.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "µs"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}, {"matcher": {"id": "byName", "options": "Mean"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "p95"}, "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "p99"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 21},
+      "id": 12,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "auto", "showValue": "never", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [{"expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})", "format": "table", "instant": true, "legendFormat": "Mean", "refId": "A"}, {"expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})", "format": "table", "instant": true, "legendFormat": "p95", "refId": "B"}, {"expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p99\"})", "format": "table", "instant": true, "legendFormat": "p99", "refId": "C"}],
+      "title": "Latency percentiles by payload",
+      "transformations": [{"id": "joinByField", "options": {"byField": "payload_bytes", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true, "Time 3": true}, "renameByName": {"Value #A": "Mean", "Value #B": "p95", "Value #C": "p99", "payload_bytes": "Payload"}}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Pub/Sub throughput for the selected workload, averaged across the run's available configurations.",
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "purple"}, "unit": "KBs"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}]},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 21},
+      "id": 13,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "hidden", "showLegend": false}, "orientation": "auto", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [{"expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=\"subscription_throughput\"})", "format": "table", "instant": true, "legendFormat": "Throughput", "refId": "A"}],
+      "title": "Throughput by payload",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "Throughput", "payload_bytes": "Payload"}}}, {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Payload"}]}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Peak CPU and resident memory for the selected workload, grouped by payload.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}, {"matcher": {"id": "byName", "options": "Peak CPU"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "Peak RSS"}, "properties": [{"id": "unit", "value": "decmbytes"}, {"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 29},
+      "id": 14,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "auto", "showValue": "never", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [{"expr": "avg by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"})", "format": "table", "instant": true, "legendFormat": "Peak CPU", "refId": "A"}, {"expr": "avg by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"})", "format": "table", "instant": true, "legendFormat": "Peak RSS", "refId": "B"}],
+      "title": "Resource profile by payload",
+      "transformations": [{"id": "joinByField", "options": {"byField": "payload_bytes", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "Peak CPU", "Value #B": "Peak RSS", "payload_bytes": "Payload"}}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst reliability percentages for each payload in the selected workload.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}, {"matcher": {"id": "byName", "options": "Lost"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "Late"}, "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "Too late"}, "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 29},
+      "id": 15,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "auto", "showValue": "never", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [{"expr": "max by (payload_bytes) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=\"total_messages_lost\"})", "format": "table", "instant": true, "legendFormat": "Lost", "refId": "A"}, {"expr": "max by (payload_bytes) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=\"total_messages_late\"})", "format": "table", "instant": true, "legendFormat": "Late", "refId": "B"}, {"expr": "max by (payload_bytes) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$run\",topology=\"$topology\",metric=\"total_messages_too_late\"})", "format": "table", "instant": true, "legendFormat": "Too late", "refId": "C"}],
+      "title": "Reliability profile by payload",
+      "transformations": [{"id": "joinByField", "options": {"byField": "payload_bytes", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true, "Time 3": true}, "renameByName": {"Value #A": "Lost", "Value #B": "Late", "Value #C": "Too late", "payload_bytes": "Payload"}}}],
+      "type": "barchart"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["ros2", "performance", "run-details"],
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": true, "text": "rclcpp", "value": "rclcpp"},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, client_library)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Client library",
+        "multi": false,
+        "name": "library",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info, client_library)", "refId": "Prometheus-library-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\"}, run_id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Run",
+        "multi": false,
+        "name": "run",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\"}, run_id)", "refId": "Prometheus-run-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 3,
+        "type": "query"
+      },
+      {
+        "current": {"selected": true, "text": "Pub/Sub", "value": "pub-sub"},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Workload",
+        "multi": false,
+        "name": "topology",
+        "options": [
+          {"selected": true, "text": "Pub/Sub", "value": "pub-sub"},
+          {"selected": false, "text": "Service", "value": "service"}
+        ],
+        "query": "Pub/Sub : pub-sub, Service : service",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, client_library_ref)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "run_ref",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, client_library_ref)", "refId": "Prometheus-run-ref-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, client_library_commit)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "run_commit",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, client_library_commit)", "refId": "Prometheus-run-commit-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, ros_distro)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "run_distro",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, ros_distro)", "refId": "Prometheus-run-distro-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, executor)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "run_executor",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, executor)", "refId": "Prometheus-run-executor-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, benchmark_ref)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "benchmark_ref",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, benchmark_ref)", "refId": "Prometheus-benchmark-ref-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, benchmark_commit)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "benchmark_commit",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, benchmark_commit)", "refId": "Prometheus-benchmark-commit-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, timestamp)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "run_timestamp",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$run\"}, timestamp)", "refId": "Prometheus-run-timestamp-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ROS 2 Performance · Run Details",
+  "uid": "ros2-run-detail",
+  "version": 1,
+  "weekStart": ""
+}
