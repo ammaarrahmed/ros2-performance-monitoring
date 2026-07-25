@@ -17,48 +17,131 @@ from pathlib import Path
 import re
 
 
-DASHBOARD_PATH = (
-    Path(__file__).resolve().parents[1]
-    / 'config'
-    / 'grafana'
-    / 'dashboards'
-    / 'rclcpp_pubsub_overview.json'
-)
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+DASHBOARD_DIRECTORY = REPOSITORY_ROOT / 'config' / 'grafana' / 'dashboards'
+DASHBOARD_LINK_PATTERN = re.compile(r'/d/([a-zA-Z0-9_-]+)/')
 VARIABLE_PATTERN = re.compile(r'\$(?:\{)?([a-zA-Z_][a-zA-Z0-9_]*)')
+COMPARISON_DIMENSIONS = {
+    'comm',
+    'executor',
+    'node_role',
+    'payload_bytes',
+    'process_mode',
+    'rmw',
+    'topology',
+}
 
 
-def _load_dashboard():
-    return json.loads(DASHBOARD_PATH.read_text())
+def _load_dashboards():
+    return {
+        path: json.loads(path.read_text())
+        for path in sorted(DASHBOARD_DIRECTORY.glob('*.json'))
+    }
 
 
-def test_dashboard_panel_ids_are_unique():
-    """Test every panel has a unique identifier."""
-    dashboard = _load_dashboard()
-    panel_ids = [panel['id'] for panel in dashboard['panels']]
-    assert len(panel_ids) == len(set(panel_ids))
+def _dashboard_by_uid(dashboards, uid):
+    return next(
+        dashboard
+        for dashboard in dashboards.values()
+        if dashboard['uid'] == uid
+    )
+
+
+def test_dashboard_uids_and_panel_ids_are_unique():
+    """Test provisioned dashboards and their panels have unique identifiers."""
+    dashboards = _load_dashboards()
+    uids = [dashboard['uid'] for dashboard in dashboards.values()]
+    assert len(uids) == len(set(uids))
+
+    for path, dashboard in dashboards.items():
+        panel_ids = [panel['id'] for panel in dashboard['panels']]
+        assert len(panel_ids) == len(set(panel_ids)), path
 
 
 def test_dashboard_panels_do_not_overlap():
     """Test dashboard grid positions do not occupy the same cells."""
-    occupied_cells = set()
-    for panel in _load_dashboard()['panels']:
-        position = panel['gridPos']
-        panel_cells = {
-            (x, y)
-            for x in range(position['x'], position['x'] + position['w'])
-            for y in range(position['y'], position['y'] + position['h'])
-        }
-        assert occupied_cells.isdisjoint(panel_cells), panel['id']
-        occupied_cells.update(panel_cells)
+    for path, dashboard in _load_dashboards().items():
+        occupied_cells = set()
+        for panel in dashboard['panels']:
+            position = panel['gridPos']
+            panel_cells = {
+                (x, y)
+                for x in range(position['x'], position['x'] + position['w'])
+                for y in range(position['y'], position['y'] + position['h'])
+            }
+            assert occupied_cells.isdisjoint(panel_cells), (path, panel['id'])
+            occupied_cells.update(panel_cells)
 
 
 def test_dashboard_variables_are_declared():
-    """Test dashboard content only references declared template variables."""
-    dashboard = _load_dashboard()
-    declared_variables = {
-        variable['name']
-        for variable in dashboard.get('templating', {}).get('list', [])
-    }
-    referenced_variables = set(VARIABLE_PATTERN.findall(json.dumps(dashboard)))
-    assert referenced_variables <= declared_variables
-    assert {'baseline_run', 'candidate_run'} <= declared_variables
+    """Test dashboard content only references variables declared in that dashboard."""
+    for path, dashboard in _load_dashboards().items():
+        declared_variables = {
+            variable['name']
+            for variable in dashboard.get('templating', {}).get('list', [])
+        }
+        referenced_variables = set(VARIABLE_PATTERN.findall(json.dumps(dashboard)))
+        assert referenced_variables <= declared_variables, (
+            path,
+            referenced_variables - declared_variables,
+        )
+
+
+def test_internal_dashboard_links_target_provisioned_uids():
+    """Test links between dashboards target another provisioned dashboard."""
+    dashboards = _load_dashboards()
+    provisioned_uids = {dashboard['uid'] for dashboard in dashboards.values()}
+
+    for path, dashboard in dashboards.items():
+        linked_uids = set(DASHBOARD_LINK_PATTERN.findall(json.dumps(dashboard)))
+        assert linked_uids <= provisioned_uids, (path, linked_uids - provisioned_uids)
+
+
+def test_configured_home_dashboard_is_provisioned():
+    """Test the Compose home-dashboard path names an existing dashboard file."""
+    compose = (REPOSITORY_ROOT / 'compose.dashboard.yml').read_text()
+    home_dashboard = re.search(
+        r'GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: '
+        r'/var/lib/grafana/dashboards/([^\s]+)',
+        compose,
+    )
+    assert home_dashboard is not None
+    assert (DASHBOARD_DIRECTORY / home_dashboard.group(1)).is_file()
+
+
+def test_comparability_uses_complete_scenario_identity():
+    """Test set comparisons include every dimension that affects measurements."""
+    dashboards = _load_dashboards()
+    for uid in ('ros2-comparison-coverage', 'ros2-regression-overview'):
+        dashboard = _dashboard_by_uid(dashboards, uid)
+        comparison_expressions = [
+            target['expr']
+            for panel in dashboard['panels']
+            for target in panel.get('targets', [])
+            if ' unless on ' in target.get('expr', '')
+        ]
+        assert comparison_expressions
+        for expression in comparison_expressions:
+            match = re.search(r'unless on \(([^)]+)\)', expression)
+            assert match is not None
+            assert set(match.group(1).split(',')) == COMPARISON_DIMENSIONS
+
+
+def test_run_detail_performance_queries_are_scoped_to_workload():
+    """Test a run detail never mixes measurements from different workloads."""
+    dashboards = _load_dashboards()
+    dashboard = _dashboard_by_uid(dashboards, 'ros2-run-detail')
+    performance_row = next(
+        panel
+        for panel in dashboard['panels']
+        if panel['title'] == 'Performance profile'
+    )
+    performance_panels = [
+        panel
+        for panel in dashboard['panels']
+        if panel['gridPos']['y'] > performance_row['gridPos']['y']
+    ]
+    assert performance_panels
+    for panel in performance_panels:
+        for target in panel.get('targets', []):
+            assert 'topology="$topology"' in target['expr'], panel['title']
