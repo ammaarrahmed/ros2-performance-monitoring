@@ -1,0 +1,660 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": {"h": 2, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:2px 8px;font-size:14px\"><div><b style=\"font-size:18px\">Default regression views</b><span style=\"color:#a8b3cf\"> · Eleven automatic checks cover the selected workload across RMWs and transports.</span></div><div style=\"display:flex;background:#111827;border:1px solid #384152;border-radius:8px;padding:3px\"><span style=\"padding:6px 12px;background:#3274d9;color:white;border-radius:5px;font-weight:600\">Default views</span><a href=\"/d/rclcpp-pubsub-overview/manual-explorer?var-library=$library&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"padding:6px 12px;color:#a8b3cf;text-decoration:none;border-radius:5px\">Manual</a></div></div>",
+        "mode": "html"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "gridPos": {"h": 4, "w": 12, "x": 0, "y": 2},
+      "id": 2,
+      "options": {
+        "content": "<a href=\"/d/ros2-run-detail/run-details?var-library=$library&var-run=$baseline_run&var-topology=$topology\" style=\"display:block;height:100%;color:inherit;text-decoration:none\"><div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #5794f2;background:linear-gradient(110deg,rgba(87,148,242,.16),rgba(87,148,242,.03));border-radius:4px\"><div style=\"display:flex;justify-content:space-between\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">REFERENCE RUN · BEFORE</div><div style=\"font-size:12px;color:#8ab8ff\">Open run details →</div></div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The known comparison point for every automatic check.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$baseline_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $baseline_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$baseline_commit</span> <span style=\"color:#6b7485\">·</span> run $baseline_run</div></div></a>",
+        "mode": "html"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "gridPos": {"h": 4, "w": 12, "x": 12, "y": 2},
+      "id": 3,
+      "options": {
+        "content": "<a href=\"/d/ros2-run-detail/run-details?var-library=$library&var-run=$candidate_run&var-topology=$topology\" style=\"display:block;height:100%;color:inherit;text-decoration:none\"><div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #b877d9;background:linear-gradient(110deg,rgba(184,119,217,.16),rgba(184,119,217,.03));border-radius:4px\"><div style=\"display:flex;justify-content:space-between\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#d6a6ef\">NEW RUN · AFTER</div><div style=\"font-size:12px;color:#d6a6ef\">Open run details →</div></div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The run under review. Positive regression values mean it became worse.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$candidate_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $candidate_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$candidate_commit</span> <span style=\"color:#6b7485\">·</span> run $candidate_run</div></div></a>",
+        "mode": "html"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 6},
+      "id": 4,
+      "panels": [],
+      "title": "1 · Overall verdict — worst regression found anywhere in the comparable matrix",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst mean-latency change across matching topology, process, payload, RMW, and transport combinations.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "noValue": "N/A", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 7},
+      "id": 5,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "max(100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001))", "instant": true, "legendFormat": "Worst mean latency", "refId": "A"}],
+      "title": "Mean latency",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst p95 tail-latency change across all matching scenarios.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "noValue": "N/A", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 7},
+      "id": 6,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "max(100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}), 0.000001))", "instant": true, "legendFormat": "Worst p95 latency", "refId": "A"}],
+      "title": "Tail latency",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Largest throughput loss across matching Pub/Sub scenarios.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "noValue": "No Pub/Sub data", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 7},
+      "id": 7,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "max(100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"subscription_throughput\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"}), 0.000001))", "instant": true, "legendFormat": "Worst throughput loss", "refId": "A"}],
+      "title": "Throughput loss",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Largest peak-CPU increase across all matching scenarios.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "noValue": "N/A", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 7},
+      "id": 8,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "max(100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001))", "instant": true, "legendFormat": "Worst CPU increase", "refId": "A"}],
+      "title": "CPU increase",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Largest peak resident-memory increase across all matching scenarios.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 1, "noValue": "N/A", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 7},
+      "id": 9,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "max(100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001))", "instant": true, "legendFormat": "Worst RSS increase", "refId": "A"}],
+      "title": "Memory increase",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Checks the exact workload, process mode, payload, RMW, transport, executor, and node-role sets in both runs. Any missing or newly-added combination makes the automatic comparison incomplete. Click the value to inspect the differences.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 0, "links": [{"targetBlank": false, "title": "Inspect scenario differences", "url": "/d/ros2-comparison-coverage/scenario-comparability?var-library=$library&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run"}], "mappings": [{"options": {"0": {"color": "green", "index": 0, "text": "Fully comparable"}}, "type": "value"}], "noValue": "Cannot compare", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 7},
+      "id": 47,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [{"expr": "(count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\"}))) or vector(0)) + (count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\"}))) or vector(0))", "instant": true, "legendFormat": "Scenario mismatches", "refId": "A"}],
+      "title": "Comparability",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 11},
+      "id": 10,
+      "panels": [],
+      "title": "2 · Latency and tails — catches slower responses and percentile-only regressions",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Mean latency as payload grows. Lines make scaling behaviour and the point where two runs diverge easier to see. Lower is better.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "fillOpacity": 12, "lineWidth": 3, "pointSize": {"fixed": 7}, "pointStrokeWidth": 1, "scaleDistribution": {"type": "linear"}, "show": "points+lines"}, "unit": "µs"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}, {"id": "custom.scaleDistribution", "value": {"log": 2, "type": "log"}}]}, {"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 12},
+      "id": 11,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "mapping": "auto", "series": [{"frame": {"matcher": {"id": "byIndex", "options": 0}}, "x": {"matcher": {"id": "byName", "options": "Payload"}}, "y": {"matcher": {"id": "byType", "options": "number"}}}], "tooltip": {"mode": "single"}},
+      "pluginVersion": "13.1.0",
+      "targets": [{"expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"}, {"expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}],
+      "title": "Mean latency scaling · lower is better",
+      "transformations": [{"id": "joinByField", "options": {"byField": "payload_bytes", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "indexByName": {"payload_bytes": 0, "Value #A": 1, "Value #B": 2}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "payload_bytes": "Payload"}}}, {"id": "convertFieldType", "options": {"conversions": [{"destinationType": "number", "targetField": "Payload"}], "fields": {}}}, {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Payload"}]}}],
+      "type": "xychart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "p95 latency as payload grows. 95% of messages complete at or below this value. Lower is better.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "fillOpacity": 12, "lineWidth": 3, "pointSize": {"fixed": 7}, "pointStrokeWidth": 1, "scaleDistribution": {"type": "linear"}, "show": "points+lines"}, "unit": "µs"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}, {"id": "custom.scaleDistribution", "value": {"log": 2, "type": "log"}}]}, {"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 12},
+      "id": 12,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "mapping": "auto", "series": [{"frame": {"matcher": {"id": "byIndex", "options": 0}}, "x": {"matcher": {"id": "byName", "options": "Payload"}}, "y": {"matcher": {"id": "byType", "options": "number"}}}], "tooltip": {"mode": "single"}},
+      "pluginVersion": "13.1.0",
+      "targets": [{"expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"}, {"expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}],
+      "title": "p95 latency scaling · lower is better",
+      "transformations": [{"id": "joinByField", "options": {"byField": "payload_bytes", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "indexByName": {"payload_bytes": 0, "Value #A": 1, "Value #B": 2}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "payload_bytes": "Payload"}}}, {"id": "convertFieldType", "options": {"conversions": [{"destinationType": "number", "targetField": "Payload"}], "fields": {}}}, {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Payload"}]}}],
+      "type": "xychart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 19},
+      "id": 13,
+      "panels": [],
+      "title": "3 · Throughput and scaling — catches lower bandwidth and payload-sensitive regressions",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst throughput loss at each payload across matching Pub/Sub scenarios. Positive is worse.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 20},
+      "id": 14,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "hidden", "showLegend": false}, "orientation": "auto", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [{"expr": "max by (payload_bytes) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"subscription_throughput\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "Loss", "refId": "A"}],
+      "title": "Worst throughput loss by payload",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "Loss", "payload_bytes": "Payload"}}}, {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Payload"}]}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Absolute throughput averaged across available Pub/Sub configurations. Blue is reference; purple is new.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "fillOpacity": 12, "lineWidth": 3, "pointSize": {"fixed": 7}, "pointStrokeWidth": 1, "scaleDistribution": {"type": "linear"}, "show": "points+lines"}, "unit": "KBs"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}, {"id": "custom.scaleDistribution", "value": {"log": 2, "type": "log"}}]}, {"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 20},
+      "id": 15,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "mapping": "auto", "series": [{"frame": {"matcher": {"id": "byIndex", "options": 0}}, "x": {"matcher": {"id": "byName", "options": "Payload"}}, "y": {"matcher": {"id": "byType", "options": "number"}}}], "tooltip": {"mode": "single"}},
+      "pluginVersion": "13.1.0",
+      "targets": [{"expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"})", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"}, {"expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"subscription_throughput\"})", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}],
+      "title": "Absolute throughput scaling",
+      "transformations": [{"id": "joinByField", "options": {"byField": "payload_bytes", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "indexByName": {"payload_bytes": 0, "Value #A": 1, "Value #B": 2}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "payload_bytes": "Payload"}}}, {"id": "convertFieldType", "options": {"conversions": [{"destinationType": "number", "targetField": "Payload"}], "fields": {}}}, {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Payload"}]}}],
+      "type": "xychart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 27},
+      "id": 16,
+      "panels": [],
+      "title": "4 · Resource efficiency — catches CPU and resident-memory regressions",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst peak-CPU increase at each payload. Positive is worse.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 28},
+      "id": 17,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "hidden", "showLegend": false}, "orientation": "auto", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [{"expr": "max by (payload_bytes) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "CPU increase", "refId": "A"}],
+      "title": "Worst peak-CPU increase by payload",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "CPU increase", "payload_bytes": "Payload"}}}, {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Payload"}]}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst peak-RSS increase at each payload. Positive is worse.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 28},
+      "id": 18,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "hidden", "showLegend": false}, "orientation": "auto", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [{"expr": "max by (payload_bytes) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "RSS increase", "refId": "A"}],
+      "title": "Worst peak-memory increase by payload",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "RSS increase", "payload_bytes": "Payload"}}}, {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Payload"}]}}],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 35},
+      "id": 19,
+      "panels": [],
+      "title": "5 · Reliability — catches lost, late, and too-late message regressions",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst run-over-run increase for each reliability signal and payload, in percentage points. Green means no increase, orange needs review, and red is a clear regression.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "center", "cellOptions": {"mode": "basic", "type": "color-background"}, "inspect": false}, "decimals": 2, "noValue": "Not measured", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.01}, {"color": "red", "value": 0.1}]}, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Signal"}, "properties": [{"id": "custom.align", "value": "left"}, {"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "unit", "value": "string"}]}, {"matcher": {"id": "byName", "options": "10"}, "properties": [{"id": "displayName", "value": "10 B"}]}, {"matcher": {"id": "byName", "options": "102400"}, "properties": [{"id": "displayName", "value": "100 KiB"}]}, {"matcher": {"id": "byName", "options": "1048576"}, "properties": [{"id": "displayName", "value": "1 MiB"}]}, {"matcher": {"id": "byName", "options": "4194304"}, "properties": [{"id": "displayName", "value": "4 MiB"}]}]},
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 36},
+      "id": 20,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "targets": [{"expr": "label_replace(max by (payload_bytes) (max by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"total_messages_lost\"}) - max by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"total_messages_lost\"})), \"signal\", \"Lost messages\", \"payload_bytes\", \".*\") or label_replace(max by (payload_bytes) (max by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"total_messages_late\"}) - max by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"total_messages_late\"})), \"signal\", \"Late messages\", \"payload_bytes\", \".*\") or label_replace(max by (payload_bytes) (max by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"total_messages_too_late\"}) - max by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"total_messages_too_late\"})), \"signal\", \"Too-late messages\", \"payload_bytes\", \".*\")", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "title": "Reliability regression by payload · percentage-point increase",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "metric": true}, "renameByName": {"Value": "Regression", "payload_bytes": "Payload", "signal": "Signal"}}}, {"id": "groupingToMatrix", "options": {"columnField": "Payload", "emptyValue": "null", "rowField": "Signal", "valueField": "Regression"}}, {"id": "organize", "options": {"indexByName": {"Signal": 0, "10": 1, "102400": 2, "1048576": 3, "4194304": 4}}}],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 42},
+      "id": 27,
+      "panels": [],
+      "title": "6 · Regression by RMW — identifies which middleware implementation changed",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst like-for-like mean-latency regression for every RMW and payload combination. Each cell contains the actual run-over-run percentage change; positive is worse.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "center", "cellOptions": {"mode": "basic", "type": "color-background"}, "inspect": false, "width": 88}, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "RMW"}, "properties": [{"id": "custom.align", "value": "left"}, {"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "custom.width", "value": 116}, {"id": "mappings", "value": [{"options": {"rmw_cyclonedds_cpp": {"index": 0, "text": "Cyclone DDS"}, "rmw_fastrtps_cpp": {"index": 1, "text": "Fast DDS"}, "rmw_zenoh_cpp": {"index": 2, "text": "Zenoh"}}, "type": "value"}]}, {"id": "unit", "value": "string"}]}, {"matcher": {"id": "byName", "options": "10"}, "properties": [{"id": "displayName", "value": "10 B"}]}, {"matcher": {"id": "byName", "options": "102400"}, "properties": [{"id": "displayName", "value": "100 KiB"}]}, {"matcher": {"id": "byName", "options": "1048576"}, "properties": [{"id": "displayName", "value": "1 MiB"}]}, {"matcher": {"id": "byName", "options": "4194304"}, "properties": [{"id": "displayName", "value": "4 MiB"}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 43},
+      "id": 28,
+      "options": {"cellHeight": "lg", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "targets": [{"expr": "max by (rmw,payload_bytes) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "title": "Mean-latency regression matrix · positive is worse",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "Regression", "payload_bytes": "Payload", "rmw": "RMW"}}}, {"id": "groupingToMatrix", "options": {"columnField": "Payload", "emptyValue": "null", "rowField": "RMW", "valueField": "Regression"}}, {"id": "organize", "options": {"indexByName": {"RMW": 0, "10": 1, "102400": 2, "1048576": 3, "4194304": 4}}}],
+      "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst like-for-like p95-latency regression for every RMW and payload combination. This exposes tail regressions hidden by a single worst-RMW number.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "center", "cellOptions": {"mode": "basic", "type": "color-background"}, "inspect": false, "width": 88}, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "RMW"}, "properties": [{"id": "custom.align", "value": "left"}, {"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "custom.width", "value": 116}, {"id": "mappings", "value": [{"options": {"rmw_cyclonedds_cpp": {"index": 0, "text": "Cyclone DDS"}, "rmw_fastrtps_cpp": {"index": 1, "text": "Fast DDS"}, "rmw_zenoh_cpp": {"index": 2, "text": "Zenoh"}}, "type": "value"}]}, {"id": "unit", "value": "string"}]}, {"matcher": {"id": "byName", "options": "10"}, "properties": [{"id": "displayName", "value": "10 B"}]}, {"matcher": {"id": "byName", "options": "102400"}, "properties": [{"id": "displayName", "value": "100 KiB"}]}, {"matcher": {"id": "byName", "options": "1048576"}, "properties": [{"id": "displayName", "value": "1 MiB"}]}, {"matcher": {"id": "byName", "options": "4194304"}, "properties": [{"id": "displayName", "value": "4 MiB"}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 43},
+      "id": 29,
+      "options": {"cellHeight": "lg", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "targets": [{"expr": "max by (rmw,payload_bytes) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "title": "p95-latency regression matrix · positive is worse",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "Regression", "payload_bytes": "Payload", "rmw": "RMW"}}}, {"id": "groupingToMatrix", "options": {"columnField": "Payload", "emptyValue": "null", "rowField": "RMW", "valueField": "Regression"}}, {"id": "organize", "options": {"indexByName": {"RMW": 0, "10": 1, "102400": 2, "1048576": 3, "4194304": 4}}}],
+      "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst like-for-like throughput loss for every RMW and payload combination. Positive means the new run moved less data.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "center", "cellOptions": {"mode": "basic", "type": "color-background"}, "inspect": false, "width": 88}, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "RMW"}, "properties": [{"id": "custom.align", "value": "left"}, {"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "custom.width", "value": 116}, {"id": "mappings", "value": [{"options": {"rmw_cyclonedds_cpp": {"index": 0, "text": "Cyclone DDS"}, "rmw_fastrtps_cpp": {"index": 1, "text": "Fast DDS"}, "rmw_zenoh_cpp": {"index": 2, "text": "Zenoh"}}, "type": "value"}]}, {"id": "unit", "value": "string"}]}, {"matcher": {"id": "byName", "options": "10"}, "properties": [{"id": "displayName", "value": "10 B"}]}, {"matcher": {"id": "byName", "options": "102400"}, "properties": [{"id": "displayName", "value": "100 KiB"}]}, {"matcher": {"id": "byName", "options": "1048576"}, "properties": [{"id": "displayName", "value": "1 MiB"}]}, {"matcher": {"id": "byName", "options": "4194304"}, "properties": [{"id": "displayName", "value": "4 MiB"}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 50},
+      "id": 30,
+      "options": {"cellHeight": "lg", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "targets": [{"expr": "max by (rmw,payload_bytes) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"subscription_throughput\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "title": "Throughput-loss regression matrix · positive is worse",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "Regression", "payload_bytes": "Payload", "rmw": "RMW"}}}, {"id": "groupingToMatrix", "options": {"columnField": "Payload", "emptyValue": "null", "rowField": "RMW", "valueField": "Regression"}}, {"id": "organize", "options": {"indexByName": {"RMW": 0, "10": 1, "102400": 2, "1048576": 3, "4194304": 4}}}],
+      "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst peak CPU and RSS increase for each RMW. Both are like-for-like run-over-run percentage changes.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "CPU increase"}, "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "RSS increase"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 50},
+      "id": 31,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "auto", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "RMW"},
+      "targets": [
+        {"expr": "max by (rmw) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "CPU increase", "refId": "A"},
+        {"expr": "max by (rmw) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "RSS increase", "refId": "B"}
+      ],
+      "title": "Worst resource regression by RMW",
+      "transformations": [{"id": "joinByField", "options": {"byField": "rmw", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "CPU increase", "Value #B": "RSS increase", "rmw": "RMW"}}}],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 57},
+      "id": 32,
+      "panels": [],
+      "title": "7 · Regression by transport — separates IPC off, IPC on, and loaned-message changes",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst like-for-like mean-latency regression for each recorded transport mode. Positive is worse.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 58},
+      "id": 33,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "hidden", "showLegend": false}, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Transport"},
+      "targets": [{"expr": "max by (comm) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "Regression", "refId": "A"}],
+      "title": "Worst mean-latency regression",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "Regression", "comm": "Transport"}}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst like-for-like throughput loss for each recorded transport mode. Positive is worse.",
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.5}, {"color": "red", "value": 2}]}, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 58},
+      "id": 34,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "hidden", "showLegend": false}, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Transport"},
+      "targets": [{"expr": "max by (comm) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"subscription_throughput\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"subscription_throughput\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "Loss", "refId": "A"}],
+      "title": "Worst throughput loss",
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "Loss", "comm": "Transport"}}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Worst peak CPU and RSS run-over-run increase for each transport mode.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "CPU increase"}, "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "RSS increase"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 58},
+      "id": 35,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Transport"},
+      "targets": [
+        {"expr": "max by (comm) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "CPU increase", "refId": "A"},
+        {"expr": "max by (comm) (100 * (avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(avg by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001))", "format": "table", "instant": true, "legendFormat": "RSS increase", "refId": "B"}
+      ],
+      "title": "Worst resource regression",
+      "transformations": [{"id": "joinByField", "options": {"byField": "comm", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "CPU increase", "Value #B": "RSS increase", "comm": "Transport"}}}],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 65},
+      "id": 36,
+      "panels": [],
+      "title": "8 · RMW comparison — absolute performance on the common IPC-off matrix",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Mean latency by RMW, averaged over the common IPC-off matrix. Blue is the reference run; purple is the new run.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "µs"}, "overrides": [{"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 66},
+      "id": 37,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "RMW"},
+      "targets": [
+        {"expr": "avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",comm=\"ipc_off\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"},
+        {"expr": "avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",comm=\"ipc_off\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}
+      ],
+      "title": "Mean latency by RMW · IPC off",
+      "transformations": [{"id": "joinByField", "options": {"byField": "rmw", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "rmw": "RMW"}}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Pub/Sub throughput by RMW, averaged over the common IPC-off matrix.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "KBs"}, "overrides": [{"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 66},
+      "id": 38,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "RMW"},
+      "targets": [
+        {"expr": "avg by (rmw) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",comm=\"ipc_off\",metric=\"subscription_throughput\"})", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"},
+        {"expr": "avg by (rmw) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",comm=\"ipc_off\",metric=\"subscription_throughput\"})", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}
+      ],
+      "title": "Throughput by RMW · IPC off",
+      "transformations": [{"id": "joinByField", "options": {"byField": "rmw", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "rmw": "RMW"}}}],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 73},
+      "id": 39,
+      "panels": [],
+      "title": "9 · IPC effectiveness — IPC-on change relative to IPC-off in single-process tests",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "IPC-on mean-latency change relative to IPC-off for the same run, restricted to Fast DDS and Zenoh single-process tests where both modes exist. Negative is better.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 74},
+      "id": 40,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "RMW"},
+      "targets": [
+        {"expr": "100 * (avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_on\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_off\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_off\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001)", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"},
+        {"expr": "100 * (avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_on\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_off\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_off\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001)", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}
+      ],
+      "title": "IPC effect on mean latency by RMW",
+      "transformations": [{"id": "joinByField", "options": {"byField": "rmw", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "rmw": "RMW"}}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "IPC-on throughput change relative to IPC-off for the same run and RMW in single-process Pub/Sub tests. Positive is better.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 74},
+      "id": 41,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "RMW"},
+      "targets": [
+        {"expr": "100 * (avg by (rmw) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_on\",metric=\"subscription_throughput\"}) - avg by (rmw) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_off\",metric=\"subscription_throughput\"})) / clamp_min(avg by (rmw) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_off\",metric=\"subscription_throughput\"}), 0.000001)", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"},
+        {"expr": "100 * (avg by (rmw) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_on\",metric=\"subscription_throughput\"}) - avg by (rmw) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_off\",metric=\"subscription_throughput\"})) / clamp_min(avg by (rmw) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"single_process\",comm=\"ipc_off\",metric=\"subscription_throughput\"}), 0.000001)", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}
+      ],
+      "title": "IPC effect on throughput by RMW",
+      "transformations": [{"id": "joinByField", "options": {"byField": "rmw", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "rmw": "RMW"}}}],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 81},
+      "id": 42,
+      "panels": [],
+      "title": "10 · Loaned-message effectiveness — Pub/Sub only; not applicable to Services",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Loaned-message mean-latency change relative to Fast DDS IPC-off for identical Pub/Sub payloads. Negative is better.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 82},
+      "id": 43,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "auto", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [
+        {"expr": "100 * (avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"loaned\",metric=\"subscription_latency\",aggregation=\"mean\"}) - avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"ipc_off\",metric=\"subscription_latency\",aggregation=\"mean\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"ipc_off\",metric=\"subscription_latency\",aggregation=\"mean\"}), 0.000001)", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"},
+        {"expr": "100 * (avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"loaned\",metric=\"subscription_latency\",aggregation=\"mean\"}) - avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"ipc_off\",metric=\"subscription_latency\",aggregation=\"mean\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"ipc_off\",metric=\"subscription_latency\",aggregation=\"mean\"}), 0.000001)", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}
+      ],
+      "title": "Loaned effect on mean latency by payload",
+      "transformations": [{"id": "joinByField", "options": {"byField": "payload_bytes", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "payload_bytes": "Payload"}}}],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Loaned-message throughput change relative to Fast DDS IPC-off for identical Pub/Sub payloads. Positive is better.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": true}, "decimals": 1, "unit": "percent"}, "overrides": [{"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "unit", "value": "bytes"}]}]},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 82},
+      "id": 44,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "auto", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "Payload"},
+      "targets": [
+        {"expr": "100 * (avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"loaned\",metric=\"subscription_throughput\"}) - avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"ipc_off\",metric=\"subscription_throughput\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"ipc_off\",metric=\"subscription_throughput\"}), 0.000001)", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"},
+        {"expr": "100 * (avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"loaned\",metric=\"subscription_throughput\"}) - avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"ipc_off\",metric=\"subscription_throughput\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",rmw=\"rmw_fastrtps_cpp\",comm=\"ipc_off\",metric=\"subscription_throughput\"}), 0.000001)", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}
+      ],
+      "title": "Loaned effect on throughput by payload",
+      "transformations": [{"id": "joinByField", "options": {"byField": "payload_bytes", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "payload_bytes": "Payload"}}}],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 89},
+      "id": 45,
+      "panels": [],
+      "title": "11 · Like-for-like p95 latency by RMW — selected workload, same scenario in both runs",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Client-facing p95 latency for an identical 1 MiB, single-process, IPC-off scenario in the selected workload. Each RMW is compared only with itself across the two runs. Lower is better.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "decimals": 0, "unit": "µs"}, "overrides": [{"matcher": {"id": "byName", "options": "Reference"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "New run"}, "properties": [{"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}}]}]},
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 90},
+      "id": 46,
+      "options": {"barWidth": 0.8, "groupWidth": 0.7, "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "orientation": "horizontal", "showValue": "always", "stacking": "none", "tooltip": {"mode": "single"}, "xField": "RMW"},
+      "targets": [
+        {"expr": "avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"single_process\",payload_bytes=\"1048576\",comm=\"ipc_off\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})", "format": "table", "instant": true, "legendFormat": "Reference", "refId": "A"},
+        {"expr": "avg by (rmw) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"single_process\",payload_bytes=\"1048576\",comm=\"ipc_off\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})", "format": "table", "instant": true, "legendFormat": "New run", "refId": "B"}
+      ],
+      "title": "p95 client-facing latency · 1 MiB ${topology:text} · single process · IPC off · lower is better",
+      "transformations": [{"id": "joinByField", "options": {"byField": "rmw", "mode": "outer"}}, {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true}, "renameByName": {"Value #A": "Reference", "Value #B": "New run", "rmw": "RMW"}}}],
+      "type": "barchart"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["ros2", "performance", "regression", "default-views"],
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": true, "text": "rclcpp", "value": "rclcpp"},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, client_library)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Client library",
+        "multi": false,
+        "name": "library",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info, client_library)", "refId": "Prometheus-library-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {"selected": true, "text": "Pub/Sub", "value": "pub-sub"},
+        "description": "Choose whether the default comparisons evaluate Pub/Sub or Service benchmarks.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Workload",
+        "multi": false,
+        "name": "topology",
+        "options": [
+          {"selected": true, "text": "Pub/Sub", "value": "pub-sub"},
+          {"selected": false, "text": "Service", "value": "service"}
+        ],
+        "query": "Pub/Sub : pub-sub, Service : service",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\"}, run_id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Before run",
+        "multi": false,
+        "name": "baseline_run",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\"}, run_id)", "refId": "Prometheus-baseline-run-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 3,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\",run_id!=\"$baseline_run\"}, run_id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "After run",
+        "multi": false,
+        "name": "candidate_run",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\",run_id!=\"$baseline_run\"}, run_id)", "refId": "Prometheus-candidate-run-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 3,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_ref)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "baseline_ref",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_ref)", "refId": "Prometheus-baseline-ref-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_commit)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "baseline_commit",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_commit)", "refId": "Prometheus-baseline-commit-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, ros_distro)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "baseline_distro",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, ros_distro)", "refId": "Prometheus-baseline-distro-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_ref)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "candidate_ref",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_ref)", "refId": "Prometheus-candidate-ref-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_commit)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "candidate_commit",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_commit)", "refId": "Prometheus-candidate-commit-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, ros_distro)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "candidate_distro",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, ros_distro)", "refId": "Prometheus-candidate-distro-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ROS 2 Performance · Default Regression Views",
+  "uid": "ros2-regression-overview",
+  "version": 4,
+  "weekStart": ""
+}
