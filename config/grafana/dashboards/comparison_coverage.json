@@ -1,0 +1,222 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;height:100%;padding:4px 10px;box-sizing:border-box\"><div><div style=\"font-size:20px;font-weight:650\">Scenario comparability</div><div style=\"margin-top:5px;color:#a8b3cf;font-size:13px\">Exact workload, process-mode, payload, RMW, transport, executor, and node-role combinations in the two runs. Automatic regression conclusions are complete only when both lists are empty.</div></div><a href=\"/d/ros2-regression-overview/default-views?var-library=$library&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"white-space:nowrap;margin-left:20px;padding:8px 12px;background:#3274d9;color:white;text-decoration:none;border-radius:5px;font-weight:600\">← Back to default views</a></div>",
+        "mode": "html"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Scenario combinations present in the reference run but absent from the new run.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 0,
+          "mappings": [{"options": {"0": {"color": "green", "index": 0, "text": "None missing"}}, "type": "value"}],
+          "noValue": "Cannot compare",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 12, "x": 0, "y": 3},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
+      "targets": [
+        {
+          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\"}))) or vector(0)",
+          "instant": true,
+          "legendFormat": "Missing from new run",
+          "refId": "A"
+        }
+      ],
+      "title": "Missing from new run",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Scenario combinations present only in the new run.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "decimals": 0,
+          "mappings": [{"options": {"0": {"color": "green", "index": 0, "text": "None added"}}, "type": "value"}],
+          "noValue": "Cannot compare",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 12, "x": 12, "y": 3},
+      "id": 3,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
+      "targets": [
+        {
+          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\"}))) or vector(0)",
+          "instant": true,
+          "legendFormat": "Added in new run",
+          "refId": "A"
+        }
+      ],
+      "title": "Added in new run",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "These reference scenarios have no exact match in the new run and cannot contribute to a like-for-like regression comparison.",
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left", "cellOptions": {"type": "auto"}, "inspect": false}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "mappings", "value": [{"options": {"10": {"index": 0, "text": "10 B"}, "102400": {"index": 1, "text": "100 KiB"}, "1048576": {"index": 2, "text": "1 MiB"}, "4194304": {"index": 3, "text": "4 MiB"}}, "type": "value"}]}]},
+          {"matcher": {"id": "byName", "options": "RMW"}, "properties": [{"id": "mappings", "value": [{"options": {"rmw_cyclonedds_cpp": {"index": 0, "text": "Cyclone DDS"}, "rmw_fastrtps_cpp": {"index": 1, "text": "Fast DDS"}, "rmw_zenoh_cpp": {"index": 2, "text": "Zenoh"}}, "type": "value"}]}]},
+          {"matcher": {"id": "byName", "options": "Process mode"}, "properties": [{"id": "mappings", "value": [{"options": {"multi_process": {"index": 1, "text": "Multi process"}, "single_process": {"index": 0, "text": "Single process"}}, "type": "value"}]}]},
+          {"matcher": {"id": "byName", "options": "Transport"}, "properties": [{"id": "mappings", "value": [{"options": {"ipc_off": {"index": 0, "text": "IPC off"}, "ipc_on": {"index": 1, "text": "IPC on"}, "loaned": {"index": 2, "text": "Loaned"}}, "type": "value"}]}]}
+        ]
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 7},
+      "id": 4,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "targets": [
+        {
+          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\"}))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Reference scenarios missing from the new run",
+      "transformations": [
+        {"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "topology": true}, "indexByName": {"process_mode": 0, "payload_bytes": 1, "rmw": 2, "comm": 3, "executor": 4, "node_role": 5}, "renameByName": {"comm": "Transport", "executor": "Executor", "node_role": "Node role", "payload_bytes": "Payload", "process_mode": "Process mode", "rmw": "RMW"}}},
+        {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Process mode"}, {"desc": false, "field": "Payload"}, {"desc": false, "field": "RMW"}, {"desc": false, "field": "Transport"}, {"desc": false, "field": "Executor"}, {"desc": false, "field": "Node role"}]}}
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "These scenarios exist only in the new run. They may be useful new coverage, but they have no reference value for regression analysis.",
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left", "cellOptions": {"type": "auto"}, "inspect": false}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Payload"}, "properties": [{"id": "mappings", "value": [{"options": {"10": {"index": 0, "text": "10 B"}, "102400": {"index": 1, "text": "100 KiB"}, "1048576": {"index": 2, "text": "1 MiB"}, "4194304": {"index": 3, "text": "4 MiB"}}, "type": "value"}]}]},
+          {"matcher": {"id": "byName", "options": "RMW"}, "properties": [{"id": "mappings", "value": [{"options": {"rmw_cyclonedds_cpp": {"index": 0, "text": "Cyclone DDS"}, "rmw_fastrtps_cpp": {"index": 1, "text": "Fast DDS"}, "rmw_zenoh_cpp": {"index": 2, "text": "Zenoh"}}, "type": "value"}]}]},
+          {"matcher": {"id": "byName", "options": "Process mode"}, "properties": [{"id": "mappings", "value": [{"options": {"multi_process": {"index": 1, "text": "Multi process"}, "single_process": {"index": 0, "text": "Single process"}}, "type": "value"}]}]},
+          {"matcher": {"id": "byName", "options": "Transport"}, "properties": [{"id": "mappings", "value": [{"options": {"ipc_off": {"index": 0, "text": "IPC off"}, "ipc_on": {"index": 1, "text": "IPC on"}, "loaned": {"index": 2, "text": "Loaned"}}, "type": "value"}]}]}
+        ]
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 15},
+      "id": 5,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "targets": [
+        {
+          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\"}))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Scenarios added in the new run",
+      "transformations": [
+        {"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "topology": true}, "indexByName": {"process_mode": 0, "payload_bytes": 1, "rmw": 2, "comm": 3, "executor": 4, "node_role": 5}, "renameByName": {"comm": "Transport", "executor": "Executor", "node_role": "Node role", "payload_bytes": "Payload", "process_mode": "Process mode", "rmw": "RMW"}}},
+        {"id": "sortBy", "options": {"sort": [{"desc": false, "field": "Process mode"}, {"desc": false, "field": "Payload"}, {"desc": false, "field": "RMW"}, {"desc": false, "field": "Transport"}, {"desc": false, "field": "Executor"}, {"desc": false, "field": "Node role"}]}}
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["ros2", "performance", "regression", "coverage"],
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": true, "text": "rclcpp", "value": "rclcpp"},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info, client_library)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Client library",
+        "multi": false,
+        "name": "library",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info, client_library)", "refId": "Prometheus-library-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {"selected": true, "text": "Pub/Sub", "value": "pub-sub"},
+        "description": "Choose whether to inspect Pub/Sub or Service benchmark coverage.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Workload",
+        "multi": false,
+        "name": "topology",
+        "options": [
+          {"selected": true, "text": "Pub/Sub", "value": "pub-sub"},
+          {"selected": false, "text": "Service", "value": "service"}
+        ],
+        "query": "Pub/Sub : pub-sub, Service : service",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\"}, run_id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Before run",
+        "multi": false,
+        "name": "baseline_run",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\"}, run_id)", "refId": "Prometheus-baseline-run-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 3,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\",run_id!=\"$baseline_run\"}, run_id)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "After run",
+        "multi": false,
+        "name": "candidate_run",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\",run_id!=\"$baseline_run\"}, run_id)", "refId": "Prometheus-candidate-run-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 3,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ROS 2 Performance · Scenario Comparability",
+  "uid": "ros2-comparison-coverage",
+  "version": 1,
+  "weekStart": ""
+}
