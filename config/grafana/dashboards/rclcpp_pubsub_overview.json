@@ -26,112 +26,36 @@
       "type": "text"
     },
     {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "fixedColor": "blue",
-            "mode": "fixed"
-          },
-          "mappings": [
-            {
-              "options": {
-                "1": {
-                  "text": "Ready to compare"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "noValue": "No matching configuration"
-        },
-        "overrides": []
-      },
       "gridPos": {
-        "h": 2,
+        "h": 4,
         "w": 12,
         "x": 0,
         "y": 2
       },
       "id": 2,
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
+        "content": "<div style=\"height:100%;box-sizing:border-box;padding:14px 18px;border-left:5px solid #5794f2;background:linear-gradient(110deg,rgba(87,148,242,.16),rgba(87,148,242,.03));border-radius:4px\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">BASELINE</div><div style=\"font-size:24px;font-weight:650;margin:5px 0 7px\">$baseline_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $baseline_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$baseline_commit</span></div><div style=\"font-size:12px;color:#8b95a7;margin-top:6px\">Run $baseline_run</div></div>",
+        "mode": "html"
       },
-      "targets": [
-        {
-          "expr": "max by (client_library_ref, client_library_commit, ros_distro) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
-          "instant": true,
-          "legendFormat": "BASELINE  ·  {{client_library_ref}}  ·  {{client_library_commit}}  ·  ROS {{ros_distro}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Known-good reference",
-      "type": "stat"
+      "title": "",
+      "transparent": true,
+      "type": "text"
     },
     {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "fixedColor": "purple",
-            "mode": "fixed"
-          },
-          "mappings": [
-            {
-              "options": {
-                "1": {
-                  "text": "Ready to compare"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "noValue": "No matching configuration"
-        },
-        "overrides": []
-      },
       "gridPos": {
-        "h": 2,
+        "h": 4,
         "w": 12,
         "x": 12,
         "y": 2
       },
       "id": 3,
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value_and_name"
+        "content": "<div style=\"height:100%;box-sizing:border-box;padding:14px 18px;border-left:5px solid #b877d9;background:linear-gradient(110deg,rgba(184,119,217,.16),rgba(184,119,217,.03));border-radius:4px\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#d6a6ef\">CANDIDATE</div><div style=\"font-size:24px;font-weight:650;margin:5px 0 7px\">$candidate_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $candidate_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$candidate_commit</span></div><div style=\"font-size:12px;color:#8b95a7;margin-top:6px\">Run $candidate_run</div></div>",
+        "mode": "html"
       },
-      "targets": [
-        {
-          "expr": "max by (client_library_ref, client_library_commit, ros_distro) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
-          "instant": true,
-          "legendFormat": "CANDIDATE  ·  {{client_library_ref}}  ·  {{client_library_commit}}  ·  ROS {{ros_distro}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Change under review",
-      "type": "stat"
+      "title": "",
+      "transparent": true,
+      "type": "text"
     },
     {
       "collapsed": false,
@@ -139,7 +63,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 4
+        "y": 6
       },
       "id": 4,
       "panels": [],
@@ -177,7 +101,7 @@
         "h": 3,
         "w": 5,
         "x": 0,
-        "y": 5
+        "y": 7
       },
       "id": 5,
       "options": {
@@ -236,7 +160,7 @@
         "h": 3,
         "w": 5,
         "x": 5,
-        "y": 5
+        "y": 7
       },
       "id": 6,
       "options": {
@@ -295,7 +219,7 @@
         "h": 3,
         "w": 5,
         "x": 10,
-        "y": 5
+        "y": 7
       },
       "id": 7,
       "options": {
@@ -354,7 +278,7 @@
         "h": 3,
         "w": 4,
         "x": 15,
-        "y": 5
+        "y": 7
       },
       "id": 8,
       "options": {
@@ -413,7 +337,7 @@
         "h": 3,
         "w": 5,
         "x": 19,
-        "y": 5
+        "y": 7
       },
       "id": 9,
       "options": {
@@ -447,7 +371,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 10
       },
       "id": 10,
       "panels": [],
@@ -463,13 +387,44 @@
           },
           "unit": "µs"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 4,
+        "h": 6,
+        "w": 8,
         "x": 0,
-        "y": 9
+        "y": 11
       },
       "id": 11,
       "options": {
@@ -513,13 +468,44 @@
           },
           "unit": "µs"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 4,
-        "y": 9
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 11
       },
       "id": 12,
       "options": {
@@ -563,13 +549,44 @@
           },
           "unit": "KBs"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 8,
-        "y": 9
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 11
       },
       "id": 13,
       "options": {
@@ -613,13 +630,44 @@
           },
           "unit": "percent"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 12,
-        "y": 9
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 17
       },
       "id": 14,
       "options": {
@@ -663,13 +711,44 @@
           },
           "unit": "mbytes"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 16,
-        "y": 9
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 17
       },
       "id": 15,
       "options": {
@@ -713,19 +792,50 @@
           },
           "unit": "percent"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 20,
-        "y": 9
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 23
       },
       "id": 16,
       "options": {
-        "displayMode": "basic",
-        "minVizHeight": 16,
-        "namePlacement": "top",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
         "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
@@ -734,37 +844,455 @@
           "fields": "",
           "values": false
         },
-        "showUnfilled": true,
-        "valueMode": "text"
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
       },
       "targets": [
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_lost\"})",
           "instant": true,
-          "legendFormat": "Baseline · lost",
+          "legendFormat": "Baseline",
           "refId": "A"
         },
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_lost\"})",
           "instant": true,
-          "legendFormat": "Candidate · lost",
+          "legendFormat": "Candidate",
           "refId": "B"
+        }
+      ],
+      "title": "Lost messages",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "percent"
         },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 23
+      },
+      "id": 17,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_late\"})",
           "instant": true,
-          "legendFormat": "Baseline · late",
-          "refId": "C"
+          "legendFormat": "Baseline",
+          "refId": "A"
         },
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_late\"})",
           "instant": true,
-          "legendFormat": "Candidate · late",
-          "refId": "D"
+          "legendFormat": "Candidate",
+          "refId": "B"
         }
       ],
-      "title": "Reliability",
-      "type": "bargauge"
+      "title": "Late messages",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 23
+      },
+      "id": 18,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_too_late\"})",
+          "instant": true,
+          "legendFormat": "Baseline",
+          "refId": "A"
+        },
+        {
+          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_too_late\"})",
+          "instant": true,
+          "legendFormat": "Candidate",
+          "refId": "B"
+        }
+      ],
+      "title": "Too-late messages",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 20,
+      "panels": [],
+      "title": "Payload scaling · does the change behave consistently as messages grow?",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Mean latency for every available payload while keeping topology, process mode, RMW, and transport fixed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "µs"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Payload (bytes)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 21,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Payload (bytes)",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Baseline",
+          "refId": "A"
+        },
+        {
+          "expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Candidate",
+          "refId": "B"
+        }
+      ],
+      "title": "Mean latency by payload",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "payload_bytes",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true
+            },
+            "renameByName": {
+              "Value #A": "Baseline",
+              "Value #B": "Candidate",
+              "payload_bytes": "Payload (bytes)"
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Pub/Sub throughput for every available payload under the same selected execution scenario.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "KBs"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Payload (bytes)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 22,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Payload (bytes)",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Baseline",
+          "refId": "A"
+        },
+        {
+          "expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Candidate",
+          "refId": "B"
+        }
+      ],
+      "title": "Throughput by payload",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "payload_bytes",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true
+            },
+            "renameByName": {
+              "Value #A": "Baseline",
+              "Value #B": "Candidate",
+              "payload_bytes": "Payload (bytes)"
+            }
+          }
+        }
+      ],
+      "type": "barchart"
     }
   ],
   "refresh": "5s",
@@ -843,6 +1371,120 @@
         "regex": "",
         "skipUrlSync": false,
         "sort": 2,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_ref)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "baseline_ref",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_ref)",
+          "refId": "Prometheus-baseline-ref-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": true,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_commit)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "baseline_commit",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_commit)",
+          "refId": "Prometheus-baseline-commit-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": true,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, ros_distro)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "baseline_distro",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, ros_distro)",
+          "refId": "Prometheus-baseline-distro-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": true,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_ref)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "candidate_ref",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_ref)",
+          "refId": "Prometheus-candidate-ref-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": true,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_commit)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "candidate_commit",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_commit)",
+          "refId": "Prometheus-candidate-commit-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": true,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, ros_distro)",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "candidate_distro",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, ros_distro)",
+          "refId": "Prometheus-candidate-distro-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": true,
+        "sort": 1,
         "type": "query"
       },
       {
