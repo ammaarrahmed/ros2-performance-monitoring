@@ -147,11 +147,16 @@ Open Grafana:
 http://localhost:3000
 ```
 
-The dashboard is provisioned automatically. Look for:
+The curated regression view is provisioned automatically and configured as
+Grafana's home dashboard. Look for:
 
 ```text
-ROS 2 Client Library Performance Comparison
+ROS 2 Performance · Default Regression Views
 ```
+
+Use the mode control to move between the automatic full-matrix checks and the
+manual scenario explorer. Click either run card to open that run's metadata,
+scenario inventory, and complete performance profile.
 
 ### 5. Stop The Dashboard
 
