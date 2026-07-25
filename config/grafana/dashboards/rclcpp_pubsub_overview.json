@@ -11,14 +11,14 @@
   "panels": [
     {
       "gridPos": {
-        "h": 3,
+        "h": 2,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "content": "<div style=\"padding:4px 8px\"><div style=\"font-size:22px;font-weight:600;margin-bottom:8px\">Client library performance review</div><div style=\"font-size:14px;color:#a8b3cf\">One scenario, two runs, every important signal. Start with the library, choose a known-good baseline and a candidate, then read the deltas below. <span style=\"color:#73bf69\">Green is better</span>; <span style=\"color:#f2495c\">red needs attention</span>.</div></div>",
+        "content": "<div style=\"padding:2px 8px;font-size:14px\"><b style=\"font-size:18px\">Client library performance review</b><span style=\"color:#a8b3cf\"> · Choose a library, known-good run, and candidate. </span><span style=\"color:#73bf69\">Green = no regression</span><span style=\"color:#a8b3cf\">; </span><span style=\"color:#f2495c\">red = needs attention</span><span style=\"color:#a8b3cf\">.</span></div>",
         "mode": "html"
       },
       "title": "",
@@ -48,10 +48,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 2,
         "w": 12,
         "x": 0,
-        "y": 3
+        "y": 2
       },
       "id": 2,
       "options": {
@@ -70,9 +70,9 @@
       },
       "targets": [
         {
-          "expr": "clamp_max(count(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}), 1)",
+          "expr": "max by (client_library_ref, client_library_commit, ros_distro) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
           "instant": true,
-          "legendFormat": "BASELINE  •  $baseline_run",
+          "legendFormat": "BASELINE  ·  {{client_library_ref}}  ·  {{client_library_commit}}  ·  ROS {{ros_distro}}",
           "refId": "A"
         }
       ],
@@ -102,10 +102,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 2,
         "w": 12,
         "x": 12,
-        "y": 3
+        "y": 2
       },
       "id": 3,
       "options": {
@@ -124,9 +124,9 @@
       },
       "targets": [
         {
-          "expr": "clamp_max(count(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}), 1)",
+          "expr": "max by (client_library_ref, client_library_commit, ros_distro) (ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
           "instant": true,
-          "legendFormat": "CANDIDATE  •  $candidate_run",
+          "legendFormat": "CANDIDATE  ·  {{client_library_ref}}  ·  {{client_library_commit}}  ·  ROS {{ros_distro}}",
           "refId": "A"
         }
       ],
@@ -139,7 +139,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 7
+        "y": 4
       },
       "id": 4,
       "panels": [],
@@ -164,10 +164,6 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": -1
-              },
-              {
                 "color": "red",
                 "value": 1
               }
@@ -178,10 +174,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 3,
         "w": 5,
         "x": 0,
-        "y": 8
+        "y": 5
       },
       "id": 5,
       "options": {
@@ -227,10 +223,6 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": -1
-              },
-              {
                 "color": "red",
                 "value": 1
               }
@@ -241,10 +233,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 3,
         "w": 5,
         "x": 5,
-        "y": 8
+        "y": 5
       },
       "id": 6,
       "options": {
@@ -290,12 +282,8 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": -1
-              },
-              {
                 "color": "green",
-                "value": 1
+                "value": 0
               }
             ]
           },
@@ -304,10 +292,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 3,
         "w": 5,
         "x": 10,
-        "y": 8
+        "y": 5
       },
       "id": 7,
       "options": {
@@ -353,10 +341,6 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": -1
-              },
-              {
                 "color": "red",
                 "value": 1
               }
@@ -367,10 +351,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 3,
         "w": 4,
         "x": 15,
-        "y": 8
+        "y": 5
       },
       "id": 8,
       "options": {
@@ -416,10 +400,6 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": -1
-              },
-              {
                 "color": "red",
                 "value": 1
               }
@@ -430,10 +410,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 3,
         "w": 5,
         "x": 19,
-        "y": 8
+        "y": 5
       },
       "id": 9,
       "options": {
@@ -467,7 +447,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 8
       },
       "id": 10,
       "panels": [],
@@ -486,10 +466,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
+        "h": 5,
+        "w": 4,
         "x": 0,
-        "y": 14
+        "y": 9
       },
       "id": 11,
       "options": {
@@ -536,10 +516,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 14
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 9
       },
       "id": 12,
       "options": {
@@ -586,10 +566,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 14
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 9
       },
       "id": 13,
       "options": {
@@ -636,10 +616,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 0,
-        "y": 21
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 9
       },
       "id": 14,
       "options": {
@@ -686,10 +666,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 21
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 9
       },
       "id": 15,
       "options": {
@@ -736,10 +716,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 21
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 9
       },
       "id": 16,
       "options": {
@@ -785,147 +765,6 @@
       ],
       "title": "Reliability",
       "type": "bargauge"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 28
-      },
-      "id": 17,
-      "panels": [],
-      "title": "Run provenance · confirm that the comparison is valid",
-      "type": "row"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 29
-      },
-      "id": 18,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "targets": [
-        {
-          "expr": "ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "Baseline",
-          "refId": "A"
-        }
-      ],
-      "title": "Baseline metadata",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Value": true,
-              "__name__": true,
-              "benchmark_commit": true,
-              "benchmark_ref": true,
-              "client_library": true,
-              "comm": true,
-              "executor": true,
-              "node_role": true,
-              "payload_bytes": true,
-              "process_mode": true,
-              "rmw": true,
-              "run_id": true,
-              "topology": true
-            },
-            "indexByName": {
-              "client_library_ref": 0,
-              "client_library_commit": 1,
-              "ros_distro": 2,
-              "timestamp": 3
-            },
-            "renameByName": {
-              "client_library_commit": "Commit",
-              "client_library_ref": "Client library ref",
-              "ros_distro": "ROS distribution",
-              "timestamp": "Run timestamp"
-            }
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 29
-      },
-      "id": 19,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "targets": [
-        {
-          "expr": "ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "Candidate",
-          "refId": "A"
-        }
-      ],
-      "title": "Candidate metadata",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Value": true,
-              "__name__": true,
-              "benchmark_commit": true,
-              "benchmark_ref": true,
-              "client_library": true,
-              "comm": true,
-              "executor": true,
-              "node_role": true,
-              "payload_bytes": true,
-              "process_mode": true,
-              "rmw": true,
-              "run_id": true,
-              "topology": true
-            },
-            "indexByName": {
-              "client_library_ref": 0,
-              "client_library_commit": 1,
-              "ros_distro": 2,
-              "timestamp": 3
-            },
-            "renameByName": {
-              "client_library_commit": "Commit",
-              "client_library_ref": "Client library ref",
-              "ros_distro": "ROS distribution",
-              "timestamp": "Run timestamp"
-            }
-          }
-        }
-      ],
-      "type": "table"
     }
   ],
   "refresh": "5s",
