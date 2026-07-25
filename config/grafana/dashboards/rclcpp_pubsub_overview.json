@@ -18,7 +18,7 @@
       },
       "id": 1,
       "options": {
-        "content": "<div style=\"padding:2px 8px;font-size:14px\"><b style=\"font-size:18px\">Client library performance review</b><span style=\"color:#a8b3cf\"> · Choose a library, known-good run, and candidate. </span><span style=\"color:#73bf69\">Green = no regression</span><span style=\"color:#a8b3cf\">; </span><span style=\"color:#f2495c\">red = needs attention</span><span style=\"color:#a8b3cf\">.</span></div>",
+        "content": "<div style=\"padding:2px 8px;font-size:14px\"><b style=\"font-size:18px\">Did the new run regress?</b><span style=\"color:#a8b3cf\"> · Every delta below is the </span><b>new run</b><span style=\"color:#a8b3cf\"> measured against the </span><b>reference run</b><span style=\"color:#a8b3cf\">. </span><span style=\"color:#73bf69\">Green = no regression</span><span style=\"color:#a8b3cf\">; </span><span style=\"color:#f2495c\">red = needs attention</span><span style=\"color:#a8b3cf\">.</span></div>",
         "mode": "html"
       },
       "title": "",
@@ -34,7 +34,7 @@
       },
       "id": 2,
       "options": {
-        "content": "<div style=\"height:100%;box-sizing:border-box;padding:14px 18px;border-left:5px solid #5794f2;background:linear-gradient(110deg,rgba(87,148,242,.16),rgba(87,148,242,.03));border-radius:4px\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">BASELINE</div><div style=\"font-size:24px;font-weight:650;margin:5px 0 7px\">$baseline_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $baseline_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$baseline_commit</span></div><div style=\"font-size:12px;color:#8b95a7;margin-top:6px\">Run $baseline_run</div></div>",
+        "content": "<div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #5794f2;background:linear-gradient(110deg,rgba(87,148,242,.16),rgba(87,148,242,.03));border-radius:4px\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">REFERENCE RUN · BEFORE</div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The comparison point. All changes below are measured from this run.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$baseline_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $baseline_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$baseline_commit</span> <span style=\"color:#6b7485\">·</span> run $baseline_run</div></div>",
         "mode": "html"
       },
       "title": "",
@@ -50,7 +50,7 @@
       },
       "id": 3,
       "options": {
-        "content": "<div style=\"height:100%;box-sizing:border-box;padding:14px 18px;border-left:5px solid #b877d9;background:linear-gradient(110deg,rgba(184,119,217,.16),rgba(184,119,217,.03));border-radius:4px\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#d6a6ef\">CANDIDATE</div><div style=\"font-size:24px;font-weight:650;margin:5px 0 7px\">$candidate_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $candidate_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$candidate_commit</span></div><div style=\"font-size:12px;color:#8b95a7;margin-top:6px\">Run $candidate_run</div></div>",
+        "content": "<div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #b877d9;background:linear-gradient(110deg,rgba(184,119,217,.16),rgba(184,119,217,.03));border-radius:4px\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#d6a6ef\">NEW RUN · AFTER</div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The result being evaluated. Red signals mean this run became worse.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$candidate_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $candidate_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$candidate_commit</span> <span style=\"color:#6b7485\">·</span> run $candidate_run</div></div>",
         "mode": "html"
       },
       "title": "",
@@ -67,7 +67,7 @@
       },
       "id": 4,
       "panels": [],
-      "title": "Regression signals · candidate change from baseline",
+      "title": "Regression signals · new run change from reference",
       "type": "row"
     },
     {
@@ -391,7 +391,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -406,7 +406,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -446,13 +446,13 @@
         {
           "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -472,7 +472,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -487,7 +487,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -527,13 +527,13 @@
         {
           "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -553,7 +553,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -568,7 +568,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -608,13 +608,13 @@
         {
           "expr": "avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -634,7 +634,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -649,7 +649,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -689,13 +689,13 @@
         {
           "expr": "max(ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "max(ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -715,7 +715,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -730,7 +730,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -770,13 +770,13 @@
         {
           "expr": "max(ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "max(ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -796,7 +796,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -811,7 +811,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -852,13 +852,13 @@
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_lost\"})",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_lost\"})",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -878,7 +878,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -893,7 +893,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -934,13 +934,13 @@
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_late\"})",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_late\"})",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -960,7 +960,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -975,7 +975,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -1016,13 +1016,13 @@
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_too_late\"})",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_too_late\"})",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -1036,6 +1036,349 @@
         "w": 24,
         "x": 0,
         "y": 27
+      },
+      "id": 23,
+      "panels": [],
+      "title": "Regression scan by payload · positive values are worse",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Percentage change in mean latency for the new run. Positive bars are regressions; negative bars are improvements.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Payload"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 28
+      },
+      "id": 24,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "hidden",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Payload",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "expr": "100 * (avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Regression",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean latency regression",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Regression",
+              "payload_bytes": "Payload"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "Payload"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Percentage change in p95 tail latency for the new run. Positive bars are regressions.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Payload"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 28
+      },
+      "id": 25,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "hidden",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Payload",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "expr": "100 * (avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}) - avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}), 0.000001)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Regression",
+          "refId": "A"
+        }
+      ],
+      "title": "p95 latency regression",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Regression",
+              "payload_bytes": "Payload"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "Payload"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Percentage throughput loss in the new run. Positive bars mean throughput fell and are regressions.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Payload"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 28
+      },
+      "id": 26,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "hidden",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Payload",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "expr": "100 * (avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"}) - avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"}), 0.000001)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Regression",
+          "refId": "A"
+        }
+      ],
+      "title": "Throughput loss",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Regression",
+              "payload_bytes": "Payload"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "Payload"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
       },
       "id": 20,
       "panels": [],
@@ -1068,7 +1411,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -1083,7 +1426,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -1101,7 +1444,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 36
       },
       "id": 21,
       "options": {
@@ -1131,14 +1474,14 @@
           "expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
           "format": "table",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
           "format": "table",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -1159,8 +1502,8 @@
               "Time 2": true
             },
             "renameByName": {
-              "Value #A": "Baseline",
-              "Value #B": "Candidate",
+              "Value #A": "Reference",
+              "Value #B": "New run",
               "payload_bytes": "Payload (bytes)"
             }
           }
@@ -1194,7 +1537,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Baseline"
+              "options": "Reference"
             },
             "properties": [
               {
@@ -1209,7 +1552,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Candidate"
+              "options": "New run"
             },
             "properties": [
               {
@@ -1227,7 +1570,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 36
       },
       "id": 22,
       "options": {
@@ -1257,14 +1600,14 @@
           "expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})",
           "format": "table",
           "instant": true,
-          "legendFormat": "Baseline",
+          "legendFormat": "Reference",
           "refId": "A"
         },
         {
           "expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})",
           "format": "table",
           "instant": true,
-          "legendFormat": "Candidate",
+          "legendFormat": "New run",
           "refId": "B"
         }
       ],
@@ -1285,9 +1628,233 @@
               "Time 2": true
             },
             "renameByName": {
-              "Value #A": "Baseline",
-              "Value #B": "Candidate",
+              "Value #A": "Reference",
+              "Value #B": "New run",
               "payload_bytes": "Payload (bytes)"
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "id": 27,
+      "panels": [],
+      "title": "Tail and resource regressions · catch changes hidden by the mean",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Compares the latency distribution shape for the selected payload. A larger p95 or p99 gap indicates worse tail behavior even if the mean is stable.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "µs"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reference"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "New run"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 45
+      },
+      "id": 28,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Percentile",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "expr": "avg by (aggregation) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=~\"p50|p95|p99\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "Reference",
+          "refId": "A"
+        },
+        {
+          "expr": "avg by (aggregation) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=~\"p50|p95|p99\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "New run",
+          "refId": "B"
+        }
+      ],
+      "title": "Latency percentile profile · selected payload",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "aggregation",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true
+            },
+            "renameByName": {
+              "Value #A": "Reference",
+              "Value #B": "New run",
+              "aggregation": "Percentile"
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Percentage change in peak CPU and RSS across payloads. Positive values mean the new run consumes more resources.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 1,
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Payload"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 45
+      },
+      "id": 29,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "Payload",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "expr": "100 * (max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}) - max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "CPU regression",
+          "refId": "A"
+        },
+        {
+          "expr": "100 * (max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "RSS regression",
+          "refId": "B"
+        }
+      ],
+      "title": "Peak resource regression by payload",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "payload_bytes",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true
+            },
+            "renameByName": {
+              "Value #A": "CPU regression",
+              "Value #B": "RSS regression",
+              "payload_bytes": "Payload"
             }
           }
         }
@@ -1335,10 +1902,10 @@
         "current": {},
         "datasource": "Prometheus",
         "definition": "label_values(ros2_perf_run_info{client_library=\"$library\"}, run_id)",
-        "description": "The known-good run used as the reference.",
+        "description": "The earlier or accepted result used as the comparison point.",
         "hide": 0,
         "includeAll": false,
-        "label": "Baseline run",
+        "label": "Reference run (before)",
         "multi": false,
         "name": "baseline_run",
         "options": [],
@@ -1356,10 +1923,10 @@
         "current": {},
         "datasource": "Prometheus",
         "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id!=\"$baseline_run\"}, run_id)",
-        "description": "The newer run or release being evaluated.",
+        "description": "The newer commit, branch, or distribution being checked for regressions.",
         "hide": 0,
         "includeAll": false,
-        "label": "Candidate run",
+        "label": "New run (after)",
         "multi": false,
         "name": "candidate_run",
         "options": [],
