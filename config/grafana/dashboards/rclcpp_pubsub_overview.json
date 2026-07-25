@@ -18,7 +18,7 @@
       },
       "id": 1,
       "options": {
-        "content": "<div style=\"padding:2px 8px;font-size:14px\"><b style=\"font-size:18px\">Did the new run regress?</b><span style=\"color:#a8b3cf\"> · Every delta below is the </span><b>new run</b><span style=\"color:#a8b3cf\"> measured against the </span><b>reference run</b><span style=\"color:#a8b3cf\">. </span><span style=\"color:#73bf69\">Green = no regression</span><span style=\"color:#a8b3cf\">; </span><span style=\"color:#f2495c\">red = needs attention</span><span style=\"color:#a8b3cf\">.</span></div>",
+          "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:2px 8px;font-size:14px\"><div><b style=\"font-size:18px\">Manual explorer</b><span style=\"color:#a8b3cf\"> · Choose one exact benchmark scenario and compare its runs.</span></div><div style=\"display:flex;background:#111827;border:1px solid #384152;border-radius:8px;padding:3px\"><a href=\"/d/ros2-regression-overview/default-views?var-library=$library&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"padding:6px 12px;color:#a8b3cf;text-decoration:none;border-radius:5px\">Default views</a><span style=\"padding:6px 12px;background:#3274d9;color:white;border-radius:5px;font-weight:600\">Manual</span></div></div>",
         "mode": "html"
       },
       "title": "",
@@ -34,7 +34,7 @@
       },
       "id": 2,
       "options": {
-        "content": "<div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #5794f2;background:linear-gradient(110deg,rgba(87,148,242,.16),rgba(87,148,242,.03));border-radius:4px\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">REFERENCE RUN · BEFORE</div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The comparison point. All changes below are measured from this run.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$baseline_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $baseline_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$baseline_commit</span> <span style=\"color:#6b7485\">·</span> run $baseline_run</div></div>",
+          "content": "<a href=\"/d/ros2-run-detail/run-details?var-library=$library&var-run=$baseline_run&var-topology=$topology\" style=\"display:block;height:100%;color:inherit;text-decoration:none\"><div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #5794f2;background:linear-gradient(110deg,rgba(87,148,242,.16),rgba(87,148,242,.03));border-radius:4px\"><div style=\"display:flex;justify-content:space-between\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">REFERENCE RUN · BEFORE</div><div style=\"font-size:12px;color:#8ab8ff\">Open run details →</div></div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The comparison point. All changes below are measured from this run.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$baseline_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $baseline_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$baseline_commit</span> <span style=\"color:#6b7485\">·</span> run $baseline_run</div></div></a>",
         "mode": "html"
       },
       "title": "",
@@ -50,7 +50,7 @@
       },
       "id": 3,
       "options": {
-        "content": "<div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #b877d9;background:linear-gradient(110deg,rgba(184,119,217,.16),rgba(184,119,217,.03));border-radius:4px\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#d6a6ef\">NEW RUN · AFTER</div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The result being evaluated. Red signals mean this run became worse.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$candidate_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $candidate_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$candidate_commit</span> <span style=\"color:#6b7485\">·</span> run $candidate_run</div></div>",
+          "content": "<a href=\"/d/ros2-run-detail/run-details?var-library=$library&var-run=$candidate_run&var-topology=$topology\" style=\"display:block;height:100%;color:inherit;text-decoration:none\"><div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #b877d9;background:linear-gradient(110deg,rgba(184,119,217,.16),rgba(184,119,217,.03));border-radius:4px\"><div style=\"display:flex;justify-content:space-between\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#d6a6ef\">NEW RUN · AFTER</div><div style=\"font-size:12px;color:#d6a6ef\">Open run details →</div></div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The result being evaluated. Red signals mean this run became worse.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$candidate_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $candidate_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$candidate_commit</span> <span style=\"color:#6b7485\">·</span> run $candidate_run</div></div></a>",
         "mode": "html"
       },
       "title": "",
@@ -2206,7 +2206,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "ROS 2 Client Library Performance Review",
+  "title": "ROS 2 Performance · Manual Explorer",
   "uid": "rclcpp-pubsub-overview",
   "version": 3,
   "weekStart": ""
