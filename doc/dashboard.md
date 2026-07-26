@@ -20,9 +20,10 @@ ros2-performance-monitoring parse <results-dir> --output <results-dir>/normalize
 ```
 
 The normalized records keep benchmark harness provenance separate from client
-library provenance. Use `client_library_ref`, `client_library_commit`, and
-`ros_distro` to compare performance across client-library branches, commits, and
-distributions.
+library and host provenance. Dashboard comparisons can be scoped by client
+library, platform, ROS distribution, and whether the client library was built
+or installed from packages. Built versions show their client-library commit;
+packaged versions are identified as `packaged`.
 
 Supported service artifacts currently include `cli-srv_single_process` leaves
 named `cli_srv_10b`, `cli_srv_100kb`, `cli_srv_1mb`, and `cli_srv_4mb`, and
@@ -88,10 +89,11 @@ http://localhost:9108/metrics
 The dashboard is organized around a reference-versus-new-run review with two
 modes.
 
-Default views require the client library, a workload (`Pub/Sub` or `Service`),
-and two runs. The workload picker scopes every automatic query so results from
-the two benchmark families are never combined. The dashboard scans every
-matching scenario for the selected workload through eleven checks:
+Default views require the client library, platform, ROS distribution, client
+source (`build` or `packaged`), workload (`Pub/Sub` or `Service`), and two runs.
+These selectors scope every automatic query so results from different
+environments or benchmark families are never combined. The dashboard scans
+every matching scenario for the selected workload through eleven checks:
 
 1. Overall worst-case latency, throughput, CPU, and memory regression.
 2. Mean and p95 latency scaling lines over a logarithmic payload axis.
@@ -143,21 +145,24 @@ from the selected `Pub/Sub` or `Service` workload.
 Manual mode is for investigating one precise scenario:
 
 1. Select the client library.
-2. Select a reference run (the earlier or accepted result) and a new run (the
+2. Select the platform, ROS distribution, and whether the client is built or
+   packaged.
+3. Select a reference run (the earlier or accepted result) and a new run (the
    commit, branch, or distribution being checked).
-3. Keep the benchmark topology, process mode, payload, RMW, and transport
+4. Keep the benchmark topology, process mode, payload, RMW, and transport
    identical using the chained scenario selectors.
-4. Read the percentage deltas first. Green indicates no regression and red
+5. Read the percentage deltas first. Green indicates no regression and red
    indicates a regression in the new run.
-5. Confirm the exact reference and new-run values. Their refs, commits, and
-   distributions are shown directly in the reference and new-run cards.
-6. Review lost, late, and too-late message percentages in separate reliability
+6. Confirm the exact reference and new-run values. Their refs and versions are
+   shown directly in the reference and new-run cards. A built version shows its
+   commit; a packaged version shows `packaged`.
+7. Review lost, late, and too-late message percentages in separate reliability
    comparisons.
-7. Use the payload-scaling charts to check whether latency and throughput
+8. Use the payload-scaling charts to check whether latency and throughput
    changes remain consistent from 10 B through 4 MiB.
-8. Use the regression scan to find payload-specific mean latency, p95 latency,
+9. Use the regression scan to find payload-specific mean latency, p95 latency,
    or throughput regressions. Positive values mean the new run is worse.
-9. Inspect the p50/p95/p99 profile and peak CPU/RSS regression charts for
+10. Inspect the p50/p95/p99 profile and peak CPU/RSS regression charts for
    tail-latency and resource regressions hidden by headline averages.
 
 The mode control at the top moves between the two dashboards. Grafana dashboard
@@ -166,13 +171,12 @@ advanced scenario controls while manual mode exposes them. This avoids controls
 that look disabled but can still affect a comparison.
 
 The reference and new-run cards are links to a run-details dashboard. That page
-shows the selected run's client ref and commit, ROS distribution, executor,
-timestamp, benchmark ref and commit, scenario inventory, latency percentiles,
-throughput, resource use, and reliability profile. The inventory includes the
-executor and node role for each recorded configuration. Host OS, architecture,
-Python version, benchmark URL, and run duration remain in
-`metadata_<run-id>.json`; they are not yet exported as Prometheus labels and
-therefore are not shown in Grafana.
+shows the selected run's client ref and version, platform, ROS distribution,
+client source, executor, timestamp, benchmark ref and commit, scenario
+inventory, latency percentiles, throughput, resource use, and reliability
+profile. The inventory includes the executor and node role for each recorded
+configuration. Host OS, Python version, benchmark URL, and run duration remain
+in `metadata_<run-id>.json`; they are not yet exported as Prometheus labels.
 
 The default scenario is Pub/Sub, single process, 10 B, Fast DDS, with IPC
 enabled. Service latency and resource results use the same workflow when the

@@ -18,7 +18,7 @@
       },
       "id": 1,
       "options": {
-          "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:2px 8px;font-size:14px\"><div><b style=\"font-size:18px\">Manual explorer</b><span style=\"color:#a8b3cf\"> · Choose one exact benchmark scenario and compare its runs.</span></div><div style=\"display:flex;background:#111827;border:1px solid #384152;border-radius:8px;padding:3px\"><a href=\"/d/ros2-regression-overview/default-views?var-library=$library&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"padding:6px 12px;color:#a8b3cf;text-decoration:none;border-radius:5px\">Default views</a><span style=\"padding:6px 12px;background:#3274d9;color:white;border-radius:5px;font-weight:600\">Manual</span></div></div>",
+          "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:2px 8px;font-size:14px\"><div><b style=\"font-size:18px\">Manual explorer</b><span style=\"color:#a8b3cf\"> · Choose one exact benchmark scenario and compare its runs.</span></div><div style=\"display:flex;background:#111827;border:1px solid #384152;border-radius:8px;padding:3px\"><a href=\"/d/ros2-regression-overview/default-views?var-library=$library&var-platform=$platform&var-ros_distro=$ros_distro&var-client_source=$client_source&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"padding:6px 12px;color:#a8b3cf;text-decoration:none;border-radius:5px\">Default views</a><span style=\"padding:6px 12px;background:#3274d9;color:white;border-radius:5px;font-weight:600\">Manual</span></div></div>",
         "mode": "html"
       },
       "title": "",
@@ -34,7 +34,7 @@
       },
       "id": 2,
       "options": {
-          "content": "<a href=\"/d/ros2-run-detail/run-details?var-library=$library&var-run=$baseline_run&var-topology=$topology\" style=\"display:block;height:100%;color:inherit;text-decoration:none\"><div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #5794f2;background:linear-gradient(110deg,rgba(87,148,242,.16),rgba(87,148,242,.03));border-radius:4px\"><div style=\"display:flex;justify-content:space-between\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">REFERENCE RUN · BEFORE</div><div style=\"font-size:12px;color:#8ab8ff\">Open run details →</div></div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The comparison point. All changes below are measured from this run.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$baseline_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $baseline_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$baseline_commit</span> <span style=\"color:#6b7485\">·</span> run $baseline_run</div></div></a>",
+          "content": "<a href=\"/d/ros2-run-detail/run-details?var-library=$library&var-platform=$platform&var-ros_distro=$ros_distro&var-client_source=$client_source&var-run=$baseline_run&var-topology=$topology\" style=\"display:block;height:100%;color:inherit;text-decoration:none\"><div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #5794f2;background:linear-gradient(110deg,rgba(87,148,242,.16),rgba(87,148,242,.03));border-radius:4px\"><div style=\"display:flex;justify-content:space-between\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#8ab8ff\">REFERENCE RUN · BEFORE</div><div style=\"font-size:12px;color:#8ab8ff\">Open run details →</div></div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The comparison point. All changes below are measured from this run.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$baseline_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $ros_distro <span style=\"color:#6b7485\">·</span> version <span style=\"font-family:monospace\">$baseline_version</span> <span style=\"color:#6b7485\">·</span> run $baseline_run</div></div></a>",
         "mode": "html"
       },
       "title": "",
@@ -50,7 +50,7 @@
       },
       "id": 3,
       "options": {
-          "content": "<a href=\"/d/ros2-run-detail/run-details?var-library=$library&var-run=$candidate_run&var-topology=$topology\" style=\"display:block;height:100%;color:inherit;text-decoration:none\"><div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #b877d9;background:linear-gradient(110deg,rgba(184,119,217,.16),rgba(184,119,217,.03));border-radius:4px\"><div style=\"display:flex;justify-content:space-between\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#d6a6ef\">NEW RUN · AFTER</div><div style=\"font-size:12px;color:#d6a6ef\">Open run details →</div></div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The result being evaluated. Red signals mean this run became worse.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$candidate_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $candidate_distro <span style=\"color:#6b7485\">·</span> commit <span style=\"font-family:monospace\">$candidate_commit</span> <span style=\"color:#6b7485\">·</span> run $candidate_run</div></div></a>",
+          "content": "<a href=\"/d/ros2-run-detail/run-details?var-library=$library&var-platform=$platform&var-ros_distro=$ros_distro&var-client_source=$client_source&var-run=$candidate_run&var-topology=$topology\" style=\"display:block;height:100%;color:inherit;text-decoration:none\"><div style=\"height:100%;box-sizing:border-box;padding:12px 18px;border-left:5px solid #b877d9;background:linear-gradient(110deg,rgba(184,119,217,.16),rgba(184,119,217,.03));border-radius:4px\"><div style=\"display:flex;justify-content:space-between\"><div style=\"font-size:12px;font-weight:700;letter-spacing:.12em;color:#d6a6ef\">NEW RUN · AFTER</div><div style=\"font-size:12px;color:#d6a6ef\">Open run details →</div></div><div style=\"font-size:13px;color:#a8b3cf;margin-top:3px\">The result being evaluated. Red signals mean this run became worse.</div><div style=\"font-size:23px;font-weight:650;margin:5px 0 4px\">$candidate_ref</div><div style=\"font-size:14px;color:#c7d0e0\">ROS $ros_distro <span style=\"color:#6b7485\">·</span> version <span style=\"font-family:monospace\">$candidate_version</span> <span style=\"color:#6b7485\">·</span> run $candidate_run</div></div></a>",
         "mode": "html"
       },
       "title": "",
@@ -120,7 +120,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001)",
+          "expr": "100 * (avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001)",
           "instant": true,
           "legendFormat": "Mean latency",
           "refId": "A"
@@ -179,7 +179,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}) - avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})) / clamp_min(avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}), 0.000001)",
+          "expr": "100 * (avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}) - avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})) / clamp_min(avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}), 0.000001)",
           "instant": true,
           "legendFormat": "p95 latency",
           "refId": "A"
@@ -238,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}) - avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})) / clamp_min(avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}), 0.000001)",
+          "expr": "100 * (avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}) - avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})) / clamp_min(avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}), 0.000001)",
           "instant": true,
           "legendFormat": "Throughput",
           "refId": "A"
@@ -297,7 +297,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (max(ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}) - max(ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(max(ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001)",
+          "expr": "100 * (max(ros2_perf_cpu_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}) - max(ros2_perf_cpu_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(max(ros2_perf_cpu_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001)",
           "instant": true,
           "legendFormat": "Peak CPU",
           "refId": "A"
@@ -356,7 +356,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (max(ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - max(ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(max(ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001)",
+          "expr": "100 * (max(ros2_perf_memory_megabytes{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - max(ros2_perf_memory_megabytes{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(max(ros2_perf_memory_megabytes{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001)",
           "instant": true,
           "legendFormat": "Peak RSS",
           "refId": "A"
@@ -444,13 +444,13 @@
       },
       "targets": [
         {
-          "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
+          "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
+          "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
           "instant": true,
           "legendFormat": "New run",
           "refId": "B"
@@ -525,13 +525,13 @@
       },
       "targets": [
         {
-          "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})",
+          "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})",
+          "expr": "avg(ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})",
           "instant": true,
           "legendFormat": "New run",
           "refId": "B"
@@ -606,13 +606,13 @@
       },
       "targets": [
         {
-          "expr": "avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
+          "expr": "avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
+          "expr": "avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})",
           "instant": true,
           "legendFormat": "New run",
           "refId": "B"
@@ -687,13 +687,13 @@
       },
       "targets": [
         {
-          "expr": "max(ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})",
+          "expr": "max(ros2_perf_cpu_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "max(ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})",
+          "expr": "max(ros2_perf_cpu_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})",
           "instant": true,
           "legendFormat": "New run",
           "refId": "B"
@@ -768,13 +768,13 @@
       },
       "targets": [
         {
-          "expr": "max(ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})",
+          "expr": "max(ros2_perf_memory_megabytes{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "max(ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})",
+          "expr": "max(ros2_perf_memory_megabytes{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})",
           "instant": true,
           "legendFormat": "New run",
           "refId": "B"
@@ -850,13 +850,13 @@
       },
       "targets": [
         {
-          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_lost\"})",
+          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_lost\"})",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_lost\"})",
+          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_lost\"})",
           "instant": true,
           "legendFormat": "New run",
           "refId": "B"
@@ -932,13 +932,13 @@
       },
       "targets": [
         {
-          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_late\"})",
+          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_late\"})",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_late\"})",
+          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_late\"})",
           "instant": true,
           "legendFormat": "New run",
           "refId": "B"
@@ -1014,13 +1014,13 @@
       },
       "targets": [
         {
-          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_too_late\"})",
+          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_too_late\"})",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_too_late\"})",
+          "expr": "max(ros2_perf_messages_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=\"total_messages_too_late\"})",
           "instant": true,
           "legendFormat": "New run",
           "refId": "B"
@@ -1116,7 +1116,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001)",
+          "expr": "100 * (avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}) - avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"}), 0.000001)",
           "format": "table",
           "instant": true,
           "legendFormat": "Regression",
@@ -1226,7 +1226,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}) - avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}), 0.000001)",
+          "expr": "100 * (avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}) - avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"p95\"}), 0.000001)",
           "format": "table",
           "instant": true,
           "legendFormat": "Regression",
@@ -1336,7 +1336,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"}) - avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"}), 0.000001)",
+          "expr": "100 * (avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"}) - avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})) / clamp_min(avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"}), 0.000001)",
           "format": "table",
           "instant": true,
           "legendFormat": "Regression",
@@ -1471,14 +1471,14 @@
       },
       "targets": [
         {
-          "expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
+          "expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
+          "expr": "avg by (payload_bytes) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=\"mean\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "New run",
@@ -1597,14 +1597,14 @@
       },
       "targets": [
         {
-          "expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})",
+          "expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})",
+          "expr": "avg by (payload_bytes) (ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "New run",
@@ -1724,14 +1724,14 @@
       },
       "targets": [
         {
-          "expr": "avg by (aggregation) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=~\"p50|p95|p99\"})",
+          "expr": "avg by (aggregation) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=~\"p50|p95|p99\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "Reference",
           "refId": "A"
         },
         {
-          "expr": "avg by (aggregation) (ros2_perf_latency_us{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=~\"p50|p95|p99\"})",
+          "expr": "avg by (aggregation) (ros2_perf_latency_us{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\",metric=~\"subscription_latency|service_client_latency\",aggregation=~\"p50|p95|p99\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "New run",
@@ -1821,14 +1821,14 @@
       },
       "targets": [
         {
-          "expr": "100 * (max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}) - max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001)",
+          "expr": "100 * (max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}) - max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"})) / clamp_min(max by (payload_bytes) (ros2_perf_cpu_percent{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_cpu\",aggregation=\"max\"}), 0.000001)",
           "format": "table",
           "instant": true,
           "legendFormat": "CPU regression",
           "refId": "A"
         },
         {
-          "expr": "100 * (max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001)",
+          "expr": "100 * (max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}) - max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"})) / clamp_min(max by (payload_bytes) (ros2_perf_memory_megabytes{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",rmw=\"$rmw\",comm=\"$comm\",metric=\"resource_memory_rss\",aggregation=\"max\"}), 0.000001)",
           "format": "table",
           "instant": true,
           "legendFormat": "RSS regression",
@@ -1901,7 +1901,70 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\"}, run_id)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\"}, platform)",
+        "description": "Compare runs recorded on the same CPU architecture.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Platform",
+        "multi": false,
+        "name": "platform",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\"}, platform)",
+          "refId": "Prometheus-platform-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)",
+        "description": "Compare runs from the same ROS distribution.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "ROS distribution",
+        "multi": false,
+        "name": "ros_distro",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)",
+          "refId": "Prometheus-ros-distro-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\"}, client_source)",
+        "description": "Choose locally built or distribution-packaged client libraries.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Client source",
+        "multi": false,
+        "name": "client_source",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\"}, client_source)",
+          "refId": "Prometheus-client-source-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\"}, run_id)",
         "description": "The earlier or accepted result used as the comparison point.",
         "hide": 0,
         "includeAll": false,
@@ -1910,7 +1973,7 @@
         "name": "baseline_run",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\"}, run_id)",
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\"}, run_id)",
           "refId": "Prometheus-baseline-run-Variable-Query"
         },
         "refresh": 1,
@@ -1922,7 +1985,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id!=\"$baseline_run\"}, run_id)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id!=\"$baseline_run\"}, run_id)",
         "description": "The newer commit, branch, or distribution being checked for regressions.",
         "hide": 0,
         "includeAll": false,
@@ -1931,7 +1994,7 @@
         "name": "candidate_run",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id!=\"$baseline_run\"}, run_id)",
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id!=\"$baseline_run\"}, run_id)",
           "refId": "Prometheus-candidate-run-Variable-Query"
         },
         "refresh": 1,
@@ -1943,14 +2006,14 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_ref)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\"}, client_library_ref)",
         "hide": 2,
         "includeAll": false,
         "multi": false,
         "name": "baseline_ref",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_ref)",
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\"}, client_library_ref)",
           "refId": "Prometheus-baseline-ref-Variable-Query"
         },
         "refresh": 1,
@@ -1962,15 +2025,15 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_commit)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\"}, client_library_version)",
         "hide": 2,
         "includeAll": false,
         "multi": false,
-        "name": "baseline_commit",
+        "name": "baseline_version",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, client_library_commit)",
-          "refId": "Prometheus-baseline-commit-Variable-Query"
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\"}, client_library_version)",
+          "refId": "Prometheus-baseline-version-Variable-Query"
         },
         "refresh": 1,
         "regex": "",
@@ -1981,33 +2044,14 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, ros_distro)",
-        "hide": 2,
-        "includeAll": false,
-        "multi": false,
-        "name": "baseline_distro",
-        "options": [],
-        "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$baseline_run\"}, ros_distro)",
-          "refId": "Prometheus-baseline-distro-Variable-Query"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": true,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "current": {},
-        "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_ref)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\"}, client_library_ref)",
         "hide": 2,
         "includeAll": false,
         "multi": false,
         "name": "candidate_ref",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_ref)",
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\"}, client_library_ref)",
           "refId": "Prometheus-candidate-ref-Variable-Query"
         },
         "refresh": 1,
@@ -2019,34 +2063,15 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_commit)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\"}, client_library_version)",
         "hide": 2,
         "includeAll": false,
         "multi": false,
-        "name": "candidate_commit",
+        "name": "candidate_version",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, client_library_commit)",
-          "refId": "Prometheus-candidate-commit-Variable-Query"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": true,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "current": {},
-        "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, ros_distro)",
-        "hide": 2,
-        "includeAll": false,
-        "multi": false,
-        "name": "candidate_distro",
-        "options": [],
-        "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",run_id=\"$candidate_run\"}, ros_distro)",
-          "refId": "Prometheus-candidate-distro-Variable-Query"
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\"}, client_library_version)",
+          "refId": "Prometheus-candidate-version-Variable-Query"
         },
         "refresh": 1,
         "regex": "",
@@ -2155,7 +2180,7 @@
           "value": "rmw_fastrtps_cpp"
         },
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\"}, rmw)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\"}, rmw)",
         "description": "Only RMWs available for this scenario are shown.",
         "hide": 0,
         "includeAll": false,
@@ -2164,7 +2189,7 @@
         "name": "rmw",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\"}, rmw)",
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\"}, rmw)",
           "refId": "Prometheus-rmw-Variable-Query"
         },
         "refresh": 1,
@@ -2180,7 +2205,7 @@
           "value": "ipc_on"
         },
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\"}, comm)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\"}, comm)",
         "description": "IPC and loaned-message choices are limited to valid options for the selected RMW.",
         "hide": 0,
         "includeAll": false,
@@ -2189,7 +2214,7 @@
         "name": "comm",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\"}, comm)",
+          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\"}, comm)",
           "refId": "Prometheus-comm-Variable-Query"
         },
         "refresh": 1,
