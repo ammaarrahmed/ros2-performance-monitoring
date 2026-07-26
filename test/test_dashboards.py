@@ -30,6 +30,7 @@ COMPARISON_DIMENSIONS = {
     'rmw',
     'topology',
 }
+RUN_SCOPE_VARIABLES = ('library', 'platform', 'ros_distro', 'client_source')
 
 
 def _load_dashboards():
@@ -85,6 +86,30 @@ def test_dashboard_variables_are_declared():
             path,
             referenced_variables - declared_variables,
         )
+
+
+def test_dashboard_queries_share_run_scope():
+    """Test every dashboard query filters the selected run environment."""
+    selectors = {
+        'client_library="$library"',
+        'platform="$platform"',
+        'ros_distro="$ros_distro"',
+        'client_source="$client_source"',
+    }
+    for path, dashboard in _load_dashboards().items():
+        visible_variables = [
+            variable['name']
+            for variable in dashboard['templating']['list']
+            if variable['hide'] == 0
+        ]
+        assert tuple(visible_variables[:4]) == RUN_SCOPE_VARIABLES, path
+
+        for panel in dashboard['panels']:
+            for target in panel.get('targets', []):
+                assert selectors <= set(re.findall(r'\w+="\\?[^,}]+', target['expr'])), (
+                    path,
+                    panel['id'],
+                )
 
 
 def test_internal_dashboard_links_target_provisioned_uids():

@@ -76,13 +76,15 @@ the run:
 ```bash
 ros2-performance-monitoring run \
   --client-library rclcpp \
+  --client-library-source build \
   --client-library-ref <rclcpp-branch-or-ref> \
   --client-library-commit <rclcpp-commit-sha>
 ```
 
 The benchmark container ref and the client-library ref are tracked separately.
-The default Docker flow uses ROS distro packages, so the client-library commit is
-`unknown` unless you pass it explicitly.
+The default Docker flow records the client library as `packaged`. Use
+`--client-library-source build` with the ref and commit options for a locally
+built client library. The host architecture is recorded automatically.
 
 The current runner writes benchmark artifacts under paths like:
 
@@ -108,9 +110,10 @@ You should see output similar to:
 Wrote <count> normalized metrics to ./results/normalized_metrics.jsonl
 ```
 
-The normalized records include separate benchmark harness and client-library
-provenance. In Grafana, use `client_library_ref`, `client_library_commit`, and
-`ros_distro` to compare performance across branches, commits, and distributions.
+The normalized records include separate benchmark harness, client-library, and
+host provenance. Grafana can scope comparisons by client library, platform,
+ROS distribution, and whether the client library was built or packaged. Built
+versions show their commit; packaged versions are identified as `packaged`.
 
 ### 3. Check The Exporter Directly
 
