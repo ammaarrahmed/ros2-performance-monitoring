@@ -19,6 +19,8 @@ import re
 import sys
 
 from ros2_performance_monitoring.model import MetricRecord
+from ros2_performance_monitoring.model import normalize_client_library_source
+from ros2_performance_monitoring.model import normalize_platform
 from ros2_performance_monitoring.model import SCHEMA_VERSION
 
 
@@ -98,6 +100,8 @@ def parse_artifact(artifact, run_metadata):
         'client_library_ref': run['client_library_ref'],
         'client_library_commit': run['client_library_commit'],
         'client_library': run['client_library'],
+        'client_library_source': run['client_library_source'],
+        'platform': run['platform'],
         'executor': metadata.get('system_executor') or run['executor'],
         **attrs,
     }
@@ -355,14 +359,22 @@ def _run_context(metadata):
     client = metadata.get('client_library_under_test', {})
     timestamp = metadata.get('timestamp') or host.get('timestamp') or host.get('timestamp ') or ''
     client_library = config.get('client_library') or client.get('name') or _client_library(config)
+    client_library_ref = client.get('ref', 'unknown')
+    client_library_commit = client.get('resolved_commit_hash', 'unknown')
     return {
         'run_id': metadata.get('run_id') or metadata.get('_file_run_id') or 'unknown',
         'timestamp': timestamp,
         'benchmark_ref': benchmark.get('ref', 'unknown'),
         'benchmark_commit': benchmark.get('resolved_commit_hash', 'unknown'),
-        'client_library_ref': client.get('ref', 'unknown'),
-        'client_library_commit': client.get('resolved_commit_hash', 'unknown'),
+        'client_library_ref': client_library_ref,
+        'client_library_commit': client_library_commit,
         'client_library': client_library,
+        'client_library_source': normalize_client_library_source(
+            client.get('source'),
+            client_library_ref,
+            client_library_commit,
+        ),
+        'platform': normalize_platform(host.get('architecture')),
         'executor': config.get('executor', ''),
     }
 
