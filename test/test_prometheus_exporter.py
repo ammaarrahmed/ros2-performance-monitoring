@@ -41,8 +41,11 @@ def test_records_to_prometheus_converts_normalized_metrics():
     assert 'benchmark_ref="benchmark-branch"' in output
     assert 'client_library_ref="client-branch"' in output
     assert 'client_library_commit="abc123"' in output
+    assert 'client_library_version="abc123"' in output
+    assert 'client_source="build"' in output
     assert 'comm="ipc_off"' in output
     assert 'payload_bytes="10"' in output
+    assert 'platform="x86_64"' in output
     assert 'source_file' not in output
 
 
@@ -52,6 +55,20 @@ def test_ros_distro_label_uses_record_value():
     ])
 
     assert 'ros_distro="rolling"' in output
+
+
+def test_packaged_client_uses_packaged_version_label():
+    record = _record('subscription_latency', 25.0, 'us', 'mean')
+    record.update({
+        'client_library_commit': 'unknown',
+        'client_library_ref': 'ros-lyrical-packages',
+        'client_library_source': 'ros_distro_package',
+    })
+
+    output = records_to_prometheus([record])
+
+    assert 'client_library_version="packaged"' in output
+    assert 'client_source="packaged"' in output
 
 
 def test_records_to_prometheus_reuses_generic_families_for_service_metrics():
@@ -90,6 +107,8 @@ def _record(
         'client_library_ref': 'client-branch',
         'client_library_commit': 'abc123',
         'client_library': 'rclcpp',
+        'client_library_source': 'source_build',
+        'platform': 'AMD64',
         'ros_distro': ros_distro,
         'rmw_implementation': 'rmw_fastrtps_cpp',
         'executor': 'EventsExecutor',

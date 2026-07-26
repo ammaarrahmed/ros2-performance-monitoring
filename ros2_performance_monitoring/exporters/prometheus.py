@@ -18,6 +18,10 @@ import json
 import math
 from pathlib import Path
 
+from ros2_performance_monitoring.model import client_library_version
+from ros2_performance_monitoring.model import normalize_client_library_source
+from ros2_performance_monitoring.model import normalize_platform
+
 
 # Maps stable Prometheus label names to normalized JSONL record fields.
 PROMETHEUS_LABEL_FIELDS = (
@@ -27,6 +31,8 @@ PROMETHEUS_LABEL_FIELDS = (
     ('client_library', 'client_library'),
     ('client_library_ref', 'client_library_ref'),
     ('client_library_commit', 'client_library_commit'),
+    ('client_source', 'client_library_source'),
+    ('platform', 'platform'),
     ('ros_distro', 'ros_distro'),
     ('rmw', 'rmw_implementation'),
     ('executor', 'executor'),
@@ -168,9 +174,21 @@ def _base_labels(record):
         value = record.get(field, '')
         if label == 'benchmark_ref' and not value:
             value = record.get('target_ref', '')
+        elif label == 'client_source':
+            value = normalize_client_library_source(
+                value,
+                record.get('client_library_ref'),
+                record.get('client_library_commit'),
+            )
+        elif label == 'platform':
+            value = normalize_platform(value)
         if not value:
             value = 'unknown'
         labels[label] = str(value)
+    labels['client_library_version'] = client_library_version(
+        labels['client_source'],
+        labels['client_library_commit'],
+    )
     return labels
 
 

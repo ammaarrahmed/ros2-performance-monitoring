@@ -201,6 +201,9 @@ def test_parse_artifact_normalizes_reduced_pubsub_matrix_labels(
 
     assert records
     for record in records:
+        assert record.client_library_source == 'build'
+        assert record.platform == 'arm64'
+        assert record.schema_version == 4
         for key, value in expected.items():
             assert getattr(record, key) == value
 
@@ -366,6 +369,8 @@ def _run_metadata():
             'name': 'rclcpp',
             'ref': 'client-branch',
             'resolved_commit_hash': 'abc123',
+            'source': 'source_build',
         },
+        'host_environment': {'architecture': 'aarch64'},
         'run_configuration': {},
     }

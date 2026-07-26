@@ -204,7 +204,7 @@ def main() -> Any:
     )
     run_parser.add_argument(
         '--client-library-source', default=defaults.client_library_source,
-        help='Where the client library under test came from',
+        help='Whether the client library under test is a build or packaged',
     )
     build_container_parser.add_argument(
         'ros_distro', nargs='?', default=defaults.ros_distro,

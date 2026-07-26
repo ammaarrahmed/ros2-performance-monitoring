@@ -20,7 +20,7 @@ class RunDefaults:
     client_library: str = 'rclcpp'
     client_library_ref: str = ''
     client_library_commit: str = 'unknown'
-    client_library_source: str = 'ros_distro_package'
+    client_library_source: str = 'packaged'
     ros_distro: str = 'lyrical'
     executor: str = 'EventsCBGExecutor'
     duration: int = 60
