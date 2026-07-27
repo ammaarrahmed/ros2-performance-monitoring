@@ -30,7 +30,19 @@ COMPARISON_DIMENSIONS = {
     'rmw',
     'topology',
 }
-RUN_SCOPE_VARIABLES = ('library', 'platform', 'ros_distro', 'client_source')
+SINGLE_RUN_SCOPE_VARIABLES = ('library', 'platform', 'ros_distro', 'client_source')
+COMPARISON_SCOPE_VARIABLES = (
+    'library',
+    'platform',
+    'baseline_distro',
+    'candidate_distro',
+    'client_source',
+)
+COMPARISON_DASHBOARD_UIDS = {
+    'rclcpp-pubsub-overview',
+    'ros2-comparison-coverage',
+    'ros2-regression-overview',
+}
 
 
 def _load_dashboards():
@@ -90,10 +102,9 @@ def test_dashboard_variables_are_declared():
 
 def test_dashboard_queries_share_run_scope():
     """Test every dashboard query filters the selected run environment."""
-    selectors = {
+    shared_selectors = {
         'client_library="$library"',
         'platform="$platform"',
-        'ros_distro="$ros_distro"',
         'client_source="$client_source"',
     }
     for path, dashboard in _load_dashboards().items():
@@ -102,14 +113,38 @@ def test_dashboard_queries_share_run_scope():
             for variable in dashboard['templating']['list']
             if variable['hide'] == 0
         ]
-        assert tuple(visible_variables[:4]) == RUN_SCOPE_VARIABLES, path
+        if dashboard['uid'] in COMPARISON_DASHBOARD_UIDS:
+            assert tuple(visible_variables[:5]) == COMPARISON_SCOPE_VARIABLES, path
+        else:
+            assert tuple(visible_variables[:4]) == SINGLE_RUN_SCOPE_VARIABLES, path
 
         for panel in dashboard['panels']:
             for target in panel.get('targets', []):
-                assert selectors <= set(re.findall(r'\w+="\\?[^,}]+', target['expr'])), (
+                expression = target['expr']
+                selectors = set(re.findall(r'\w+(?:=|=~)"\\?[^,}]+', expression))
+                assert shared_selectors <= selectors, (
                     path,
                     panel['id'],
                 )
+                if dashboard['uid'] not in COMPARISON_DASHBOARD_UIDS:
+                    assert 'ros_distro="$ros_distro"' in selectors
+                if '$baseline_run' in expression:
+                    assert 'ros_distro="$baseline_distro"' in selectors
+                if '$candidate_run' in expression:
+                    assert 'ros_distro="$candidate_distro"' in selectors
+
+
+def test_comparison_run_variables_are_scoped_to_their_distributions():
+    """Test each comparison run selector uses its corresponding ROS distro."""
+    dashboards = _load_dashboards()
+    for uid in COMPARISON_DASHBOARD_UIDS:
+        dashboard = _dashboard_by_uid(dashboards, uid)
+        variables = {
+            variable['name']: variable
+            for variable in dashboard['templating']['list']
+        }
+        assert 'ros_distro="$baseline_distro"' in variables['baseline_run']['definition']
+        assert 'ros_distro="$candidate_distro"' in variables['candidate_run']['definition']
 
 
 def test_internal_dashboard_links_target_provisioned_uids():
