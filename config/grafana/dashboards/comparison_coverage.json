@@ -13,7 +13,7 @@
       "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
       "id": 1,
       "options": {
-        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;height:100%;padding:4px 10px;box-sizing:border-box\"><div><div style=\"font-size:20px;font-weight:650\">Scenario comparability</div><div style=\"margin-top:5px;color:#a8b3cf;font-size:13px\">Exact workload, process-mode, payload, RMW, transport, executor, and node-role combinations in the two runs. Automatic regression conclusions are complete only when both lists are empty.</div></div><a href=\"/d/ros2-regression-overview/default-views?var-library=$library&var-platform=$platform&var-ros_distro=$ros_distro&var-client_source=$client_source&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"white-space:nowrap;margin-left:20px;padding:8px 12px;background:#3274d9;color:white;text-decoration:none;border-radius:5px;font-weight:600\">← Back to default views</a></div>",
+        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;height:100%;padding:4px 10px;box-sizing:border-box\"><div><div style=\"font-size:20px;font-weight:650\">Scenario comparability</div><div style=\"margin-top:5px;color:#a8b3cf;font-size:13px\">Exact workload, process-mode, payload, RMW, transport, executor, and node-role combinations in the two runs. Automatic regression conclusions are complete only when both lists are empty.</div></div><a href=\"/d/ros2-regression-overview/default-views?var-library=$library&var-platform=$platform&var-baseline_distro=$baseline_distro&var-candidate_distro=$candidate_distro&var-client_source=$client_source&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"white-space:nowrap;margin-left:20px;padding:8px 12px;background:#3274d9;color:white;text-decoration:none;border-radius:5px;font-weight:600\">← Back to default views</a></div>",
         "mode": "html"
       },
       "title": "",
@@ -38,7 +38,7 @@
       "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
       "targets": [
         {
-          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"}))) or vector(0)",
+          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"}))) or vector(0)",
           "instant": true,
           "legendFormat": "Missing from new run",
           "refId": "A"
@@ -65,7 +65,7 @@
       "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
       "targets": [
         {
-          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"}))) or vector(0)",
+          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"}))) or vector(0)",
           "instant": true,
           "legendFormat": "Added in new run",
           "refId": "A"
@@ -91,7 +91,7 @@
       "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
       "targets": [
         {
-          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"}))",
+          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"}))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -122,7 +122,7 @@
       "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
       "targets": [
         {
-          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"}))",
+          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"}))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -182,14 +182,14 @@
         "current": {},
         "datasource": "Prometheus",
         "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)",
-        "description": "Compare runs from the same ROS distribution.",
+        "description": "Select the ROS distribution used by the reference run.",
         "hide": 0,
         "includeAll": false,
-        "label": "ROS distribution",
+        "label": "Reference ROS",
         "multi": false,
-        "name": "ros_distro",
+        "name": "baseline_distro",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)", "refId": "Prometheus-ros-distro-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)", "refId": "Prometheus-baseline-distro-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -199,7 +199,25 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\"}, client_source)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)",
+        "description": "Select the ROS distribution used by the candidate run.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Candidate ROS",
+        "multi": false,
+        "name": "candidate_distro",
+        "options": [],
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)", "refId": "Prometheus-candidate-distro-Variable-Query"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=~\"$baseline_distro|$candidate_distro\"}, client_source)",
         "description": "Choose locally built or distribution-packaged client libraries.",
         "hide": 0,
         "includeAll": false,
@@ -207,7 +225,7 @@
         "multi": false,
         "name": "client_source",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\"}, client_source)", "refId": "Prometheus-client-source-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=~\"$baseline_distro|$candidate_distro\"}, client_source)", "refId": "Prometheus-client-source-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -233,14 +251,14 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",topology=\"$topology\"}, run_id)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",topology=\"$topology\"}, run_id)",
         "hide": 0,
         "includeAll": false,
         "label": "Before run",
         "multi": false,
         "name": "baseline_run",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",topology=\"$topology\"}, run_id)", "refId": "Prometheus-baseline-run-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",topology=\"$topology\"}, run_id)", "refId": "Prometheus-baseline-run-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -250,14 +268,14 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",topology=\"$topology\",run_id!=\"$baseline_run\"}, run_id)",
+        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",topology=\"$topology\",run_id!=\"$baseline_run\"}, run_id)",
         "hide": 0,
         "includeAll": false,
         "label": "After run",
         "multi": false,
         "name": "candidate_run",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\",topology=\"$topology\",run_id!=\"$baseline_run\"}, run_id)", "refId": "Prometheus-candidate-run-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",topology=\"$topology\",run_id!=\"$baseline_run\"}, run_id)", "refId": "Prometheus-candidate-run-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

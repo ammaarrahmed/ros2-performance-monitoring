@@ -89,11 +89,14 @@ http://localhost:9108/metrics
 The dashboard is organized around a reference-versus-new-run review with two
 modes.
 
-Default views require the client library, platform, ROS distribution, client
-source (`build` or `packaged`), workload (`Pub/Sub` or `Service`), and two runs.
-These selectors scope every automatic query so results from different
-environments or benchmark families are never combined. The dashboard scans
-every matching scenario for the selected workload through eleven checks:
+Default views require the client library, platform, reference ROS distribution,
+candidate ROS distribution, client source (`build` or `packaged`), workload
+(`Pub/Sub` or `Service`), and one run from each selected distribution. The two
+distribution selectors may be equal for run-over-run regression testing or
+different for a cross-distribution comparison. Every automatic query keeps the
+reference and candidate environments separate while matching their scenario
+identity. The dashboard scans every matching scenario for the selected workload
+through eleven checks:
 
 1. Overall worst-case latency, throughput, CPU, and memory regression.
 2. Mean and p95 latency scaling lines over a logarithmic payload axis.
@@ -145,10 +148,11 @@ from the selected `Pub/Sub` or `Service` workload.
 Manual mode is for investigating one precise scenario:
 
 1. Select the client library.
-2. Select the platform, ROS distribution, and whether the client is built or
-   packaged.
+2. Select the platform, reference ROS distribution, candidate ROS distribution,
+   and whether the client is built or packaged.
 3. Select a reference run (the earlier or accepted result) and a new run (the
-   commit, branch, or distribution being checked).
+   commit, branch, or distribution being checked). Each run list is scoped to
+   its corresponding ROS distribution.
 4. Keep the benchmark topology, process mode, payload, RMW, and transport
    identical using the chained scenario selectors.
 5. Read the percentage deltas first. Green indicates no regression and red
