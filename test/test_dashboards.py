@@ -187,6 +187,42 @@ def test_comparability_uses_complete_scenario_identity():
             assert set(match.group(1).split(',')) == COMPARISON_DIMENSIONS
 
 
+def test_overall_verdict_uses_plain_language_states():
+    """Test the headline summarizes direction, status, reason, and action."""
+    dashboard = _dashboard_by_uid(
+        _load_dashboards(),
+        'ros2-regression-overview',
+    )
+    verdict_panels = [
+        next(panel for panel in dashboard['panels'] if panel['id'] == panel_id)
+        for panel_id in (5, 6, 7)
+    ]
+    verdict, reason, action = verdict_panels
+    mapping = verdict['fieldConfig']['defaults']['mappings'][0]['options']
+
+    assert verdict['title'] == (
+        'Comparing ${candidate_distro:text} against ${baseline_distro:text}'
+    )
+    assert set(mapping) == {'0', '1', '2', '3'}
+    assert [mapping[str(state)]['text'] for state in range(4)] == [
+        'No clear regression',
+        'Possible regression',
+        'Regression detected',
+        'Results cannot be compared',
+    ]
+    assert reason['title'] == 'Why'
+    assert action['title'] == 'Next action'
+    assert 'Repeat the benchmark' in (
+        action['fieldConfig']['defaults']['mappings'][0]['options']['1']['text']
+    )
+    assert sum(panel['gridPos']['w'] for panel in verdict_panels) == 24
+    assert all(panel['options']['textMode'] == 'value' for panel in verdict_panels)
+    assert all(
+        panel['fieldConfig']['defaults'].get('unit') is None
+        for panel in verdict_panels
+    )
+
+
 def test_run_detail_performance_queries_are_scoped_to_workload():
     """Test a run detail never mixes measurements from different workloads."""
     dashboards = _load_dashboards()
