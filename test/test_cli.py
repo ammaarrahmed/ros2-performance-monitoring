@@ -135,6 +135,7 @@ def test_run_with_default_smoke(monkeypatch):
         'benchmark_option': defaults.default_benchmark,
         'duration': defaults.duration,
         'ros_distro': defaults.ros_distro,
+        'executor': defaults.executor,
     }
 
 
@@ -165,7 +166,7 @@ def test_run_with_explicit_arguments(monkeypatch):
             'run',
             '120',
             'rolling',
-            'multi-threaded',
+            'MultiThreadedExecutor',
             './custom-results',
             '~/.cache/custom-ros2-performance-monitoring',
             DEFAULT_CONTAINER_REPO_URL,
@@ -186,6 +187,7 @@ def test_run_with_explicit_arguments(monkeypatch):
         'benchmark_option': 'pubsub-rclcpp-minimal',
         'duration': 120,
         'ros_distro': 'rolling',
+        'executor': 'MultiThreadedExecutor',
     }
 
 
