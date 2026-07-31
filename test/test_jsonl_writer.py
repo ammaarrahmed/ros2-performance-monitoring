@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytest
-
 from ros2_performance_monitoring.writers.jsonl import write_jsonl
 
 

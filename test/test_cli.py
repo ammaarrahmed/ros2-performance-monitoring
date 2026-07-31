@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import importlib
 import subprocess
 import sys
@@ -202,3 +203,31 @@ def test_run_with_invalid_duration_exits(monkeypatch):
     )
     with pytest.raises(SystemExit):
         cli.main()
+
+
+def test_parse_scopes_artifacts_to_metadata_distribution(tmp_path, monkeypatch):
+    received = {}
+
+    monkeypatch.setattr(
+        cli,
+        'latest_run_metadata',
+        lambda _results_dir: {'run_configuration': {'ros_distro': 'rolling'}},
+    )
+
+    def fake_discover(results_dir, ros_distro=None):
+        received['results_dir'] = results_dir
+        received['ros_distro'] = ros_distro
+        return ()
+
+    monkeypatch.setattr(cli, 'discover_benchmark_artifacts', fake_discover)
+    monkeypatch.setattr(cli, 'write_jsonl', lambda _records, _output: 0)
+
+    cli.parse_command(argparse.Namespace(
+        results_dir=str(tmp_path),
+        output=str(tmp_path / 'metrics.jsonl'),
+    ))
+
+    assert received == {
+        'results_dir': str(tmp_path),
+        'ros_distro': 'rolling',
+    }

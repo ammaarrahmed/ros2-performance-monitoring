@@ -96,7 +96,7 @@ def latest_run_metadata(results_dir):
     if len(files) > 1:
         print(
             f'Warning: found {len(files)} run metadata files in {results_dir}; '
-            'using the newest metadata for all discovered artifacts',
+            'using the newest metadata for artifacts from its ROS distribution',
             file=sys.stderr,
         )
 

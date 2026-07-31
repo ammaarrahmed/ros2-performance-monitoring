@@ -61,7 +61,8 @@ def run_command(args: argparse.Namespace) -> None:
 def parse_command(args: argparse.Namespace) -> None:
     try:
         run_metadata = latest_run_metadata(args.results_dir)
-        artifacts = discover_benchmark_artifacts(args.results_dir)
+        ros_distro = run_metadata.get('run_configuration', {}).get('ros_distro')
+        artifacts = discover_benchmark_artifacts(args.results_dir, ros_distro=ros_distro)
         records = []
         for artifact in artifacts:
             records.extend(parse_artifact(artifact, run_metadata))

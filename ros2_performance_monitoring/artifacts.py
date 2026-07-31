@@ -37,7 +37,7 @@ class BenchmarkArtifact:
     latency_total: Path
 
 
-def discover_benchmark_artifacts(results_dir):
+def discover_benchmark_artifacts(results_dir, ros_distro=None):
     results_dir = Path(results_dir).expanduser().resolve()
     if not results_dir.is_dir():
         raise ArtifactError(f'results directory does not exist: {results_dir}')
@@ -50,7 +50,8 @@ def discover_benchmark_artifacts(results_dir):
     artifacts = []
     errors = []
     for root in roots:
-        for family in root.glob(f'*/{SUPPORTED_FAMILY}'):
+        pattern = f'{ros_distro}/{SUPPORTED_FAMILY}' if ros_distro else f'*/{SUPPORTED_FAMILY}'
+        for family in root.glob(pattern):
             if not family.is_dir():
                 continue
             for leaf in family.glob('pub_sub_*/*'):
