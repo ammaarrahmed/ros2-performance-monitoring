@@ -171,7 +171,7 @@ The `run` command executes the current MVP benchmark path:
 4. Write raw benchmark outputs under the results directory.
 
 The default run uses ROS `lyrical`, a 60 second duration, the
-`pubsub-rclcpp-minimal` suite, `./results` for outputs, and
+`EventsCBGExecutor` executor, the `pubsub-rclcpp-minimal` suite, `./results` for outputs, and
 `~/.cache/ros2-performance-monitoring` for the external container checkout:
 
 ```bash
@@ -196,6 +196,10 @@ The only supported suite in this branch is:
 ```bash
 ros2-performance-monitoring run --suite pubsub-rclcpp-minimal
 ```
+
+The executor argument is passed directly to the benchmark container. Supported
+values are `SingleThreadedExecutor`, `MultiThreadedExecutor`,
+`EventsExecutor`, and `EventsCBGExecutor`.
 
 The benchmark runner requires Docker with the Buildx plugin and a running
 Docker daemon. The current user must be able to run Docker commands without

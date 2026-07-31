@@ -18,7 +18,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class RunDefaults:
     ros_distro: str = 'lyrical'
-    executor: str = 'single-threaded'
+    executor: str = 'EventsCBGExecutor'
     duration: int = 60
     cache_dir: str = '~/.cache/ros2-performance-monitoring'
     results_dir: str = './results'

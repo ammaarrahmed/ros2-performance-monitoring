@@ -47,6 +47,7 @@ def run_command(args: argparse.Namespace) -> None:
         benchmark_option=args.suite,
         duration=args.duration,
         ros_distro=args.ros_distro,
+        executor=args.executor,
     )
 
 
