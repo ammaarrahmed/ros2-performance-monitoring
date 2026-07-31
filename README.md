@@ -215,6 +215,11 @@ writes normalized JSONL metrics:
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ```
 
+When a results directory contains metadata from multiple runs, parsing selects
+the newest metadata file and only discovers artifacts for that run's recorded
+ROS distribution. This prevents retained artifacts from another distribution
+from being labelled as part of the newest run.
+
 The parser currently targets `ros2-benchmark-container` pub/sub artifacts from
 the MVP single-process suite. It looks under the results directory for a
 benchmark artifact root named `benchmark`, then discovers leaves with these

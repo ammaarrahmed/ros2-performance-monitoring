@@ -16,7 +16,6 @@ import json
 import os
 
 import pytest
-
 from ros2_performance_monitoring.artifacts import BenchmarkArtifact
 from ros2_performance_monitoring.parsers.ros2_benchmark_container import latest_run_metadata
 from ros2_performance_monitoring.parsers.ros2_benchmark_container import parse_artifact
@@ -35,7 +34,7 @@ def test_latest_run_metadata_warns_and_selects_newest_file(tmp_path, capsys):
     captured = capsys.readouterr()
     assert metadata['name'] == 'newer'
     assert 'Warning: found 2 run metadata files' in captured.err
-    assert 'using the newest metadata for all discovered artifacts' in captured.err
+    assert 'using the newest metadata for artifacts from its ROS distribution' in captured.err
 
 
 def test_latest_run_metadata_reports_missing_results_directory(tmp_path):
