@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytest
-
 from ros2_performance_monitoring.artifacts import ArtifactError
 from ros2_performance_monitoring.artifacts import discover_benchmark_artifacts
 
@@ -76,6 +75,29 @@ def test_discovers_supported_families_in_sorted_order(tmp_path):
     artifacts = discover_benchmark_artifacts(tmp_path)
 
     assert tuple(artifact.directory for artifact in artifacts) == tuple(sorted((first, second)))
+
+
+def test_limits_discovery_to_recorded_ros_distribution(tmp_path):
+    selected = _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'rolling',
+        'pub-sub_single_process',
+        'pub_sub_10hz_10b',
+        'fastrtps_ipc_on',
+    )
+    _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'lyrical',
+        'pub-sub_single_process',
+        'pub_sub_10hz_10b',
+        'fastrtps_ipc_on',
+    )
+
+    artifacts = discover_benchmark_artifacts(tmp_path, ros_distro='rolling')
+
+    assert tuple(artifact.directory for artifact in artifacts) == (selected,)
 
 
 def test_missing_required_artifact_file_raises_clear_error(tmp_path):
