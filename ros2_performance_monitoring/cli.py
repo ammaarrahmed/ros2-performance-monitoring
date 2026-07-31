@@ -20,6 +20,8 @@ from typing import Any
 
 from .artifacts import ArtifactError
 from .artifacts import discover_benchmark_artifacts
+from .benchmark_runner import benchmark_container_exists
+from .benchmark_runner import benchmark_image_exists
 from .benchmark_runner import benchmark_runner
 from .config import RunDefaults
 from .container_build import build_container
@@ -47,11 +49,24 @@ def run_command(args: argparse.Namespace) -> None:
     )
     print(f'Container Repo Loaded is ready now! checked out commit : {commit_hash}')
     generation_rundata(args, args.results_dir, commit_hash)
-    rel_path = build_container(
-        ros_distro=args.ros_distro,
-        cache_dir=args.cache_dir,
+    reuse_container = (
+        args.keep_container and benchmark_container_exists(args.ros_distro)
     )
-    print(f'successfully built container at : {rel_path}')
+    if args.skip_build:
+        if not benchmark_image_exists(args.ros_distro):
+            raise RuntimeError(
+                f'Cannot skip build: ros2-benchmark-container:'
+                f'{args.ros_distro}-amd64 does not exist.'
+            )
+        print('Using existing benchmark image; skipping image build.')
+    elif reuse_container:
+        print('Retained benchmark container found; skipping image build.')
+    else:
+        rel_path = build_container(
+            ros_distro=args.ros_distro,
+            cache_dir=args.cache_dir,
+        )
+        print(f'successfully built container at : {rel_path}')
     benchmark_runner(
         cache_dir=args.cache_dir,
         results_dir=args.results_dir,
@@ -59,6 +74,7 @@ def run_command(args: argparse.Namespace) -> None:
         duration=args.duration,
         ros_distro=args.ros_distro,
         executor=args.executor,
+        keep_container=args.keep_container,
     )
     parse_command(argparse.Namespace(
         results_dir=args.results_dir,
@@ -189,6 +205,14 @@ def main() -> Any:
     run_parser.add_argument(
         '--suite', default=defaults.default_benchmark,
         help='Benchmark suite to run',
+    )
+    run_parser.add_argument(
+        '--keep-container', action='store_true',
+        help='Keep and reuse the distro benchmark container between runs',
+    )
+    run_parser.add_argument(
+        '--skip-build', action='store_true',
+        help='Use the existing distro image instead of invoking Buildx',
     )
     run_parser.add_argument(
         '--client-library', default=defaults.client_library,

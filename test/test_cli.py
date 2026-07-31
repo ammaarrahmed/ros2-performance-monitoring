@@ -146,6 +146,7 @@ def test_run_with_default_smoke(monkeypatch):
         'duration': defaults.duration,
         'ros_distro': defaults.ros_distro,
         'executor': defaults.executor,
+        'keep_container': False,
     }
     assert received['parse_args'].results_dir == defaults.results_dir
     assert received['parse_args'].output == Path(defaults.results_dir) / 'normalized_metrics.jsonl'
@@ -212,9 +213,100 @@ def test_run_with_explicit_arguments(monkeypatch):
         'duration': 120,
         'ros_distro': 'rolling',
         'executor': 'MultiThreadedExecutor',
+        'keep_container': False,
     }
     assert received['parse_args'].results_dir == './custom-results'
     assert received['parse_args'].output == Path('./custom-results/normalized_metrics.jsonl')
+
+
+def test_run_reuses_retained_container_without_building(monkeypatch):
+    importlib.reload(cli)
+    received = {}
+
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
+    )
+    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
+    monkeypatch.setattr(cli, 'benchmark_container_exists', lambda distro: True)
+    monkeypatch.setattr(
+        cli,
+        'build_container',
+        lambda **kwargs: pytest.fail('a retained container must skip the image build'),
+    )
+    monkeypatch.setattr(
+        cli,
+        'benchmark_runner',
+        lambda **kwargs: received.update(benchmark_kwargs=kwargs),
+    )
+    monkeypatch.setattr(cli, 'parse_command', lambda args: None)
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['ros2-performance-monitoring', 'run', '--keep-container'],
+    )
+
+    cli.main()
+
+    assert received['benchmark_kwargs']['keep_container'] is True
+
+
+def test_run_can_skip_build_when_image_exists(monkeypatch):
+    importlib.reload(cli)
+    received = {}
+
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
+    )
+    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
+    monkeypatch.setattr(cli, 'benchmark_container_exists', lambda distro: False)
+    monkeypatch.setattr(cli, 'benchmark_image_exists', lambda distro: True)
+    monkeypatch.setattr(
+        cli,
+        'build_container',
+        lambda **kwargs: pytest.fail('--skip-build must not invoke Buildx'),
+    )
+    monkeypatch.setattr(
+        cli,
+        'benchmark_runner',
+        lambda **kwargs: received.update(benchmark_kwargs=kwargs),
+    )
+    monkeypatch.setattr(cli, 'parse_command', lambda args: None)
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['ros2-performance-monitoring', 'run', '--skip-build'],
+    )
+
+    cli.main()
+
+    assert received['benchmark_kwargs']['keep_container'] is False
+
+
+def test_run_cannot_skip_missing_image(monkeypatch):
+    importlib.reload(cli)
+
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
+    )
+    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
+    monkeypatch.setattr(cli, 'benchmark_container_exists', lambda distro: False)
+    monkeypatch.setattr(cli, 'benchmark_image_exists', lambda distro: False)
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['ros2-performance-monitoring', 'run', '--skip-build'],
+    )
+
+    assert cli.main() == 1
 
 
 def test_run_with_invalid_duration_exits(monkeypatch):

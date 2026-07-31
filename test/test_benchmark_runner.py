@@ -122,3 +122,68 @@ def test_runner_rejects_unknown_suite(tmp_path):
 
     assert 'Unsupported Benchmark option: unknown-suite' in str(exc_info.value)
     assert 'service-rclcpp-minimal' in str(exc_info.value)
+
+
+def test_runner_reuses_compatible_retained_container(tmp_path, monkeypatch):
+    calls = []
+    results_dir = tmp_path / 'results' / 'run-2'
+    results_root = results_dir.parent.resolve()
+    benchmark_root = (tmp_path / 'cache' / 'benchmark').resolve()
+
+    def fake_run(cmd, check, **kwargs):
+        calls.append((cmd, check, kwargs))
+        if cmd[:3] == ['docker', 'container', 'inspect']:
+            if '--format' not in cmd:
+                return subprocess.CompletedProcess(cmd, 0)
+            label = cmd[cmd.index('--format') + 1]
+            value = results_root if 'results-root' in label else benchmark_root
+            return subprocess.CompletedProcess(cmd, 0, stdout=f'{value}\n')
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, 'run', fake_run)
+
+    benchmark_runner(
+        cache_dir=str(tmp_path / 'cache'),
+        results_dir=str(results_dir),
+        benchmark_option='service-rclcpp-minimal',
+        duration=5,
+        ros_distro='lyrical',
+        executor='EventsCBGExecutor',
+        keep_container=True,
+    )
+
+    commands = [cmd for cmd, _, _ in calls]
+    assert ['docker', 'start', 'ros2-benchmark-container-lyrical-amd64'] in commands
+    assert not any(cmd[:3] == ['docker', 'run', '-d'] for cmd in commands)
+    assert not any(cmd[:3] == ['docker', 'rm', '-f'] for cmd in commands)
+    script_commands = [cmd for cmd in commands if cmd[:2] == ['docker', 'exec']][:-1]
+    assert all(
+        'ROS2_BENCHMARK_OUTPUT_DIR=/benchmark_results/run-2/benchmark/lyrical'
+        in cmd
+        for cmd in script_commands
+    )
+
+
+def test_runner_rejects_retained_container_with_different_results_root(
+    tmp_path,
+    monkeypatch,
+):
+    def fake_run(cmd, check, **kwargs):
+        if cmd[:3] == ['docker', 'container', 'inspect'] and '--format' not in cmd:
+            return subprocess.CompletedProcess(cmd, 0)
+        if '--format' in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout='/different/root\n')
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, 'run', fake_run)
+
+    with pytest.raises(RuntimeError, match='Cannot reuse'):
+        benchmark_runner(
+            cache_dir=str(tmp_path / 'cache'),
+            results_dir=str(tmp_path / 'results' / 'run-2'),
+            benchmark_option='service-rclcpp-minimal',
+            duration=5,
+            ros_distro='lyrical',
+            executor='EventsCBGExecutor',
+            keep_container=True,
+        )

@@ -390,6 +390,43 @@ The container repository is cached under
 `~/.cache/ros2-performance-monitoring` by default. Use `--cache-dir` to place
 the checkout elsewhere, such as on a persistent CI cache volume.
 
+By default, `run` creates a benchmark container and removes it when the command
+finishes. Pass `--keep-container` to retain it. A later `run --keep-container`
+for the same ROS distribution reuses that container and skips the image build:
+
+```bash
+ros2-performance-monitoring run --keep-container ./results/repeats/1-lyrical
+ros2-performance-monitoring run --keep-container ./results/repeats/2-lyrical
+```
+
+Results directories used with one retained container must have the same parent
+directory. This keeps every run separate while allowing the original results
+root to remain mounted in the container. The command rejects an incompatible
+results path instead of writing artifacts to the wrong location. Remove a
+retained container when the repeated runs are complete:
+
+```bash
+docker rm -f ros2-benchmark-container-lyrical-amd64
+```
+
+Retaining the container avoids repeated Buildx work. It does not allow one
+container to be shared by different ROS distributions; Jazzy and Lyrical use
+separate images and container names.
+
+If the required image has already been built, `--skip-build` prevents the first
+retained run from invoking Buildx as well:
+
+```bash
+ros2-performance-monitoring run \
+  --skip-build \
+  --keep-container \
+  ./results/repeats/1-lyrical
+```
+
+The command checks that the selected distribution image exists and fails with
+a clear error if it is missing. Omit `--skip-build` when the cached container
+source has changed and the image needs to be rebuilt.
+
 Supported suites are:
 
 ```bash

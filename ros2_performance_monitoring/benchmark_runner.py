@@ -153,6 +153,7 @@ def benchmark_runner(
     duration: int,
     ros_distro: str,
     executor: str,
+    keep_container: bool = False,
 ) -> None:
     relative_path = Path(cache_dir)
     absolute_path = relative_path.expanduser().resolve()
@@ -174,23 +175,43 @@ def benchmark_runner(
     container_name = f'ros2-benchmark-container-{ros_distro}-amd64'
     host_owner = f'{os.getuid()}:{os.getgid()}'
 
+    if keep_container:
+        results_mount = results_absolute_path.parent
+        container_results_dir = (
+            Path('/benchmark_results')
+            / results_absolute_path.name
+            / 'benchmark'
+            / ros_distro
+        )
+    else:
+        results_mount = benchmark_results_dir
+        container_results_dir = Path('/benchmark_results')
+
     cmd = [
         'docker', 'run', '-d',
         '--network=host',
         '--privileged',
         '--shm-size=1000mb',
-        '-v', f'{benchmark_results_dir}:/benchmark_results',
+        '-v', f'{results_mount}:/benchmark_results',
         '-v', f'{benchmark_folder}:/ws/src/ros2_benchmark_container/benchmark',
         '-v', '/var/run/docker.sock:/var/run/docker.sock',
         '-e', 'ROS_DOMAIN_ID=28',
         '-e', f'SYSTEM_EXECUTOR={executor}',
+        '--label', f'ros2-performance-monitoring.results-root={results_mount}',
+        '--label', f'ros2-performance-monitoring.benchmark-root={benchmark_folder}',
         '--name', container_name,
         f'ros2-benchmark-container:{ros_distro}-amd64',
         'sleep', 'infinity',
     ]
 
-    subprocess.run(['docker', 'rm', '-f', container_name], check=False)
-    subprocess.run(cmd, check=True)
+    reuse_container = keep_container and benchmark_container_exists(ros_distro)
+    if reuse_container:
+        _validate_retained_container(container_name, results_mount, benchmark_folder)
+        subprocess.run(['docker', 'start', container_name], check=True)
+        print(f'Reusing retained benchmark container: {container_name}')
+    else:
+        subprocess.run(['docker', 'rm', '-f', container_name], check=False)
+        subprocess.run(cmd, check=True)
 
     try:
         for label, runner_script, config_name, config_text in selected_benchmarks:
@@ -200,23 +221,78 @@ def benchmark_runner(
                 'docker', 'exec',
                 '-e',
                 'ROS2_BENCHMARK_SCRIPTS_DIR=/ws/src/ros2_benchmark_container/benchmark/scripts',
-                '-e', 'ROS2_BENCHMARK_OUTPUT_DIR=/benchmark_results',
+                '-e', f'ROS2_BENCHMARK_OUTPUT_DIR={container_results_dir}',
                 '-e', f'ROS2_BENCHMARK_TEST_DURATION={duration}',
+                '-e', f'SYSTEM_EXECUTOR={executor}',
                 container_name,
                 'bash', '-lc',
                 'source /ws/install/setup.bash && /ws/src/ros2_benchmark_container/'
                 f'benchmark/scripts/runners/{runner_script} '
-                f'/benchmark_results/.ros2_performance_monitoring/{config_name}',
+                f'{container_results_dir}/.ros2_performance_monitoring/{config_name}',
             ]
             print(f'Starting {label} inside container...')
             subprocess.run(exec_cmd, check=True)
         print('Benchmark Completed Successfully :)')
     finally:
         subprocess.run(
-            ['docker', 'exec', container_name, 'chown', '-R', host_owner, '/benchmark_results'],
+            [
+                'docker', 'exec', container_name, 'chown', '-R', host_owner,
+                str(container_results_dir),
+            ],
             check=False,
         )
-        subprocess.run(['docker', 'rm', '-f', container_name], check=False)
+        if not keep_container:
+            subprocess.run(['docker', 'rm', '-f', container_name], check=False)
+
+
+def benchmark_container_exists(ros_distro: str) -> bool:
+    """Return whether the named benchmark container already exists."""
+    container_name = f'ros2-benchmark-container-{ros_distro}-amd64'
+    result = subprocess.run(
+        ['docker', 'container', 'inspect', container_name],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
+
+
+def benchmark_image_exists(ros_distro: str) -> bool:
+    """Return whether the benchmark image for a ROS distribution exists."""
+    image_name = f'ros2-benchmark-container:{ros_distro}-amd64'
+    result = subprocess.run(
+        ['docker', 'image', 'inspect', image_name],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
+
+
+def _validate_retained_container(container_name, results_mount, benchmark_folder):
+    labels = {
+        'results-root': str(results_mount),
+        'benchmark-root': str(benchmark_folder),
+    }
+    for label, expected in labels.items():
+        result = subprocess.run(
+            [
+                'docker', 'container', 'inspect',
+                '--format',
+                f'{{{{ index .Config.Labels "ros2-performance-monitoring.{label}" }}}}',
+                container_name,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        actual = result.stdout.strip()
+        if actual != expected:
+            raise RuntimeError(
+                f'Cannot reuse {container_name}: its {label} is {actual!r}, '
+                f'expected {expected!r}. Remove the container or use results '
+                'directories with the same parent.'
+            )
 
 
 def _patch_known_runner_typo(benchmark_folder):
