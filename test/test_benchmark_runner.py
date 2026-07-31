@@ -16,7 +16,6 @@ import os
 import subprocess
 
 import pytest
-
 from ros2_performance_monitoring.benchmark_runner import benchmark_runner
 from ros2_performance_monitoring.benchmark_runner import BROKEN_MULTI_PROCESS_COMMAND
 from ros2_performance_monitoring.benchmark_runner import FIXED_MULTI_PROCESS_COMMAND
@@ -47,7 +46,11 @@ def test_runner_executes_service_benchmarks_with_reduced_configs(tmp_path, monke
         benchmark_option='service-rclcpp-minimal',
         duration=5,
         ros_distro='lyrical',
+        executor='EventsCBGExecutor',
     )
+
+    run_command = next(cmd for cmd, _ in calls if cmd[:3] == ['docker', 'run', '-d'])
+    assert 'SYSTEM_EXECUTOR=EventsCBGExecutor' in run_command
 
     config_dir = tmp_path / 'results' / 'benchmark' / 'lyrical' / '.ros2_performance_monitoring'
     single_config = config_dir / 'service_single_process_reduced.conf'
@@ -93,6 +96,7 @@ def test_runner_default_suite_executes_all_reduced_topologies(tmp_path, monkeypa
         benchmark_option='rclcpp-minimal',
         duration=5,
         ros_distro='lyrical',
+        executor='EventsCBGExecutor',
     )
 
     exec_commands = [cmd for cmd, _ in calls if cmd[:2] == ['docker', 'exec']]
@@ -113,6 +117,7 @@ def test_runner_rejects_unknown_suite(tmp_path):
             benchmark_option='unknown-suite',
             duration=5,
             ros_distro='lyrical',
+            executor='EventsCBGExecutor',
         )
 
     assert 'Unsupported Benchmark option: unknown-suite' in str(exc_info.value)
