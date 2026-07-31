@@ -76,6 +76,19 @@ http://localhost:9108/metrics
 
 ## Dashboard Panels
 
+The dashboard opens as a guided manual comparison. Select the client library,
+then choose reference and candidate runs. The run selectors expose each run's
+client-library ref, commit, and ROS distribution so the two inputs are explicit
+before interpreting a regression signal. The remaining selectors narrow both
+runs to the same topology, process mode, payload, RMW implementation, and
+communication mode.
+
+Positive latency, CPU, and memory deltas indicate that the candidate is worse;
+negative throughput deltas indicate a throughput regression. The comparable
+results table shows the exact values behind the headline deltas, while the
+payload panels reveal whether a change is isolated to one message size or
+follows a broader scaling trend.
+
 - Selected configs counts the run/RMW/payload configurations currently selected.
 - Mean latency, p95 latency, and mean throughput provide quick headline values.
 - Mean latency comparison groups results by client-library ref, client-library
