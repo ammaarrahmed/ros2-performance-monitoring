@@ -137,7 +137,7 @@ def test_dashboard_queries_share_run_scope():
 
 
 def test_comparison_run_variables_are_scoped_to_their_distributions():
-    """Test each comparison run selector uses its corresponding ROS distro."""
+    """Test comparison run selectors only return active, correctly scoped runs."""
     dashboards = _load_dashboards()
     for uid in COMPARISON_DASHBOARD_UIDS:
         dashboard = _dashboard_by_uid(dashboards, uid)
@@ -148,6 +148,25 @@ def test_comparison_run_variables_are_scoped_to_their_distributions():
         assert 'ros_distro="$baseline_distro"' in variables['baseline_run']['definition']
         assert 'ros_distro="$candidate_distro"' in variables['candidate_run']['definition']
         assert 'run_id!="$baseline_run"' not in variables['candidate_run']['definition']
+        for name in ('baseline_run', 'candidate_run'):
+            assert variables[name]['definition'].startswith(
+                'query_result(max by (run_id) ('
+            )
+            assert variables[name]['regex'] == '/.*run_id="([^"]+)".*/'
+
+
+def test_run_detail_selector_only_returns_active_runs():
+    """Test stale Prometheus labels are not offered by the run detail view."""
+    dashboard = _dashboard_by_uid(_load_dashboards(), 'ros2-run-detail')
+    run_variable = next(
+        variable
+        for variable in dashboard['templating']['list']
+        if variable['name'] == 'run'
+    )
+    assert run_variable['definition'].startswith(
+        'query_result(max by (run_id) ('
+    )
+    assert run_variable['regex'] == '/.*run_id="([^"]+)".*/'
 
 
 def test_internal_dashboard_links_target_provisioned_uids():
