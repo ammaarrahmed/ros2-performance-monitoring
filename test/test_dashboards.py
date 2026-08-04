@@ -87,6 +87,14 @@ def test_dashboard_panels_do_not_overlap():
             occupied_cells.update(panel_cells)
 
 
+def test_dashboard_auto_refresh_starts_at_five_minutes():
+    """Test dashboards cannot select a noisy sub-five-minute refresh rate."""
+    allowed_intervals = ['5m', '10m', '30m', '1h', '6h', '12h', '1d']
+    for path, dashboard in _load_dashboards().items():
+        assert dashboard['refresh'] == '5m', path
+        assert dashboard['timepicker']['refresh_intervals'] == allowed_intervals, path
+
+
 def test_dashboard_variables_are_declared():
     """Test dashboard content only references variables declared in that dashboard."""
     for path, dashboard in _load_dashboards().items():

@@ -171,7 +171,7 @@
       "type": "barchart"
     }
   ],
-  "refresh": "30s",
+  "refresh": "5m",
   "schemaVersion": 39,
   "style": "dark",
   "tags": ["ros2", "performance", "run-details"],
@@ -379,7 +379,7 @@
     ]
   },
   "time": {"from": "now-30d", "to": "now"},
-  "timepicker": {},
+  "timepicker": {"refresh_intervals": ["5m", "10m", "30m", "1h", "6h", "12h", "1d"]},
   "timezone": "browser",
   "title": "ROS 2 Performance · Run Details",
   "uid": "ros2-run-detail",
