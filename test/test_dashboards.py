@@ -21,6 +21,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_DIRECTORY = REPOSITORY_ROOT / 'config' / 'grafana' / 'dashboards'
 DASHBOARD_LINK_PATTERN = re.compile(r'/d/([a-zA-Z0-9_-]+)/')
 VARIABLE_PATTERN = re.compile(r'\$(?:\{)?([a-zA-Z_][a-zA-Z0-9_]*)')
+GRAFANA_BUILTIN_VARIABLES = {'__field'}
 COMPARISON_DIMENSIONS = {
     'comm',
     'executor',
@@ -94,6 +95,7 @@ def test_dashboard_variables_are_declared():
             for variable in dashboard.get('templating', {}).get('list', [])
         }
         referenced_variables = set(VARIABLE_PATTERN.findall(json.dumps(dashboard)))
+        referenced_variables -= GRAFANA_BUILTIN_VARIABLES
         assert referenced_variables <= declared_variables, (
             path,
             referenced_variables - declared_variables,
@@ -145,6 +147,7 @@ def test_comparison_run_variables_are_scoped_to_their_distributions():
         }
         assert 'ros_distro="$baseline_distro"' in variables['baseline_run']['definition']
         assert 'ros_distro="$candidate_distro"' in variables['candidate_run']['definition']
+        assert 'run_id!="$baseline_run"' not in variables['candidate_run']['definition']
 
 
 def test_internal_dashboard_links_target_provisioned_uids():
@@ -187,8 +190,8 @@ def test_comparability_uses_complete_scenario_identity():
             assert set(match.group(1).split(',')) == COMPARISON_DIMENSIONS
 
 
-def test_overall_verdict_uses_plain_language_states():
-    """Test the headline summarizes direction, status, reason, and action."""
+def test_overall_verdict_summarizes_and_links_the_worst_scenario():
+    """Test the headline works for any run pair and links useful details."""
     dashboard = _dashboard_by_uid(
         _load_dashboards(),
         'ros2-regression-overview',
@@ -197,11 +200,11 @@ def test_overall_verdict_uses_plain_language_states():
         next(panel for panel in dashboard['panels'] if panel['id'] == panel_id)
         for panel_id in (5, 6, 7)
     ]
-    verdict, reason, action = verdict_panels
+    verdict, largest_change, scenario = verdict_panels
     mapping = verdict['fieldConfig']['defaults']['mappings'][0]['options']
 
     assert verdict['title'] == (
-        'Comparing ${candidate_distro:text} against ${baseline_distro:text}'
+        'Candidate ${candidate_run:text} vs reference ${baseline_run:text}'
     )
     assert set(mapping) == {'0', '1', '2', '3'}
     assert [mapping[str(state)]['text'] for state in range(4)] == [
@@ -210,17 +213,26 @@ def test_overall_verdict_uses_plain_language_states():
         'Regression detected',
         'Results cannot be compared',
     ]
-    assert reason['title'] == 'Why'
-    assert action['title'] == 'Next action'
-    assert 'Repeat the benchmark' in (
-        action['fieldConfig']['defaults']['mappings'][0]['options']['1']['text']
+    assert verdict['fieldConfig']['defaults']['noValue'] == 'Select two valid runs.'
+    assert verdict['fieldConfig']['defaults']['links'] == []
+    assert largest_change['title'] == 'Largest p95 latency increase'
+    assert scenario['title'] == 'RMW and scenario most affected'
+    assert largest_change['options']['textMode'] == 'value_and_name'
+    assert scenario['options']['textMode'] == 'name'
+    assert largest_change['fieldConfig']['defaults']['unit'] == 'percent'
+    assert 'topk(1,' in largest_change['targets'][0]['expr']
+    assert largest_change['targets'][0]['legendFormat'] == '{{rmw}}'
+    assert scenario['targets'][0]['legendFormat'] == (
+        '{{rmw}} · {{process_mode}} · {{payload_bytes}} B · {{comm}}'
     )
+    for panel in (largest_change, scenario):
+        link = panel['fieldConfig']['defaults']['links'][0]['url']
+        assert '/d/rclcpp-pubsub-overview/' in link
+        assert 'var-process_mode=${__field.labels.process_mode}' in link
+        assert 'var-payload=${__field.labels.payload_bytes}' in link
+        assert 'var-rmw=${__field.labels.rmw}' in link
+        assert 'var-comm=${__field.labels.comm}' in link
     assert sum(panel['gridPos']['w'] for panel in verdict_panels) == 24
-    assert all(panel['options']['textMode'] == 'value' for panel in verdict_panels)
-    assert all(
-        panel['fieldConfig']['defaults'].get('unit') is None
-        for panel in verdict_panels
-    )
 
 
 def test_run_detail_performance_queries_are_scoped_to_workload():

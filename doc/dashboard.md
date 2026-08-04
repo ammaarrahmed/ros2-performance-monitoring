@@ -98,7 +98,8 @@ reference and candidate environments separate while matching their scenario
 identity. The dashboard scans every matching scenario for the selected workload
 through eleven checks:
 
-1. A plain-language overall verdict for the selected comparison.
+1. A plain-language run verdict plus the worst p95 latency change and the RMW
+   and scenario responsible for it.
 2. Mean and p95 latency scaling lines over a logarithmic payload axis.
 3. Throughput loss and an absolute throughput scaling line.
 4. Peak CPU and resident-memory regressions.
@@ -113,22 +114,24 @@ through eleven checks:
 11. A directly comparable p95-latency view for each RMW using the same 1 MiB,
     single-process, IPC-off scenario from the selected workload in both runs.
 
-The overall verdict uses three cards so its summary remains readable: the first
-shows the comparison direction and one of four states (`No clear regression`,
-`Possible regression`, `Regression detected`, or `Results cannot be compared`);
-the second explains why; and the third gives the next action. It checks p95
-latency across like-for-like scenarios against the same review thresholds used
-by the detailed p95 panel. A small threshold crossing asks for a repeat because
-each selected result represents one run; a larger crossing asks the user to
-inspect the detailed panels.
+The overall comparison works both across ROS distributions and between repeated
+runs of the same distribution. Its first card names the exact candidate and
+reference runs and reports one of four states (`No clear regression`, `Possible
+regression`, `Regression detected`, or `Results cannot be compared`). The next
+two cards show the largest p95 latency increase, its RMW, and the exact process
+mode, payload, and transport responsible for it. The verdict applies the same
+review thresholds used by the detailed p95 panel.
 
 Before evaluating performance, the verdict compares the actual topology,
 process mode, payload, RMW, transport, executor, and node-role keys in both
 runs. Any missing or newly-added key produces `Results cannot be compared`.
-Clicking the verdict opens a focused coverage drill-down that lists the exact
-missing and added combinations. Reversing the selected runs also reverses the
-direction shown in the verdict instead of presenting a percentage as though it
-were symmetric.
+An invalid or incomplete run selection instead asks the user to select two valid
+runs. Clicking either p95 detail card opens the exact scenario in Manual
+Explorer, including both absolute run values and the related CPU, RSS,
+throughput, and reliability measurements. The separate comparison coverage
+dashboard lists missing and added combinations when scenario coverage differs.
+Reversing the selected runs also reverses the direction shown in the verdict
+instead of presenting a percentage as though it were symmetric.
 
 Cross-RMW comparisons use IPC-off because it is the common transport represented
 for Fast DDS, Cyclone DDS, and Zenoh. IPC-on effectiveness is restricted to
