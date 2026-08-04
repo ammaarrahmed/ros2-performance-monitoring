@@ -100,7 +100,9 @@ through eleven checks:
 
 Run selectors use current Prometheus samples rather than retained label history.
 This prevents a run removed from the active JSONL dataset from remaining as a
-selectable but empty result until Prometheus retention expires.
+selectable but empty result until Prometheus retention expires. The candidate
+selector also excludes the selected reference run because comparing a run with
+itself cannot reveal a regression.
 
 1. A plain-language run verdict plus the worst p95 latency change and the RMW
    and scenario responsible for it.
@@ -129,13 +131,15 @@ review thresholds used by the detailed p95 panel.
 Before evaluating performance, the verdict compares the actual topology,
 process mode, payload, RMW, transport, executor, and node-role keys in both
 runs. Any missing or newly-added key produces `Results cannot be compared`.
-An invalid or incomplete run selection instead asks the user to select two valid
-runs. Clicking either p95 detail card opens the exact scenario in Manual
-Explorer, including both absolute run values and the related CPU, RSS,
-throughput, and reliability measurements. The separate comparison coverage
-dashboard lists missing and added combinations when scenario coverage differs.
-Reversing the selected runs also reverses the direction shown in the verdict
-instead of presenting a percentage as though it were symmetric.
+An identical, invalid, or incomplete run selection instead asks the user to
+select two different comparable runs. This guard also applies when identical
+run values are supplied directly in a dashboard URL. Clicking either p95 detail
+card opens the exact scenario in Manual Explorer, including both absolute run
+values and the related CPU, RSS, throughput, and reliability measurements. The
+separate comparison coverage dashboard lists missing and added combinations
+when scenario coverage differs. Reversing the selected runs also reverses the
+direction shown in the verdict instead of presenting a percentage as though it
+were symmetric.
 
 Cross-RMW comparisons use IPC-off because it is the common transport represented
 for Fast DDS, Cyclone DDS, and Zenoh. IPC-on effectiveness is restricted to

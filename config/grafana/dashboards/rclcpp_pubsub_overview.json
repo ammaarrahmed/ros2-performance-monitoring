@@ -2000,7 +2000,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\"}))",
+        "definition": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id!=\"$baseline_run\"}))",
         "description": "The newer commit, branch, or distribution being checked for regressions.",
         "hide": 0,
         "includeAll": false,
@@ -2009,7 +2009,7 @@
         "name": "candidate_run",
         "options": [],
         "query": {
-          "query": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\"}))",
+          "query": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id!=\"$baseline_run\"}))",
           "refId": "Prometheus-candidate-run-Variable-Query"
         },
         "refresh": 1,

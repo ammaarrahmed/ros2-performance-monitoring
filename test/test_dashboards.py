@@ -147,7 +147,7 @@ def test_comparison_run_variables_are_scoped_to_their_distributions():
         }
         assert 'ros_distro="$baseline_distro"' in variables['baseline_run']['definition']
         assert 'ros_distro="$candidate_distro"' in variables['candidate_run']['definition']
-        assert 'run_id!="$baseline_run"' not in variables['candidate_run']['definition']
+        assert 'run_id!="$baseline_run"' in variables['candidate_run']['definition']
         for name in ('baseline_run', 'candidate_run'):
             assert variables[name]['definition'].startswith(
                 'query_result(max by (run_id) ('
@@ -232,7 +232,11 @@ def test_overall_verdict_summarizes_and_links_the_worst_scenario():
         'Regression detected',
         'Results cannot be compared',
     ]
-    assert verdict['fieldConfig']['defaults']['noValue'] == 'Select two valid runs.'
+    for panel in verdict_panels:
+        assert panel['fieldConfig']['defaults']['noValue'] == (
+            'Select two different comparable runs.'
+        )
+        assert 'count by (ros_distro,run_id)' in panel['targets'][0]['expr']
     assert verdict['fieldConfig']['defaults']['links'] == []
     assert largest_change['title'] == 'Largest p95 latency increase'
     assert scenario['title'] == 'RMW and scenario most affected'
