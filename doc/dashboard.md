@@ -98,6 +98,10 @@ reference and candidate environments separate while matching their scenario
 identity. The dashboard scans every matching scenario for the selected workload
 through eleven checks:
 
+Run selectors use current Prometheus samples rather than retained label history.
+This prevents a run removed from the active JSONL dataset from remaining as a
+selectable but empty result until Prometheus retention expires.
+
 1. A plain-language run verdict plus the worst p95 latency change and the RMW
    and scenario responsible for it.
 2. Mean and p95 latency scaling lines over a logarithmic payload axis.

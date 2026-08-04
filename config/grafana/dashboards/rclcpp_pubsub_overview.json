@@ -1979,7 +1979,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\"}, run_id)",
+        "definition": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\"}))",
         "description": "The earlier or accepted result used as the comparison point.",
         "hide": 0,
         "includeAll": false,
@@ -1988,11 +1988,11 @@
         "name": "baseline_run",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\"}, run_id)",
+          "query": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\"}))",
           "refId": "Prometheus-baseline-run-Variable-Query"
         },
         "refresh": 1,
-        "regex": "",
+        "regex": "/.*run_id=\"([^\"]+)\".*/",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
@@ -2000,7 +2000,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\"}, run_id)",
+        "definition": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\"}))",
         "description": "The newer commit, branch, or distribution being checked for regressions.",
         "hide": 0,
         "includeAll": false,
@@ -2009,11 +2009,11 @@
         "name": "candidate_run",
         "options": [],
         "query": {
-          "query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\"}, run_id)",
+          "query": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\"}))",
           "refId": "Prometheus-candidate-run-Variable-Query"
         },
         "refresh": 1,
-        "regex": "",
+        "regex": "/.*run_id=\"([^\"]+)\".*/",
         "skipUrlSync": false,
         "sort": 2,
         "type": "query"
