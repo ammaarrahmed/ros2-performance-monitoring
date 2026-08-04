@@ -124,6 +124,32 @@ def test_runner_rejects_unknown_suite(tmp_path):
     assert 'service-rclcpp-minimal' in str(exc_info.value)
 
 
+def test_runner_pins_container_to_requested_cpus(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_run(cmd, check):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, 'run', fake_run)
+    benchmark_runner(
+        cache_dir=str(tmp_path / 'cache'),
+        results_dir=str(tmp_path / 'results'),
+        benchmark_option='pubsub-rclcpp-minimal',
+        duration=60,
+        ros_distro='lyrical',
+        executor='EventsCBGExecutor',
+        cpuset_cpus='0,2,4,6,8,10',
+    )
+
+    run_command = next(cmd for cmd in calls if cmd[:3] == ['docker', 'run', '-d'])
+    assert run_command[3:5] == ['--cpuset-cpus', '0,2,4,6,8,10']
+    assert (
+        'ros2-performance-monitoring.cpuset-cpus=0,2,4,6,8,10'
+        in run_command
+    )
+
+
 def test_runner_reuses_compatible_retained_container(tmp_path, monkeypatch):
     calls = []
     results_dir = tmp_path / 'results' / 'run-2'
@@ -136,7 +162,12 @@ def test_runner_reuses_compatible_retained_container(tmp_path, monkeypatch):
             if '--format' not in cmd:
                 return subprocess.CompletedProcess(cmd, 0)
             label = cmd[cmd.index('--format') + 1]
-            value = results_root if 'results-root' in label else benchmark_root
+            if 'results-root' in label:
+                value = results_root
+            elif 'benchmark-root' in label:
+                value = benchmark_root
+            else:
+                value = ''
             return subprocess.CompletedProcess(cmd, 0, stdout=f'{value}\n')
         return subprocess.CompletedProcess(cmd, 0)
 
