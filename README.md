@@ -435,6 +435,15 @@ ros2-performance-monitoring run --suite pubsub-rclcpp-minimal
 ros2-performance-monitoring run --suite service-rclcpp-minimal
 ```
 
+For repeatability work, `--cpuset-cpus` restricts the benchmark container to a
+Docker CPU-set expression. Select cores that are appropriate for the benchmark
+host. For example:
+
+```bash
+ros2-performance-monitoring run \
+  --cpuset-cpus 0,2,4,6,8,10
+```
+
 The executor argument is passed directly to the benchmark container. Supported
 values are `SingleThreadedExecutor`, `MultiThreadedExecutor`,
 `EventsExecutor`, and `EventsCBGExecutor`.

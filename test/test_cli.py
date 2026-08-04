@@ -147,6 +147,7 @@ def test_run_with_default_smoke(monkeypatch):
         'ros_distro': defaults.ros_distro,
         'executor': defaults.executor,
         'keep_container': False,
+        'cpuset_cpus': None,
     }
     assert received['parse_args'].results_dir == defaults.results_dir
     assert received['parse_args'].output == Path(defaults.results_dir) / 'normalized_metrics.jsonl'
@@ -214,6 +215,7 @@ def test_run_with_explicit_arguments(monkeypatch):
         'ros_distro': 'rolling',
         'executor': 'MultiThreadedExecutor',
         'keep_container': False,
+        'cpuset_cpus': None,
     }
     assert received['parse_args'].results_dir == './custom-results'
     assert received['parse_args'].output == Path('./custom-results/normalized_metrics.jsonl')

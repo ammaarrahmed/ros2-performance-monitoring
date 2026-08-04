@@ -44,6 +44,7 @@ def generation_rundata(
             'executor': args.executor,
             'duration': args.duration,
             'client_library': args.client_library,
+            'cpuset_cpus': args.cpuset_cpus,
         },
         'benchmark_repo': {
             'url': args.container_repo_url,

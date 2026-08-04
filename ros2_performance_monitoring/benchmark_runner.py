@@ -154,6 +154,7 @@ def benchmark_runner(
     ros_distro: str,
     executor: str,
     keep_container: bool = False,
+    cpuset_cpus: str | None = None,
 ) -> None:
     relative_path = Path(cache_dir)
     absolute_path = relative_path.expanduser().resolve()
@@ -203,10 +204,20 @@ def benchmark_runner(
         f'ros2-benchmark-container:{ros_distro}-amd64',
         'sleep', 'infinity',
     ]
+    if cpuset_cpus:
+        cmd[3:3] = ['--cpuset-cpus', cpuset_cpus]
+        cmd[cmd.index('--name'):cmd.index('--name')] = [
+            '--label', f'ros2-performance-monitoring.cpuset-cpus={cpuset_cpus}',
+        ]
 
     reuse_container = keep_container and benchmark_container_exists(ros_distro)
     if reuse_container:
-        _validate_retained_container(container_name, results_mount, benchmark_folder)
+        _validate_retained_container(
+            container_name,
+            results_mount,
+            benchmark_folder,
+            cpuset_cpus,
+        )
         subprocess.run(['docker', 'start', container_name], check=True)
         print(f'Reusing retained benchmark container: {container_name}')
     else:
@@ -269,10 +280,16 @@ def benchmark_image_exists(ros_distro: str) -> bool:
     return result.returncode == 0
 
 
-def _validate_retained_container(container_name, results_mount, benchmark_folder):
+def _validate_retained_container(
+    container_name,
+    results_mount,
+    benchmark_folder,
+    cpuset_cpus,
+):
     labels = {
         'results-root': str(results_mount),
         'benchmark-root': str(benchmark_folder),
+        'cpuset-cpus': cpuset_cpus or '',
     }
     for label, expected in labels.items():
         result = subprocess.run(

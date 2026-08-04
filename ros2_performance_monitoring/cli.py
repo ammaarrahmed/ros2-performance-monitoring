@@ -75,6 +75,7 @@ def run_command(args: argparse.Namespace) -> None:
         ros_distro=args.ros_distro,
         executor=args.executor,
         keep_container=args.keep_container,
+        cpuset_cpus=args.cpuset_cpus,
     )
     parse_command(argparse.Namespace(
         results_dir=args.results_dir,
@@ -213,6 +214,10 @@ def main() -> Any:
     run_parser.add_argument(
         '--skip-build', action='store_true',
         help='Use the existing distro image instead of invoking Buildx',
+    )
+    run_parser.add_argument(
+        '--cpuset-cpus',
+        help='Restrict the benchmark container to a Docker CPU-set expression',
     )
     run_parser.add_argument(
         '--client-library', default=defaults.client_library,
