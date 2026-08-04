@@ -1862,7 +1862,7 @@
       "type": "barchart"
     }
   ],
-  "refresh": "5s",
+  "refresh": "5m",
   "schemaVersion": 39,
   "style": "dark",
   "tags": [
@@ -2244,7 +2244,9 @@
     "from": "now-6h",
     "to": "now"
   },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": ["5m", "10m", "30m", "1h", "6h", "12h", "1d"]
+  },
   "timezone": "browser",
   "title": "ROS 2 Performance · Manual Explorer",
   "uid": "rclcpp-pubsub-overview",

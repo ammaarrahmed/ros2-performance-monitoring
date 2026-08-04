@@ -62,6 +62,10 @@ Useful local URLs:
 Grafana uses the default regression views as its home dashboard, so opening
 `http://localhost:3000` also lands directly on the project view.
 
+Dashboard auto-refresh defaults to five minutes. The refresh menu only offers
+intervals of five minutes or longer because benchmark data changes between
+runs, not every few seconds.
+
 ## Stop
 
 Press `Ctrl+C` to stop the exporter, then stop the containers:
