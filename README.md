@@ -19,19 +19,22 @@ benchmark container run
   -> Grafana
 ```
 
-It does not detect regressions yet, and it does not run hosted infrastructure.
-The dashboard is organized to make performance changes visible across ROS client
-library refs, ROS distros, RMW implementations, communication modes, and payload
-sizes.
+The dashboard compares runs and highlights possible regressions, but the project
+does not enforce a CI-gating regression policy or run hosted infrastructure.
+Comparisons can be scoped by ROS client library ref, ROS distro, RMW
+implementation, communication mode, and payload size.
 
 ## Prerequisites
 
-- Docker is installed and running.
-- Docker Compose plugin is installed.
+- Git and an internet connection are available so the external benchmark
+  repository and container images can be fetched.
+- Docker is installed and running, and the current user can use it without
+  `sudo`.
+- Docker Compose and Docker Buildx plugins are installed.
+- Docker has several GB of free disk space for the ROS 2 benchmark image.
 - Ports `3000`, `9090`, and `9108` are free.
-- The `ros2-performance-monitoring` command is available on your `PATH`.
 
-For local source development, one simple setup is:
+From the repository root, create a virtual environment and install the command:
 
 ```bash
 python3 -m venv .venv
@@ -39,11 +42,44 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+Check the external tools before continuing:
+
+```bash
+docker version
+docker compose version
+docker buildx version
+git --version
+```
+
 ## Full Local Workflow
 
 Run these commands from the repository root.
 
-### 1. Run The Benchmark
+### 1. Start With A Short Benchmark
+
+The first run fetches the external benchmark repository and builds a large ROS 2
+container image. Even a one-second benchmark can therefore take several minutes
+on a fresh machine. Start with the smaller service suite to check the complete
+workflow before committing to the default matrix:
+
+```bash
+ros2-performance-monitoring run \
+  --suite service-rclcpp-minimal \
+  -t 1 \
+  ./results
+```
+
+Here, the duration is applied to every scenario rather than to the command as a
+whole. The one-second service suite still runs multiple payload, process, RMW,
+and communication-mode combinations.
+
+The runner starts a privileged container, mounts `/var/run/docker.sock`, and
+temporarily changes the host CPU governor to `performance`. The external runner
+sets the governor to `powersave` when it finishes; it does not restore a
+different original governor. Run it only on a machine where those host-level
+changes are acceptable.
+
+### 2. Run The Full Benchmark
 
 This fetches the benchmark container repo if needed, builds the Docker image,
 runs the reduced `rclcpp` pub/sub and service benchmarks, and writes raw
@@ -64,10 +100,19 @@ results_dir: ./results
 cache_dir: ~/.cache/ros2-performance-monitoring
 ```
 
+The default suite contains roughly 72 scenario combinations. Because the
+60-second duration applies to each one, allow well over an hour for the
+benchmark itself, plus the initial image build.
+
 To make those values explicit:
 
 ```bash
-ros2-performance-monitoring run -t 60 -d lyrical -x single-threaded ./results
+ros2-performance-monitoring run \
+  -t 60 \
+  -d lyrical \
+  -x EventsCBGExecutor \
+  --suite rclcpp-minimal \
+  ./results
 ```
 
 If you are comparing a specific client-library branch or commit, record it with
@@ -81,10 +126,13 @@ ros2-performance-monitoring run \
   --client-library-commit <rclcpp-commit-sha>
 ```
 
-The benchmark container ref and the client-library ref are tracked separately.
-The default Docker flow records the client library as `packaged`. Use
-`--client-library-source build` with the ref and commit options for a locally
-built client library. The host architecture is recorded automatically.
+These client-library options record provenance only; they do not build or inject
+a client library into the container. The benchmark container ref and the
+client-library ref are tracked separately. The default Docker flow records the
+client library as `packaged`. When the image already contains a locally built
+client library, use `--client-library-source build` with the ref and commit
+options to describe it accurately. The host architecture is recorded
+automatically.
 
 The current runner writes benchmark artifacts under paths like:
 
@@ -95,7 +143,7 @@ results/benchmark/lyrical/cli-srv_single_process/...
 results/benchmark/lyrical/cli-srv_multi_process/...
 ```
 
-### 2. Inspect Or Reprocess The Artifacts
+### 3. Inspect Or Reprocess The Artifacts
 
 The `run` command automatically creates the normalized JSONL consumed by the
 exporter and dashboard. To reprocess existing raw benchmark files, run:
@@ -115,7 +163,7 @@ host provenance. Grafana can scope comparisons by client library, platform,
 ROS distribution, and whether the client library was built or packaged. Built
 versions show their commit; packaged versions are identified as `packaged`.
 
-### 3. Check The Exporter Directly
+### 4. Check The Exporter Directly
 
 This step is optional, but useful when you want to verify the metrics before
 starting Grafana:
@@ -132,7 +180,7 @@ http://localhost:9108/metrics
 
 Stop the exporter with `Ctrl+C`.
 
-### 4. Start Grafana And Prometheus
+### 5. Start Grafana And Prometheus
 
 Start the local dashboard stack:
 
@@ -161,7 +209,7 @@ Use the mode control to move between the automatic full-matrix checks and the
 manual scenario explorer. Click either run card to open that run's metadata,
 scenario inventory, and complete performance profile.
 
-### 5. Stop The Dashboard
+### 6. Stop The Dashboard
 
 Press `Ctrl+C` in the terminal running `dashboard up`, then stop the containers:
 
@@ -271,12 +319,14 @@ Run the CLI:
 
 ```bash
 ros2-performance-monitoring run
-ros2-performance-monitoring doctor
 ros2-performance-monitoring build-container
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl
 ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
 ```
+
+The `doctor` subcommand is currently a placeholder and does not perform
+environment checks yet.
 
 Run the Python tests:
 
@@ -298,6 +348,7 @@ mkdir -p ~/ros2_performance_ws/src
 cd ~/ros2_performance_ws/src
 git clone https://github.com/ammaarrahmed/ros2-performance-monitoring.git
 cd ..
+rosdep install --from-paths src --ignore-src -r -y
 colcon build --packages-select ros2_performance_monitoring
 source install/setup.bash
 ```
@@ -306,7 +357,6 @@ Run the CLI through ROS 2:
 
 ```bash
 ros2 run ros2_performance_monitoring ros2-performance-monitoring run
-ros2 run ros2_performance_monitoring ros2-performance-monitoring doctor
 ros2 run ros2_performance_monitoring ros2-performance-monitoring build-container
 ros2 run ros2_performance_monitoring ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ros2 run ros2_performance_monitoring ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
