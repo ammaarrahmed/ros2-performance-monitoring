@@ -15,6 +15,9 @@
 from dataclasses import dataclass
 
 
+SUPPORTED_ROS_DISTROS = ('jazzy', 'lyrical', 'rolling')
+
+
 @dataclass(frozen=True)
 class RunDefaults:
     client_library: str = 'rclcpp'

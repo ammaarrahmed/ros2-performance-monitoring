@@ -24,6 +24,7 @@ from .benchmark_runner import benchmark_container_exists
 from .benchmark_runner import benchmark_image_exists
 from .benchmark_runner import benchmark_runner
 from .config import RunDefaults
+from .config import SUPPORTED_ROS_DISTROS
 from .container_build import build_container
 from .container_provider import get_default_container_repo, setup_container_repo
 from .dashboard import dashboard_down
@@ -180,7 +181,7 @@ def main() -> Any:
         help='Duration in Seconds',
     )
     run_parser.add_argument(
-        '-d', '--ros-distro', default=defaults.ros_distro,
+        '-d', '--ros-distro', choices=SUPPORTED_ROS_DISTROS, default=defaults.ros_distro,
         help='ROS Distro',
     )
     run_parser.add_argument(
@@ -236,7 +237,7 @@ def main() -> Any:
         help='Whether the client library under test is a build or packaged',
     )
     build_container_parser.add_argument(
-        'ros_distro', nargs='?', default=defaults.ros_distro,
+        'ros_distro', nargs='?', choices=SUPPORTED_ROS_DISTROS, default=defaults.ros_distro,
         help='ROS Distro',
     )
     build_container_parser.add_argument(

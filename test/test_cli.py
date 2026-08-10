@@ -322,6 +322,50 @@ def test_run_with_invalid_duration_exits(monkeypatch):
         cli.main()
 
 
+@pytest.mark.parametrize('ros_distro', ('humble', 'kilted'))
+def test_run_rejects_unsupported_ros_distro_before_setup(monkeypatch, ros_distro):
+    importlib.reload(cli)
+    monkeypatch.setattr(
+        cli,
+        'setup_container_repo',
+        lambda **kwargs: pytest.fail('repository setup must not run'),
+    )
+    monkeypatch.setattr(
+        cli,
+        'generation_rundata',
+        lambda *args: pytest.fail('run metadata must not be created'),
+    )
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['ros2-performance-monitoring', 'run', '--ros-distro', ros_distro],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 2
+
+
+def test_build_container_rejects_incompatible_ros_distro_before_setup(monkeypatch):
+    importlib.reload(cli)
+    monkeypatch.setattr(
+        cli,
+        'setup_container_repo',
+        lambda **kwargs: pytest.fail('repository setup must not run'),
+    )
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['ros2-performance-monitoring', 'build-container', 'kilted'],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 2
+
+
 def test_parse_scopes_artifacts_to_metadata_distribution(tmp_path, monkeypatch):
     received = {}
 
