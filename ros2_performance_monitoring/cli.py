@@ -36,6 +36,21 @@ from .run_metadata import generation_rundata
 from .writers.jsonl import write_jsonl
 
 
+class CommandArgumentParser(argparse.ArgumentParser):
+
+    def error(self, message: str) -> None:
+        unknown_command = (
+            'invalid choice' in message
+            and (
+                'argument command:' in message
+                or 'argument dashboard_command:' in message
+            )
+        )
+        if unknown_command:
+            message += "\nRun 'ros2-performance-monitoring help' to see available commands."
+        super().error(message)
+
+
 def run_command(args: argparse.Namespace) -> None:
     print('Running Performance Monitor...')
     container_repo_url, container_ref = get_default_container_repo()
@@ -149,7 +164,7 @@ def build_container_command(args: argparse.Namespace) -> None:
 
 def main() -> Any:
     defaults = RunDefaults()
-    parser = argparse.ArgumentParser(prog='ros2-performance-monitoring')
+    parser = CommandArgumentParser(prog='ros2-performance-monitoring')
     subparsers = parser.add_subparsers(dest='command', required=True)
 
     run_parser = subparsers.add_parser('run', help='Start monitoring')
