@@ -448,6 +448,10 @@ The executor argument is passed directly to the benchmark container. Supported
 values are `SingleThreadedExecutor`, `MultiThreadedExecutor`,
 `EventsExecutor`, and `EventsCBGExecutor`.
 
+The currently supported ROS distributions are `jazzy`, `lyrical`, and
+`rolling`. Other distributions are rejected before the container repository is
+fetched, run metadata is created, or an image build starts.
+
 The default `rclcpp-minimal` suite runs the reduced pub/sub and service
 topologies covered by the parser: single-process and multi-process pub/sub, plus
 single-process and multi-process client/service. It covers `10b`, `100kb`,
