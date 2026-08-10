@@ -124,6 +124,13 @@ def doctor_command(args: argparse.Namespace) -> None:
     print('Doctor checks are not implemented yet.')
 
 
+def help_command(args: argparse.Namespace) -> None:
+    args.root_parser.print_help()
+    print('\nCommand usage:')
+    for command_parser in args.command_parsers:
+        print(command_parser.format_usage().strip())
+
+
 def build_container_command(args: argparse.Namespace) -> None:
     print('Building the container now...')
     container_repo_url, container_ref = get_default_container_repo()
@@ -175,6 +182,8 @@ def main() -> Any:
         help='Serve normalized metrics for Prometheus',
     )
     serve_prometheus_parser.set_defaults(func=serve_prometheus)
+
+    help_parser = subparsers.add_parser('help', help='Show commands and usage')
 
     run_parser.add_argument(
         '-t', '--duration', type=int, default=defaults.duration,
@@ -257,6 +266,20 @@ def main() -> Any:
         help='Normalized metrics JSONL path',
     )
     serve_prometheus_parser.add_argument('--port', type=int, default=9108, help='Exporter port')
+    help_parser.set_defaults(
+        func=help_command,
+        root_parser=parser,
+        command_parsers=(
+            run_parser,
+            doctor_parser,
+            build_container_parser,
+            parse_parser,
+            dashboard_up_parser,
+            dashboard_down_parser,
+            serve_prometheus_parser,
+            help_parser,
+        ),
+    )
     args = parser.parse_args()
     try:
         return args.func(args)

@@ -54,6 +54,27 @@ def test_doctor_command(monkeypatch, capsys):
     assert 'Doctor checks are not implemented yet.' in captured.out
 
 
+def test_help_command_lists_all_command_usage(monkeypatch, capsys):
+    importlib.reload(cli)
+    monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'help'])
+
+    cli.main()
+
+    output = capsys.readouterr().out
+    assert 'Command usage:' in output
+    for command in (
+        'run',
+        'doctor',
+        'build-container',
+        'parse',
+        'dashboard up',
+        'dashboard down',
+        'serve-prometheus',
+        'help',
+    ):
+        assert f'ros2-performance-monitoring {command}' in output
+
+
 def test_build_container_command(monkeypatch, capsys):
     importlib.reload(cli)
     received = {}

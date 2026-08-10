@@ -270,6 +270,7 @@ python3 -m pip install .
 Run the CLI:
 
 ```bash
+ros2-performance-monitoring help
 ros2-performance-monitoring run
 ros2-performance-monitoring doctor
 ros2-performance-monitoring build-container
