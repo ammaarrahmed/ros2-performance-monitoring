@@ -75,6 +75,31 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         assert f'ros2-performance-monitoring {command}' in output
 
 
+@pytest.mark.parametrize(
+    'arguments',
+    (
+        ['unknown'],
+        ['dashboard', 'unknown'],
+    ),
+)
+def test_unknown_command_suggests_help(monkeypatch, capsys, arguments):
+    importlib.reload(cli)
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['ros2-performance-monitoring', *arguments],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 2
+    assert (
+        "Run 'ros2-performance-monitoring help' to see available commands."
+        in capsys.readouterr().err
+    )
+
+
 def test_build_container_command(monkeypatch, capsys):
     importlib.reload(cli)
     received = {}
