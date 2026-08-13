@@ -21,11 +21,19 @@ import sys
 import pytest
 import ros2_performance_monitoring.cli as cli
 from ros2_performance_monitoring.config import RunDefaults
+from ros2_performance_monitoring.container_provider import get_default_container_repo
 
 pytestmark = pytest.mark.smoke
 
-DEFAULT_CONTAINER_REPO_URL = 'https://github.com/ammaarrahmed/ros2-benchmark-container'
-DEFAULT_CONTAINER_REF = 'gitsubmodule-commit-fix'
+DEFAULT_CONTAINER_REPO_URL = 'https://github.com/ros2/ros2-benchmark-container'
+DEFAULT_CONTAINER_REF = 'rolling'
+
+
+def test_default_container_repo_uses_ros2_upstream():
+    assert get_default_container_repo() == (
+        DEFAULT_CONTAINER_REPO_URL,
+        DEFAULT_CONTAINER_REF,
+    )
 
 
 def test_run_command_prints_message(monkeypatch, capsys):

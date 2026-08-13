@@ -1,5 +1,5 @@
 repositories:
   .:
     type: git
-    url: https://github.com/ammaarrahmed/ros2-benchmark-container
-    version: gitsubmodule-commit-fix
+    url: https://github.com/ros2/ros2-benchmark-container
+    version: rolling
