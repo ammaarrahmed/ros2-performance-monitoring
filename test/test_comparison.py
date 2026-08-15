@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import pytest
+from ros2_performance_monitoring import benchmark_layout
 from ros2_performance_monitoring.comparison import CANNOT_COMPARE
+from ros2_performance_monitoring.comparison import CATEGORY_THRESHOLDS
+from ros2_performance_monitoring.comparison import comparison_results
 from ros2_performance_monitoring.comparison import evaluate_comparison
 from ros2_performance_monitoring.comparison import INCOMPLETE_RESULTS
 from ros2_performance_monitoring.comparison import NO_REGRESSION
@@ -21,6 +24,27 @@ from ros2_performance_monitoring.comparison import NOT_APPLICABLE
 from ros2_performance_monitoring.comparison import POSSIBLE_REGRESSION
 from ros2_performance_monitoring.comparison import REGRESSION
 from ros2_performance_monitoring.comparison import run_display_name
+from ros2_performance_monitoring.comparison import STATUS_LABELS
+
+
+def test_policy_values_match_the_documented_dashboard_contract():
+    assert {
+        category: (thresholds.possible, thresholds.regression)
+        for category, thresholds in CATEGORY_THRESHOLDS.items()
+    } == {
+        'latency': (0.5, 2.0),
+        'throughput': (0.5, 2.0),
+        'resources': (1.0, 5.0),
+        'reliability': (0.01, 0.1),
+    }
+    assert dict(STATUS_LABELS) == {
+        0: 'No regression',
+        1: 'Possible regression',
+        2: 'Regression',
+        3: 'Incomplete results',
+        4: 'Cannot compare',
+        5: 'N/A',
+    }
 
 
 @pytest.mark.parametrize(
@@ -122,6 +146,38 @@ def test_missing_scenario_makes_every_status_not_comparable():
     assert set(statuses.values()) == {CANNOT_COMPARE}
 
 
+def test_matching_runs_with_missing_required_scenarios_are_incomplete():
+    baseline = _pubsub_records('baseline')
+    candidate = _pubsub_records('candidate')
+
+    results = comparison_results([*baseline, *candidate])
+    statuses = {
+        result.category: result.status
+        for result in results
+        if result.baseline_run == 'baseline'
+        and result.candidate_run == 'candidate'
+        and result.topology == 'pub-sub'
+    }
+
+    assert set(statuses.values()) == {INCOMPLETE_RESULTS}
+
+
+def test_complete_shared_layout_is_eligible_for_a_passing_status():
+    baseline = _complete_pubsub_layout('baseline')
+    candidate = _complete_pubsub_layout('candidate')
+
+    results = comparison_results([*baseline, *candidate])
+    statuses = {
+        result.category: result.status
+        for result in results
+        if result.baseline_run == 'baseline'
+        and result.candidate_run == 'candidate'
+        and result.topology == 'pub-sub'
+    }
+
+    assert set(statuses.values()) == {NO_REGRESSION}
+
+
 def test_service_excludes_non_applicable_categories_from_overall():
     baseline = _service_records('baseline')
     candidate = _service_records('candidate')
@@ -133,6 +189,21 @@ def test_service_excludes_non_applicable_categories_from_overall():
         'latency': NO_REGRESSION,
         'throughput': NOT_APPLICABLE,
         'resources': NO_REGRESSION,
+        'reliability': NOT_APPLICABLE,
+    }
+
+
+def test_workload_without_applicable_categories_cannot_be_compared():
+    baseline = [_record('baseline', 'custom_metric', 1.0, 'value', 'custom')]
+    candidate = [_record('candidate', 'custom_metric', 1.0, 'value', 'custom')]
+
+    statuses = evaluate_comparison(baseline, candidate, 'custom')
+
+    assert statuses == {
+        'overall': CANNOT_COMPARE,
+        'latency': NOT_APPLICABLE,
+        'throughput': NOT_APPLICABLE,
+        'resources': NOT_APPLICABLE,
         'reliability': NOT_APPLICABLE,
     }
 
@@ -184,6 +255,55 @@ def _service_records(run_id):
         _record(run_id, 'resource_cpu', 50.0, 'max', 'service'),
         _record(run_id, 'resource_memory_rss', 100.0, 'max', 'service'),
     ]
+
+
+def _complete_pubsub_layout(run_id):
+    records = []
+    metric_values = (
+        ('subscription_latency', 100.0, 'mean'),
+        ('subscription_latency', 200.0, 'p95'),
+        ('subscription_throughput', 100.0, 'observed'),
+        ('resource_cpu', 50.0, 'max'),
+        ('resource_memory_rss', 100.0, 'max'),
+        ('total_messages_lost', 0.0, 'percent'),
+        ('total_messages_late', 0.0, 'percent'),
+        ('total_messages_too_late', 0.0, 'percent'),
+    )
+    for family in benchmark_layout.BENCHMARK_FAMILIES.values():
+        if family.topology != 'pub-sub':
+            continue
+        node_roles = (
+            ('publisher', 'subscription')
+            if family.process_mode == 'multi_process'
+            else ('',)
+        )
+        for payload in benchmark_layout.PAYLOADS.values():
+            for short_name, communication_modes in family.communication_modes.items():
+                rmw = benchmark_layout.get_rmw(short_name)
+                for communication_mode in communication_modes:
+                    for node_role in node_roles:
+                        for metric_name, value, aggregation in metric_values:
+                            if (
+                                node_role == 'publisher'
+                                and not metric_name.startswith('resource_')
+                            ):
+                                continue
+                            record = _record(
+                                run_id,
+                                metric_name,
+                                value,
+                                aggregation,
+                                'pub-sub',
+                                payload.size_bytes,
+                            )
+                            record.update({
+                                'process_mode': family.process_mode,
+                                'rmw_implementation': rmw.implementation_name,
+                                'communication_mode': communication_mode,
+                                'node_role': node_role,
+                            })
+                            records.append(record)
+    return records
 
 
 def _record(run_id, metric_name, value, aggregation, topology, payload_size=10):

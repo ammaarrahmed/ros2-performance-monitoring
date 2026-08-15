@@ -123,14 +123,9 @@ def test_records_to_prometheus_reuses_generic_families_for_service_metrics():
     assert 'topology="service"' in output
 
 
-def test_comparison_statuses_are_exported_for_dashboard_queries():
+def test_incomplete_comparison_statuses_are_exported_for_dashboard_queries():
     baseline = _complete_pubsub_run('baseline')
     candidate = _complete_pubsub_run('candidate')
-    rss = next(
-        record for record in candidate
-        if record['metric_name'] == 'resource_memory_rss'
-    )
-    rss['numeric_value'] = 2100.0
 
     output = records_to_prometheus([*baseline, *candidate])
 
@@ -141,9 +136,7 @@ def test_comparison_statuses_are_exported_for_dashboard_queries():
         and 'candidate_run="candidate"' in line
     ]
     assert len(comparison_lines) == 5
-    assert any('category="latency"' in line and line.endswith(' 0') for line in comparison_lines)
-    assert any('category="resources"' in line and line.endswith(' 2') for line in comparison_lines)
-    assert any('category="overall"' in line and line.endswith(' 2') for line in comparison_lines)
+    assert all(line.endswith(' 3') for line in comparison_lines)
 
 
 def _complete_pubsub_run(run_id):

@@ -272,6 +272,7 @@ def test_comparison_dashboards_share_all_kpi_status_panels():
             )
             assert panel['fieldConfig']['defaults']['noValue'] == 'Status unavailable'
             assert 'statistically significant' not in panel['description'].lower()
+            assert expression.endswith(' or on() vector(4)')
             queries[category] = expression
         assert tuple(queries) == STATUS_CATEGORIES
         dashboard_queries.append(queries)
