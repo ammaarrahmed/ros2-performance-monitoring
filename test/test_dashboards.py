@@ -16,6 +16,10 @@ import json
 from pathlib import Path
 import re
 
+from ros2_performance_monitoring.comparison import CATEGORY_THRESHOLDS
+from ros2_performance_monitoring.comparison import STATUS_CATEGORIES
+from ros2_performance_monitoring.comparison import STATUS_LABELS
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DASHBOARD_DIRECTORY = REPOSITORY_ROOT / 'config' / 'grafana' / 'dashboards'
@@ -139,9 +143,19 @@ def test_dashboard_queries_share_run_scope():
                 if dashboard['uid'] not in COMPARISON_DASHBOARD_UIDS:
                     assert 'ros_distro="$ros_distro"' in selectors
                 if '$baseline_run' in expression:
-                    assert 'ros_distro="$baseline_distro"' in selectors
+                    expected = (
+                        'baseline_distro="$baseline_distro"'
+                        if 'ros2_perf_comparison_status' in expression
+                        else 'ros_distro="$baseline_distro"'
+                    )
+                    assert expected in selectors
                 if '$candidate_run' in expression:
-                    assert 'ros_distro="$candidate_distro"' in selectors
+                    expected = (
+                        'candidate_distro="$candidate_distro"'
+                        if 'ros2_perf_comparison_status' in expression
+                        else 'ros_distro="$candidate_distro"'
+                    )
+                    assert expected in selectors
 
 
 def test_comparison_run_variables_are_scoped_to_their_distributions():
@@ -158,9 +172,12 @@ def test_comparison_run_variables_are_scoped_to_their_distributions():
         assert 'run_id!="$baseline_run"' in variables['candidate_run']['definition']
         for name in ('baseline_run', 'candidate_run'):
             assert variables[name]['definition'].startswith(
-                'query_result(max by (run_id) ('
+                'query_result(max by (run_display,run_id) ('
             )
-            assert variables[name]['regex'] == '/.*run_id="([^"]+)".*/'
+            assert variables[name]['regex'] == (
+                '/.*run_display="(?<text>[^"]+)".*'
+                'run_id="(?<value>[^"]+)".*/'
+            )
 
 
 def test_run_detail_selector_only_returns_active_runs():
@@ -172,9 +189,12 @@ def test_run_detail_selector_only_returns_active_runs():
         if variable['name'] == 'run'
     )
     assert run_variable['definition'].startswith(
-        'query_result(max by (run_id) ('
+        'query_result(max by (run_display,run_id) ('
     )
-    assert run_variable['regex'] == '/.*run_id="([^"]+)".*/'
+    assert run_variable['regex'] == (
+        '/.*run_display="(?<text>[^"]+)".*'
+        'run_id="(?<value>[^"]+)".*/'
+    )
 
 
 def test_internal_dashboard_links_target_provisioned_uids():
@@ -201,69 +221,106 @@ def test_configured_home_dashboard_is_provisioned():
 
 def test_comparability_uses_complete_scenario_identity():
     """Test set comparisons include every dimension that affects measurements."""
-    dashboards = _load_dashboards()
-    for uid in ('ros2-comparison-coverage', 'ros2-regression-overview'):
-        dashboard = _dashboard_by_uid(dashboards, uid)
-        comparison_expressions = [
-            target['expr']
-            for panel in dashboard['panels']
-            for target in panel.get('targets', [])
-            if ' unless on ' in target.get('expr', '')
-        ]
-        assert comparison_expressions
-        for expression in comparison_expressions:
-            match = re.search(r'unless on \(([^)]+)\)', expression)
-            assert match is not None
-            assert set(match.group(1).split(',')) == COMPARISON_DIMENSIONS
-
-
-def test_overall_verdict_summarizes_and_links_the_worst_scenario():
-    """Test the headline works for any run pair and links useful details."""
     dashboard = _dashboard_by_uid(
         _load_dashboards(),
-        'ros2-regression-overview',
+        'ros2-comparison-coverage',
     )
-    verdict_panels = [
-        next(panel for panel in dashboard['panels'] if panel['id'] == panel_id)
-        for panel_id in (5, 6, 7)
+    comparison_expressions = [
+        target['expr']
+        for panel in dashboard['panels']
+        for target in panel.get('targets', [])
+        if ' unless on ' in target.get('expr', '')
     ]
-    verdict, largest_change, scenario = verdict_panels
-    mapping = verdict['fieldConfig']['defaults']['mappings'][0]['options']
+    assert comparison_expressions
+    for expression in comparison_expressions:
+        match = re.search(r'unless on \(([^)]+)\)', expression)
+        assert match is not None
+        assert set(match.group(1).split(',')) == COMPARISON_DIMENSIONS
 
-    assert verdict['title'] == (
-        'Candidate ${candidate_run:text} vs reference ${baseline_run:text}'
+
+def test_comparison_dashboards_share_all_kpi_status_panels():
+    """Test overview and manual comparison render the shared verdict policy."""
+    dashboards = _load_dashboards()
+    expected_titles = {
+        'overall': 'Overall status',
+        'latency': 'Latency',
+        'throughput': 'Throughput',
+        'resources': 'Resources',
+        'reliability': 'Reliability',
+    }
+    expected_labels = [STATUS_LABELS[index] for index in STATUS_LABELS]
+    dashboard_queries = []
+
+    for uid in ('ros2-regression-overview', 'rclcpp-pubsub-overview'):
+        dashboard = _dashboard_by_uid(dashboards, uid)
+        status_panels = [
+            panel for panel in dashboard['panels']
+            if panel.get('targets')
+            and 'ros2_perf_comparison_status' in panel['targets'][0]['expr']
+        ]
+        assert len(status_panels) == 5
+        assert sum(panel['gridPos']['w'] for panel in status_panels) == 24
+
+        queries = {}
+        for panel in status_panels:
+            expression = panel['targets'][0]['expr']
+            category = re.search(r'category="([^"]+)"', expression).group(1)
+            mapping = panel['fieldConfig']['defaults']['mappings'][0]['options']
+            assert panel['title'] == expected_titles[category]
+            assert [mapping[str(index)]['text'] for index in STATUS_LABELS] == (
+                expected_labels
+            )
+            assert panel['fieldConfig']['defaults']['noValue'] == 'Status unavailable'
+            assert 'statistically significant' not in panel['description'].lower()
+            queries[category] = expression
+        assert tuple(queries) == STATUS_CATEGORIES
+        dashboard_queries.append(queries)
+
+    assert dashboard_queries[0] == dashboard_queries[1]
+
+
+def test_status_descriptions_and_detail_panels_use_policy_thresholds():
+    """Test rendered threshold values cannot drift from the shared policy."""
+    dashboards = _load_dashboards()
+    overview = _dashboard_by_uid(dashboards, 'ros2-regression-overview')
+    manual = _dashboard_by_uid(dashboards, 'rclcpp-pubsub-overview')
+
+    status_panels = {
+        panel['title'].lower(): panel
+        for panel in overview['panels']
+        if panel['title'].lower() in CATEGORY_THRESHOLDS
+    }
+    for category, policy in CATEGORY_THRESHOLDS.items():
+        description = status_panels[category]['description']
+        assert f'{policy.possible:g}' in description
+        assert f'{policy.regression:g}' in description
+
+    panel_thresholds = (
+        (overview, 14, CATEGORY_THRESHOLDS['throughput']),
+        (overview, 17, CATEGORY_THRESHOLDS['resources']),
+        (overview, 18, CATEGORY_THRESHOLDS['resources']),
+        (overview, 20, CATEGORY_THRESHOLDS['reliability']),
+        (overview, 28, CATEGORY_THRESHOLDS['latency']),
+        (overview, 29, CATEGORY_THRESHOLDS['latency']),
+        (overview, 30, CATEGORY_THRESHOLDS['throughput']),
+        (overview, 33, CATEGORY_THRESHOLDS['latency']),
+        (overview, 34, CATEGORY_THRESHOLDS['throughput']),
+        (manual, 5, CATEGORY_THRESHOLDS['latency']),
+        (manual, 6, CATEGORY_THRESHOLDS['latency']),
+        (manual, 7, CATEGORY_THRESHOLDS['throughput']),
+        (manual, 8, CATEGORY_THRESHOLDS['resources']),
+        (manual, 9, CATEGORY_THRESHOLDS['resources']),
+        (manual, 24, CATEGORY_THRESHOLDS['latency']),
+        (manual, 25, CATEGORY_THRESHOLDS['latency']),
+        (manual, 26, CATEGORY_THRESHOLDS['throughput']),
     )
-    assert set(mapping) == {'0', '1', '2', '3'}
-    assert [mapping[str(state)]['text'] for state in range(4)] == [
-        'No clear regression',
-        'Possible regression',
-        'Regression detected',
-        'Results cannot be compared',
-    ]
-    for panel in verdict_panels:
-        assert panel['fieldConfig']['defaults']['noValue'] == (
-            'Select two different comparable runs.'
-        )
-        assert 'count by (ros_distro,run_id)' in panel['targets'][0]['expr']
-    assert verdict['fieldConfig']['defaults']['links'] == []
-    assert largest_change['title'] == 'Largest p95 latency increase'
-    assert scenario['title'] == 'RMW and scenario most affected'
-    assert largest_change['options']['textMode'] == 'value_and_name'
-    assert scenario['options']['textMode'] == 'name'
-    assert largest_change['fieldConfig']['defaults']['unit'] == 'percent'
-    assert 'topk(1,' in largest_change['targets'][0]['expr']
-    assert largest_change['targets'][0]['legendFormat'] == '{{rmw}}'
-    assert scenario['targets'][0]['legendFormat'] == (
-        '{{rmw}} · {{process_mode}} · {{payload_bytes}} B · {{comm}}'
-    )
-    for panel in (largest_change, scenario):
-        link = panel['fieldConfig']['defaults']['links'][0]['url']
-        assert '/d/rclcpp-pubsub-overview/' in link
-        assert 'var-process_mode=${__field.labels.process_mode}' in link
-        assert 'var-payload=${__field.labels.payload_bytes}' in link
-        assert 'var-rmw=${__field.labels.rmw}' in link
-        assert 'var-comm=${__field.labels.comm}' in link
-    assert sum(panel['gridPos']['w'] for panel in verdict_panels) == 24
+    for dashboard, panel_id, policy in panel_thresholds:
+        panel = next(panel for panel in dashboard['panels'] if panel['id'] == panel_id)
+        steps = panel['fieldConfig']['defaults']['thresholds']['steps']
+        assert [step['value'] for step in steps[1:]] == [
+            policy.possible,
+            policy.regression,
+        ]
 
 
 def test_run_detail_performance_queries_are_scoped_to_workload():
