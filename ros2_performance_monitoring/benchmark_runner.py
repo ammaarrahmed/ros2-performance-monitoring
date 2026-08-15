@@ -16,6 +16,8 @@ import os
 from pathlib import Path
 import subprocess
 
+from ros2_performance_monitoring import benchmark_layout
+
 
 FASTDDS_PROFILE = 'shared_memory_fastdds_preallocated_w_realloc.xml'
 CYCLONEDDS_PROFILE = 'shared_memory_cyclonedds.xml'
@@ -32,118 +34,107 @@ FIXED_MULTI_PROCESS_COMMAND = (
     '      echo -e "     Command: \\n       $COMMAND"'
 )
 
-REDUCED_PUBSUB_SINGLE_PROCESS_CONFIG = '\n'.join((
-    '# Generated reduced Pub/Sub benchmark config',
-    'OUTPUT_DIR_NAME="pub-sub_single_process"',
-    'TOPOLOGIES=(',
-    '  "pub_sub_200hz_10b"',
-    '  "pub_sub_200hz_100kb"',
-    '  "pub_sub_200hz_1mb"',
-    '  "pub_sub_200hz_4mb"',
-    ')',
-    'TOPOLOGIES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../topologies/pub-sub"',
-    'PROFILES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../profiles"',
-    'RMW_LIST=("fastrtps" "cyclonedds" "zenoh")',
-    'COMMS_fastrtps=("ipc_on" "ipc_off" "loaned")',
-    'LOANED_ENV_VARS_fastrtps=(',
-    f'  "export FASTRTPS_DEFAULT_PROFILES_FILE=${{PROFILES_DIR}}/{FASTDDS_PROFILE}"',
-    '  "export RMW_FASTRTPS_USE_QOS_FROM_XML=1"',
-    ')',
-    'COMMS_cyclonedds=("ipc_off")',
-    'LOANED_ENV_VARS_cyclonedds=(',
-    f'  "export CYCLONEDDS_URI=${{PROFILES_DIR}}/{CYCLONEDDS_PROFILE}"',
-    ')',
-    'COMMS_zenoh=("ipc_on" "ipc_off")',
-    f'ZENOH_SESSION_CONFIG_URI=${{PROFILES_DIR}}/{ZENOH_SESSION_PROFILE}',
-    '',
-))
-
-REDUCED_PUBSUB_MULTI_PROCESS_CONFIG = '\n'.join((
-    '# Generated reduced Pub/Sub multi-process config',
-    'OUTPUT_DIR_NAME="pub-sub_multi_process"',
-    'TOPOLOGIES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../topologies/pub-sub"',
-    'PROFILES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../profiles"',
-    'RESULTS=("10b" "100kb" "1mb" "4mb")',
-    'TOPOLOGY1=("pub_200hz_10b" "pub_200hz_100kb" "pub_200hz_1mb" "pub_200hz_4mb")',
-    'TOPOLOGY2=("sub_10b" "sub_100kb" "sub_1mb" "sub_4mb")',
-    'RMW_LIST=("fastrtps" "cyclonedds" "zenoh")',
-    'COMMS_fastrtps=("ipc_off" "loaned")',
-    'LOANED_ENV_VARS_fastrtps=(',
-    f'  "export FASTRTPS_DEFAULT_PROFILES_FILE=${{PROFILES_DIR}}/{FASTDDS_PROFILE}"',
-    '  "export RMW_FASTRTPS_USE_QOS_FROM_XML=1"',
-    ')',
-    'COMMS_cyclonedds=("ipc_off")',
-    'LOANED_ENV_VARS_cyclonedds=(',
-    f'  "export CYCLONEDDS_URI=${{PROFILES_DIR}}/{CYCLONEDDS_PROFILE}"',
-    ')',
-    'COMMS_zenoh=("ipc_off")',
-    f'ZENOH_SESSION_CONFIG_URI=${{PROFILES_DIR}}/{ZENOH_SESSION_PROFILE}',
-    '',
-))
-
-REDUCED_SERVICE_SINGLE_PROCESS_CONFIG = '\n'.join((
-    '# Generated reduced Client/Service config',
-    'OUTPUT_DIR_NAME="cli-srv_single_process"',
-    'TOPOLOGIES=("cli_srv_10b" "cli_srv_100kb" "cli_srv_1mb" "cli_srv_4mb")',
-    'TOPOLOGIES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../topologies/cli-srv"',
-    'PROFILES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../profiles"',
-    'RMW_LIST=("fastrtps" "cyclonedds" "zenoh")',
-    'COMMS_fastrtps=("ipc_on" "ipc_off")',
-    'COMMS_cyclonedds=("ipc_off")',
-    'COMMS_zenoh=("ipc_on" "ipc_off")',
-    f'ZENOH_SESSION_CONFIG_URI=${{PROFILES_DIR}}/{ZENOH_SESSION_PROFILE}',
-    '',
-))
-
-REDUCED_SERVICE_MULTI_PROCESS_CONFIG = '\n'.join((
-    '# Generated reduced Client/Service multi-process config',
-    'OUTPUT_DIR_NAME="cli-srv_multi_process"',
-    'TOPOLOGIES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../topologies/cli-srv"',
-    'PROFILES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../profiles"',
-    'RESULTS=("10b" "100kb" "1mb" "4mb")',
-    'TOPOLOGY1=("cli_10b" "cli_100kb" "cli_1mb" "cli_4mb")',
-    'TOPOLOGY2=("srv_10b" "srv_100kb" "srv_1mb" "srv_4mb")',
-    'RMW_LIST=("fastrtps" "cyclonedds" "zenoh")',
-    'COMMS_fastrtps=("ipc_off")',
-    'COMMS_cyclonedds=("ipc_off")',
-    'COMMS_zenoh=("ipc_off")',
-    f'ZENOH_SESSION_CONFIG_URI=${{PROFILES_DIR}}/{ZENOH_SESSION_PROFILE}',
-    '',
-))
-
 BENCHMARK_SUITES = {
     'pubsub-rclcpp-minimal': (
-        (
-            'Single Process Pub/Sub rclcpp minimal',
-            'run_single_process_benchmark.sh',
-            'pubsub_single_process_reduced.conf',
-            REDUCED_PUBSUB_SINGLE_PROCESS_CONFIG,
-        ),
-        (
-            'Multi Process Pub/Sub rclcpp minimal',
-            'run_multi_process_benchmark.sh',
-            'pubsub_multi_process_reduced.conf',
-            REDUCED_PUBSUB_MULTI_PROCESS_CONFIG,
-        ),
+        'pub-sub_single_process',
+        'pub-sub_multi_process',
     ),
     'service-rclcpp-minimal': (
-        (
-            'Single Process Service rclcpp minimal',
-            'run_single_process_benchmark.sh',
-            'service_single_process_reduced.conf',
-            REDUCED_SERVICE_SINGLE_PROCESS_CONFIG,
-        ),
-        (
-            'Multi Process Service rclcpp minimal',
-            'run_multi_process_benchmark.sh',
-            'service_multi_process_reduced.conf',
-            REDUCED_SERVICE_MULTI_PROCESS_CONFIG,
-        ),
+        'cli-srv_single_process',
+        'cli-srv_multi_process',
     ),
 }
 BENCHMARK_SUITES['rclcpp-minimal'] = (
     BENCHMARK_SUITES['pubsub-rclcpp-minimal'] + BENCHMARK_SUITES['service-rclcpp-minimal']
 )
+
+
+def _benchmark_config(family_name):
+    family = benchmark_layout.get_benchmark_family(family_name)
+    payloads = tuple(benchmark_layout.PAYLOADS)
+    is_pubsub = family.topology == 'pub-sub'
+    is_multi_process = family.process_mode == 'multi_process'
+
+    if is_pubsub:
+        benchmark_label = 'Pub/Sub'
+        topology_dir = 'pub-sub'
+    else:
+        benchmark_label = 'Client/Service'
+        topology_dir = 'cli-srv'
+    process_suffix = ' multi-process' if is_multi_process else ''
+    benchmark_suffix = ' benchmark' if is_pubsub and not is_multi_process else ''
+    lines = [
+        f'# Generated reduced {benchmark_label}{process_suffix}{benchmark_suffix} config',
+        f'OUTPUT_DIR_NAME="{family.name}"',
+    ]
+
+    if not is_multi_process:
+        prefix = 'pub_sub_200hz' if is_pubsub else 'cli_srv'
+        topologies = tuple(f'{prefix}_{payload}' for payload in payloads)
+        if is_pubsub:
+            lines.extend(('TOPOLOGIES=(', *(f'  "{name}"' for name in topologies), ')'))
+        else:
+            lines.append(_bash_array('TOPOLOGIES', topologies))
+
+    lines.extend((
+        f'TOPOLOGIES_DIR="${{ROS2_BENCHMARK_SCRIPTS_DIR}}/../topologies/{topology_dir}"',
+        'PROFILES_DIR="${ROS2_BENCHMARK_SCRIPTS_DIR}/../profiles"',
+    ))
+
+    if is_multi_process:
+        first_prefix, second_prefix = ('pub_200hz', 'sub') if is_pubsub else ('cli', 'srv')
+        lines.extend((
+            _bash_array('RESULTS', payloads),
+            _bash_array('TOPOLOGY1', (f'{first_prefix}_{item}' for item in payloads)),
+            _bash_array('TOPOLOGY2', (f'{second_prefix}_{item}' for item in payloads)),
+        ))
+
+    lines.extend(_rmw_config(family))
+    lines.extend((
+        f'ZENOH_SESSION_CONFIG_URI=${{PROFILES_DIR}}/{ZENOH_SESSION_PROFILE}',
+        '',
+    ))
+    return '\n'.join(lines)
+
+
+def _bash_array(name, values):
+    quoted_values = ' '.join(f'"{value}"' for value in values)
+    return f'{name}=({quoted_values})'
+
+
+def _rmw_config(family):
+    lines = [_bash_array('RMW_LIST', benchmark_layout.RMW_IMPLEMENTATIONS)]
+    for short_name in benchmark_layout.RMW_IMPLEMENTATIONS:
+        lines.append(_bash_array(f'COMMS_{short_name}', family.communication_modes[short_name]))
+        if family.topology != 'pub-sub':
+            continue
+        if short_name == 'fastrtps':
+            lines.extend((
+                'LOANED_ENV_VARS_fastrtps=(',
+                f'  "export FASTRTPS_DEFAULT_PROFILES_FILE=${{PROFILES_DIR}}/{FASTDDS_PROFILE}"',
+                '  "export RMW_FASTRTPS_USE_QOS_FROM_XML=1"',
+                ')',
+            ))
+        elif short_name == 'cyclonedds':
+            lines.extend((
+                'LOANED_ENV_VARS_cyclonedds=(',
+                f'  "export CYCLONEDDS_URI=${{PROFILES_DIR}}/{CYCLONEDDS_PROFILE}"',
+                ')',
+            ))
+    return lines
+
+
+def _runner_details(family_name):
+    family = benchmark_layout.get_benchmark_family(family_name)
+    process_label = family.process_mode.replace('_', ' ').title()
+    topology_label = 'Pub/Sub' if family.topology == 'pub-sub' else 'Service'
+    config_prefix = 'pubsub' if family.topology == 'pub-sub' else 'service'
+    return (
+        f'{process_label} {topology_label} rclcpp minimal',
+        f'run_{family.process_mode}_benchmark.sh',
+        f'{config_prefix}_{family.process_mode}_reduced.conf',
+        _benchmark_config(family_name),
+    )
 
 
 def benchmark_runner(
@@ -225,7 +216,8 @@ def benchmark_runner(
         subprocess.run(cmd, check=True)
 
     try:
-        for label, runner_script, config_name, config_text in selected_benchmarks:
+        for family_name in selected_benchmarks:
+            label, runner_script, config_name, config_text = _runner_details(family_name)
             config_path = config_dir / config_name
             config_path.write_text(config_text)
             exec_cmd = [

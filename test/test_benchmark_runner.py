@@ -16,6 +16,7 @@ import os
 import subprocess
 
 import pytest
+from ros2_performance_monitoring.benchmark_runner import _benchmark_config
 from ros2_performance_monitoring.benchmark_runner import benchmark_runner
 from ros2_performance_monitoring.benchmark_runner import BROKEN_MULTI_PROCESS_COMMAND
 from ros2_performance_monitoring.benchmark_runner import FIXED_MULTI_PROCESS_COMMAND
@@ -107,6 +108,54 @@ def test_runner_default_suite_executes_all_reduced_topologies(tmp_path, monkeypa
     assert any('pubsub_multi_process_reduced.conf' in command for command in script_commands)
     assert any('service_single_process_reduced.conf' in command for command in script_commands)
     assert any('service_multi_process_reduced.conf' in command for command in script_commands)
+
+
+@pytest.mark.parametrize(
+    ('family_name', 'expected_mode_lines'),
+    (
+        (
+            'pub-sub_single_process',
+            (
+                'COMMS_fastrtps=("ipc_on" "ipc_off" "loaned")',
+                'COMMS_cyclonedds=("ipc_off")',
+                'COMMS_zenoh=("ipc_on" "ipc_off")',
+            ),
+        ),
+        (
+            'pub-sub_multi_process',
+            (
+                'COMMS_fastrtps=("ipc_off" "loaned")',
+                'COMMS_cyclonedds=("ipc_off")',
+                'COMMS_zenoh=("ipc_off")',
+            ),
+        ),
+        (
+            'cli-srv_single_process',
+            (
+                'COMMS_fastrtps=("ipc_on" "ipc_off")',
+                'COMMS_cyclonedds=("ipc_off")',
+                'COMMS_zenoh=("ipc_on" "ipc_off")',
+            ),
+        ),
+        (
+            'cli-srv_multi_process',
+            (
+                'COMMS_fastrtps=("ipc_off")',
+                'COMMS_cyclonedds=("ipc_off")',
+                'COMMS_zenoh=("ipc_off")',
+            ),
+        ),
+    ),
+)
+def test_reduced_configs_use_family_specific_communication_modes(
+    family_name,
+    expected_mode_lines,
+):
+    config = _benchmark_config(family_name)
+
+    assert 'RMW_LIST=("fastrtps" "cyclonedds" "zenoh")' in config
+    for line in expected_mode_lines:
+        assert line in config
 
 
 def test_runner_rejects_unknown_suite(tmp_path):
