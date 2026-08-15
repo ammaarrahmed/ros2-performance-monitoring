@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from copy import deepcopy
+
 from ros2_performance_monitoring.exporters.prometheus import records_to_prometheus
 
 
@@ -49,6 +51,7 @@ def test_records_to_prometheus_converts_normalized_metrics():
     assert 'run_kind="measured"' in output
     assert 'aggregation_method="none"' in output
     assert 'repeat_count="1"' in output
+    assert 'run_display="run-a (measured)"' in output
     assert 'source_file' not in output
 
 
@@ -73,6 +76,7 @@ def test_aggregate_metadata_is_exposed_only_on_run_info():
     assert 'run_kind="aggregate"' in run_info
     assert 'aggregation_method="median"' in run_info
     assert 'repeat_count="3"' in run_info
+    assert 'run_display="run-a (median, n=3)"' in run_info
     assert 'run_kind=' not in metric
     assert 'aggregation_method=' not in metric
     assert 'repeat_count=' not in metric
@@ -117,6 +121,48 @@ def test_records_to_prometheus_reuses_generic_families_for_service_metrics():
     assert 'ros2_perf_cpu_percent{' in output
     assert 'ros2_perf_memory_megabytes{' in output
     assert 'topology="service"' in output
+
+
+def test_comparison_statuses_are_exported_for_dashboard_queries():
+    baseline = _complete_pubsub_run('baseline')
+    candidate = _complete_pubsub_run('candidate')
+    rss = next(
+        record for record in candidate
+        if record['metric_name'] == 'resource_memory_rss'
+    )
+    rss['numeric_value'] = 2100.0
+
+    output = records_to_prometheus([*baseline, *candidate])
+
+    comparison_lines = [
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_comparison_status{')
+        and 'baseline_run="baseline"' in line
+        and 'candidate_run="candidate"' in line
+    ]
+    assert len(comparison_lines) == 5
+    assert any('category="latency"' in line and line.endswith(' 0') for line in comparison_lines)
+    assert any('category="resources"' in line and line.endswith(' 2') for line in comparison_lines)
+    assert any('category="overall"' in line and line.endswith(' 2') for line in comparison_lines)
+
+
+def _complete_pubsub_run(run_id):
+    specifications = (
+        ('subscription_latency', 100.0, 'us', 'mean'),
+        ('subscription_latency', 200.0, 'us', 'p95'),
+        ('subscription_throughput', 100.0, 'Kb/s', 'observed'),
+        ('resource_cpu', 30.0, '%', 'max'),
+        ('resource_memory_rss', 2000.0, 'KB', 'max'),
+        ('total_messages_lost', 0.0, '%', 'percent'),
+        ('total_messages_late', 0.0, '%', 'percent'),
+        ('total_messages_too_late', 0.0, '%', 'percent'),
+    )
+    records = []
+    for metric_name, value, unit, aggregation in specifications:
+        record = deepcopy(_record(metric_name, value, unit, aggregation))
+        record['run_id'] = run_id
+        records.append(record)
+    return records
 
 
 def _record(
