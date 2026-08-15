@@ -16,7 +16,8 @@ from dataclasses import asdict
 from dataclasses import dataclass
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+SUPPORTED_SCHEMA_VERSIONS = (4, SCHEMA_VERSION)
 
 PLATFORM_ALIASES = {
     'aarch64': 'arm64',
@@ -69,9 +70,17 @@ class MetricRecord:
     aggregation: str
     source_file: str
     node_role: str = ''
+    run_kind: str = 'measured'
+    aggregation_method: str = 'none'
+    repeat_count: int = 1
 
     def to_dict(self):
-        return asdict(self)
+        item = asdict(self)
+        if self.schema_version < 5:
+            item.pop('run_kind')
+            item.pop('aggregation_method')
+            item.pop('repeat_count')
+        return item
 
 
 def normalize_platform(value):

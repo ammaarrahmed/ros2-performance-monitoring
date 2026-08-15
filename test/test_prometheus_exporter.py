@@ -46,7 +46,36 @@ def test_records_to_prometheus_converts_normalized_metrics():
     assert 'comm="ipc_off"' in output
     assert 'payload_bytes="10"' in output
     assert 'platform="x86_64"' in output
+    assert 'run_kind="measured"' in output
+    assert 'aggregation_method="none"' in output
+    assert 'repeat_count="1"' in output
     assert 'source_file' not in output
+
+
+def test_aggregate_metadata_is_exposed_only_on_run_info():
+    record = _record('subscription_latency', 25.0, 'us', 'mean')
+    record.update({
+        'run_kind': 'aggregate',
+        'aggregation_method': 'median',
+        'repeat_count': 3,
+    })
+
+    output = records_to_prometheus([record])
+
+    run_info = next(
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_run_info{')
+    )
+    metric = next(
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_latency_us{')
+    )
+    assert 'run_kind="aggregate"' in run_info
+    assert 'aggregation_method="median"' in run_info
+    assert 'repeat_count="3"' in run_info
+    assert 'run_kind=' not in metric
+    assert 'aggregation_method=' not in metric
+    assert 'repeat_count=' not in metric
 
 
 def test_ros_distro_label_uses_record_value():

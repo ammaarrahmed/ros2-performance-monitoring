@@ -98,6 +98,9 @@ def records_to_prometheus(records):
     for labels, record in _unique_runs(records).items():
         info_labels = dict(labels)
         info_labels['timestamp'] = record.get('timestamp', '')
+        info_labels['run_kind'] = record.get('run_kind', 'measured')
+        info_labels['aggregation_method'] = record.get('aggregation_method', 'none')
+        info_labels['repeat_count'] = str(record.get('repeat_count', 1))
         lines.append(_sample('ros2_perf_run_info', info_labels, 1))
 
     for record in records:
