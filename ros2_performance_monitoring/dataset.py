@@ -14,10 +14,12 @@
 
 from dataclasses import dataclass
 from dataclasses import fields
+from dataclasses import replace
 import hashlib
 import json
 import math
 from pathlib import Path
+from statistics import median
 
 from ros2_performance_monitoring import benchmark_layout
 from ros2_performance_monitoring.model import MetricRecord
@@ -53,6 +55,18 @@ RUN_PROVENANCE_FIELDS = (
     'run_kind',
     'aggregation_method',
     'repeat_count',
+)
+AGGREGATION_COMPATIBILITY_FIELDS = (
+    'schema_version',
+    'benchmark_ref',
+    'benchmark_commit',
+    'client_library_ref',
+    'client_library_commit',
+    'client_library',
+    'client_library_source',
+    'platform',
+    'ros_distro',
+    'executor',
 )
 SCENARIO_IDENTITY_FIELDS = (
     'topology',
@@ -102,8 +116,10 @@ class _Run:
     identities: dict
 
 
-def build_dataset(input_paths, output_path, exclude_runs=()):
+def build_dataset(input_paths, output_path, exclude_runs=(), aggregate=None):
     """Validate normalized inputs and write a deterministic comparison dataset."""
+    if aggregate not in (None, 'median'):
+        raise DatasetError(f'unsupported aggregation method: {aggregate}')
     output = Path(output_path).expanduser().resolve()
     manifest_path = manifest_path_for(output)
     inputs = _resolve_inputs(input_paths, output, manifest_path)
@@ -116,23 +132,38 @@ def build_dataset(input_paths, output_path, exclude_runs=()):
     if not selected_runs:
         raise DatasetError('no normalized runs remain after applying exclusions')
 
+    aggregate_runs = ()
+    aggregate_manifest = ()
+    skipped_groups = ()
+    if aggregate == 'median':
+        aggregate_runs, aggregate_manifest, skipped_groups = _aggregate_runs(
+            selected_runs
+        )
     records = sorted(
         (
             record
-            for run in selected_runs.values()
+            for run in (*selected_runs.values(), *aggregate_runs)
             for record in run.records
         ),
         key=_record_sort_key,
     )
-    manifest = _build_manifest(input_files, selected_runs, excluded, output)
+    manifest = _build_manifest(
+        input_files,
+        selected_runs,
+        excluded,
+        output,
+        aggregate,
+        aggregate_manifest,
+    )
 
     write_json(manifest, manifest_path)
     count = write_jsonl(records, output)
     return DatasetBuildResult(
         record_count=count,
-        run_count=len(selected_runs),
-        aggregate_count=0,
+        run_count=len(selected_runs) + len(aggregate_runs),
+        aggregate_count=len(aggregate_runs),
         manifest_path=manifest_path,
+        skipped_groups=skipped_groups,
     )
 
 
@@ -343,12 +374,137 @@ def _add_record(runs, record, path, checksum, line_number):
     run.records.append(record)
 
 
-def _build_manifest(input_files, selected_runs, excluded, output):
+def _aggregate_runs(runs):
+    groups = {}
+    for run in runs.values():
+        if run.provenance['run_kind'] != 'measured':
+            continue
+        groups.setdefault(_compatibility_key(run), []).append(run)
+
+    aggregate_runs = []
+    manifest_entries = []
+    skipped_groups = []
+    existing_ids = set(runs)
+    for compatibility_key in sorted(groups, key=_json_sort_key):
+        group = sorted(groups[compatibility_key], key=lambda run: run.run_id)
+        run_ids = [run.run_id for run in group]
+        if len(group) < 2:
+            skipped_groups.append(
+                f'Skipped median aggregation for run group [{", ".join(run_ids)}]: '
+                'only 1 compatible measured run'
+            )
+            continue
+        _validate_metric_coverage(group)
+        aggregate_id = _aggregate_id(compatibility_key, group)
+        if aggregate_id in existing_ids:
+            raise DatasetError(
+                f'generated aggregate run_id collides with an input run: {aggregate_id}'
+            )
+        existing_ids.add(aggregate_id)
+
+        aggregate = _median_run(aggregate_id, group)
+        aggregate_runs.append(aggregate)
+        manifest_entries.append({
+            'aggregate_id': aggregate_id,
+            'method': 'median',
+            'repeat_count': len(group),
+            'source_run_ids': run_ids,
+            'input_checksums': sorted({run.input_checksum for run in group}),
+        })
+    return tuple(aggregate_runs), tuple(manifest_entries), tuple(skipped_groups)
+
+
+def _compatibility_key(run):
+    provenance = tuple(
+        run.provenance[name] for name in AGGREGATION_COMPATIBILITY_FIELDS
+    )
+    layout = tuple(sorted({
+        tuple(getattr(record, name) for name in SCENARIO_IDENTITY_FIELDS)
+        for record in run.records
+    }))
+    return provenance, layout
+
+
+def _validate_metric_coverage(group):
+    reference = group[0]
+    expected = set(reference.identities)
+    for run in group[1:]:
+        actual = set(run.identities)
+        if actual == expected:
+            continue
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
+        details = []
+        if missing:
+            details.append('missing ' + ', '.join(_format_identity(item) for item in missing))
+        if extra:
+            details.append('extra ' + ', '.join(_format_identity(item) for item in extra))
+        raise DatasetError(
+            f'cannot aggregate compatible runs {reference.run_id!r} and '
+            f'{run.run_id!r}: metric coverage differs ({"; ".join(details)})'
+        )
+
+
+def _aggregate_id(compatibility_key, group):
+    identity = {
+        'method': 'median',
+        'compatibility': compatibility_key,
+        'sources': [
+            {
+                'run_id': run.run_id,
+                'input_checksum': run.input_checksum,
+            }
+            for run in group
+        ],
+    }
+    digest = hashlib.sha256(
+        json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()
+    ).hexdigest()
+    return f'aggregate-median-{digest[:32]}'
+
+
+def _median_run(aggregate_id, group):
+    reference = group[0]
+    timestamp = max(run.provenance['timestamp'] for run in group)
+    records = []
+    for identity in sorted(reference.identities):
+        template = reference.identities[identity]
+        value = float(median(run.identities[identity].numeric_value for run in group))
+        records.append(replace(
+            template,
+            schema_version=max(SUPPORTED_SCHEMA_VERSIONS),
+            run_id=aggregate_id,
+            timestamp=timestamp,
+            numeric_value=value,
+            source_file='dataset:median',
+            run_kind='aggregate',
+            aggregation_method='median',
+            repeat_count=len(group),
+        ))
+    provenance = _record_values(records[0], RUN_PROVENANCE_FIELDS)
+    return _Run(
+        run_id=aggregate_id,
+        input_path=reference.input_path,
+        input_checksum='',
+        provenance=provenance,
+        records=records,
+        identities={_record_identity(record): record for record in records},
+    )
+
+
+def _build_manifest(
+    input_files,
+    selected_runs,
+    excluded,
+    output,
+    aggregate,
+    aggregate_manifest,
+):
     selected_ids = frozenset(selected_runs)
     return {
         'manifest_version': 1,
         'dataset': output.name,
-        'aggregation_method': 'none',
+        'aggregation_method': aggregate or 'none',
         'excluded_run_ids': sorted(excluded),
         'inputs': [
             {
@@ -361,7 +517,7 @@ def _build_manifest(input_files, selected_runs, excluded, output):
             }
             for input_file in input_files
         ],
-        'aggregates': [],
+        'aggregates': list(aggregate_manifest),
     }
 
 
@@ -379,3 +535,7 @@ def _record_sort_key(record):
 
 def _format_identity(identity):
     return '/'.join(str(value) for value in identity)
+
+
+def _json_sort_key(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'))

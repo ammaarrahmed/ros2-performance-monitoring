@@ -175,6 +175,148 @@ def test_rejects_output_input_collisions_without_replacing_input(tmp_path, colli
     assert input_path.read_text() == original
 
 
+@pytest.mark.parametrize(
+    ('values', 'expected'),
+    (
+        ((1.0, 9.0, 5.0), 5.0),
+        ((1.0, 9.0), 5.0),
+    ),
+)
+def test_median_aggregation_keeps_measured_runs_and_adds_aggregate(
+    tmp_path,
+    values,
+    expected,
+):
+    inputs = []
+    for index, value in enumerate(values):
+        input_path = tmp_path / f'run-{index}.jsonl'
+        _write_records(input_path, [_record(f'run-{index}', value)])
+        inputs.append(input_path)
+    output = tmp_path / 'dataset.jsonl'
+
+    result = build_dataset(inputs, output, aggregate='median')
+
+    records = _read_records(output)
+    aggregate = next(record for record in records if record['run_kind'] == 'aggregate')
+    assert result.run_count == len(values) + 1
+    assert result.aggregate_count == 1
+    assert len(records) == len(values) + 1
+    assert aggregate['numeric_value'] == expected
+    assert aggregate['aggregation_method'] == 'median'
+    assert aggregate['repeat_count'] == len(values)
+    assert aggregate['source_file'] == 'dataset:median'
+
+
+def test_aggregate_id_and_output_are_stable_across_input_order(tmp_path):
+    first = tmp_path / 'first.jsonl'
+    second = tmp_path / 'second.jsonl'
+    output = tmp_path / 'dataset.jsonl'
+    _write_records(first, [_record('run-a', 1.0)])
+    _write_records(second, [_record('run-b', 3.0)])
+
+    build_dataset([second, first], output, aggregate='median')
+    first_output = output.read_bytes()
+    first_manifest = manifest_path_for(output).read_bytes()
+    build_dataset([first, second], output, aggregate='median')
+
+    assert output.read_bytes() == first_output
+    assert manifest_path_for(output).read_bytes() == first_manifest
+    aggregate_id = next(
+        record['run_id'] for record in _read_records(output)
+        if record['run_kind'] == 'aggregate'
+    )
+    assert aggregate_id.startswith('aggregate-median-')
+    assert len(aggregate_id.removeprefix('aggregate-median-')) == 32
+
+
+def test_different_commits_and_layouts_form_separate_aggregate_groups(tmp_path):
+    inputs = []
+    specifications = (
+        ('commit-a-1', 'commit-a', 10, 1.0),
+        ('commit-a-2', 'commit-a', 10, 3.0),
+        ('commit-b-1', 'commit-b', 10, 10.0),
+        ('commit-b-2', 'commit-b', 10, 14.0),
+        ('layout-1', 'commit-a', 102400, 20.0),
+        ('layout-2', 'commit-a', 102400, 24.0),
+    )
+    for run_id, commit, payload_size, value in specifications:
+        input_path = tmp_path / f'{run_id}.jsonl'
+        record = _record(run_id, value)
+        record['client_library_commit'] = commit
+        record['payload_size'] = payload_size
+        _write_records(input_path, [record])
+        inputs.append(input_path)
+    output = tmp_path / 'dataset.jsonl'
+
+    result = build_dataset(inputs, output, aggregate='median')
+
+    manifest = json.loads(manifest_path_for(output).read_text())
+    source_groups = {
+        tuple(aggregate['source_run_ids']) for aggregate in manifest['aggregates']
+    }
+    assert result.aggregate_count == 3
+    assert source_groups == {
+        ('commit-a-1', 'commit-a-2'),
+        ('commit-b-1', 'commit-b-2'),
+        ('layout-1', 'layout-2'),
+    }
+
+
+def test_mismatched_metric_coverage_stops_aggregation_before_output(tmp_path):
+    first = tmp_path / 'first.jsonl'
+    second = tmp_path / 'second.jsonl'
+    output = tmp_path / 'dataset.jsonl'
+    output.write_text('existing output\n')
+    _write_records(first, [_record('run-a', 1.0)])
+    _write_records(second, [
+        _record('run-b', 2.0),
+        _record('run-b', 20.0, metric_name='resource_cpu'),
+    ])
+
+    with pytest.raises(DatasetError, match='metric coverage differs'):
+        build_dataset([first, second], output, aggregate='median')
+
+    assert output.read_text() == 'existing output\n'
+
+
+def test_excluded_runs_are_not_used_in_aggregate_lineage(tmp_path):
+    inputs = []
+    for run_id, value in (('warm-up', 100.0), ('run-a', 1.0), ('run-b', 3.0)):
+        input_path = tmp_path / f'{run_id}.jsonl'
+        _write_records(input_path, [_record(run_id, value)])
+        inputs.append(input_path)
+    output = tmp_path / 'dataset.jsonl'
+
+    result = build_dataset(
+        inputs,
+        output,
+        aggregate='median',
+        exclude_runs=['warm-up'],
+    )
+
+    manifest = json.loads(manifest_path_for(output).read_text())
+    aggregate = manifest['aggregates'][0]
+    assert result.aggregate_count == 1
+    assert aggregate['source_run_ids'] == ['run-a', 'run-b']
+    assert aggregate['repeat_count'] == 2
+    assert len(aggregate['input_checksums']) == 2
+    assert all(record['run_id'] != 'warm-up' for record in _read_records(output))
+
+
+def test_reports_singleton_compatible_groups_as_skipped(tmp_path):
+    input_path = tmp_path / 'run-a.jsonl'
+    output = tmp_path / 'dataset.jsonl'
+    _write_records(input_path, [_record('run-a', 1.0)])
+
+    result = build_dataset([input_path], output, aggregate='median')
+
+    assert result.aggregate_count == 0
+    assert result.skipped_groups == (
+        'Skipped median aggregation for run group [run-a]: '
+        'only 1 compatible measured run',
+    )
+
+
 def _record(run_id, value, metric_name='subscription_latency'):
     return {
         'schema_version': 5,
