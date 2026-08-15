@@ -18,6 +18,7 @@ import stat
 
 import pytest
 from ros2_performance_monitoring.writers import jsonl as jsonl_writer
+from ros2_performance_monitoring.writers.jsonl import write_json
 from ros2_performance_monitoring.writers.jsonl import write_jsonl
 
 
@@ -88,6 +89,14 @@ def test_writes_same_jsonl_bytes_and_returns_record_count(tmp_path):
         b'{"metric_name":"latency","numeric_value":1.25}\n'
         b'{"metric_name":"throughput","numeric_value":2.5}\n'
     )
+
+
+def test_writes_deterministic_json_through_atomic_path(tmp_path):
+    output = tmp_path / 'nested' / 'manifest.json'
+
+    write_json({'z': 1, 'a': ['value']}, output)
+
+    assert output.read_bytes() == b'{\n  "a": [\n    "value"\n  ],\n  "z": 1\n}\n'
 
 
 def test_replaces_existing_output_and_preserves_its_mode(tmp_path):
