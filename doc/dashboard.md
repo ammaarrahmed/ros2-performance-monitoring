@@ -31,17 +31,19 @@ or installed from packages. Built versions show their client-library commit;
 packaged versions are identified as `packaged`.
 
 For compatible repeated measurements, pass `--aggregate median`. Measured runs
-remain selectable alongside the generated aggregate run. Its run kind,
-aggregation method, and repeat count are exported on `ros2_perf_run_info`; the
-source run IDs and input checksums are recorded in
-`dashboard-data.manifest.json`.
+remain selectable alongside the generated aggregate run. Selectors label each
+choice as measured or as a median with its repeat count while retaining the run
+ID as the selected value. Run kind, aggregation method, and repeat count are
+exported on `ros2_perf_run_info`; source run IDs and input checksums are recorded
+in `dashboard-data.manifest.json`.
 
 Supported service artifacts currently include `cli-srv_single_process` leaves
 named `cli_srv_10b`, `cli_srv_100kb`, `cli_srv_1mb`, and `cli_srv_4mb`, and
 `cli-srv_multi_process` leaves named `10b`, `100kb`, `1mb`, and `4mb`.
 
-The dashboard does not run benchmarks, parse raw artifacts, or detect
-regressions. It starts from the normalized JSONL file.
+The dashboard does not run benchmarks or parse raw artifacts. It starts from the
+normalized JSONL file, and the local exporter evaluates the deterministic
+comparison policy described below.
 
 ## Start
 
@@ -119,8 +121,7 @@ selectable but empty result until Prometheus retention expires. The candidate
 selector also excludes the selected reference run because comparing a run with
 itself cannot reveal a regression.
 
-1. A plain-language run verdict plus the worst p95 latency change and the RMW
-   and scenario responsible for it.
+1. Overall, latency, throughput, resource, and reliability status cards.
 2. Mean and p95 latency scaling lines over a logarithmic payload axis.
 3. Throughput loss and an absolute throughput scaling line.
 4. Peak CPU and resident-memory regressions.
@@ -135,26 +136,46 @@ itself cannot reveal a regression.
 11. A directly comparable p95-latency view for each RMW using the same 1 MiB,
     single-process, IPC-off scenario from the selected workload in both runs.
 
-The overall comparison works both across ROS distributions and between repeated
-runs of the same distribution. Its first card names the exact candidate and
-reference runs and reports one of four states (`No clear regression`, `Possible
-regression`, `Regression detected`, or `Results cannot be compared`). The next
-two cards show the largest p95 latency increase, its RMW, and the exact process
-mode, payload, and transport responsible for it. The verdict applies the same
-review thresholds used by the detailed p95 panel.
+The comparison works both across ROS distributions and between repeated runs of
+the same distribution. The default and manual dashboards use the same five
+status cards and vocabulary: `No regression`, `Possible regression`,
+`Regression`, `Incomplete results`, `Cannot compare`, and `N/A`.
 
-Before evaluating performance, the verdict compares the actual topology,
+Before evaluating performance, the policy compares the actual topology,
 process mode, payload, RMW, transport, executor, and node-role keys in both
-runs. Any missing or newly-added key produces `Results cannot be compared`.
-An identical, invalid, or incomplete run selection instead asks the user to
-select two different comparable runs. This guard also applies when identical
-run values are supplied directly in a dashboard URL. Clicking either p95 detail
-card opens the exact scenario in Manual Explorer, including both absolute run
-values and the related CPU, RSS, throughput, and reliability measurements. The
-separate comparison coverage dashboard lists missing and added combinations
-when scenario coverage differs. Reversing the selected runs also reverses the
-direction shown in the verdict instead of presenting a percentage as though it
-were symmetric.
+runs. Any missing or newly-added key makes all five statuses `Cannot compare`.
+The separate comparison coverage dashboard lists those missing and added
+combinations. Supplying the same run on both sides directly in a dashboard URL
+also returns `Cannot compare`.
+
+An applicable category is `Incomplete results` when either run lacks one of its
+required measurements. Latency requires mean and p95 values, resources require
+peak CPU and RSS, and Pub/Sub requires throughput plus lost-, late-, and
+too-late-message percentages. Service throughput and reliability are `N/A` and
+do not affect its overall status. The overall card reports the highest severity
+among applicable categories; incomplete data therefore cannot result in a
+passing overall status. If no category applies, the overall status is `Cannot
+compare`.
+
+Measured and aggregate runs use this same evaluation path. Reversing the
+selected runs also reverses the direction of every change instead of presenting
+a percentage as though it were symmetric.
+
+## Comparison Policy
+
+The policy uses the worst applicable measurement in each category. An
+improvement in one measurement does not cancel a regression in another.
+
+| Category | Possible regression | Regression |
+| --- | ---: | ---: |
+| Mean or p95 latency increase | >= 0.5% | >= 2% |
+| Throughput decrease | >= 0.5% | >= 2% |
+| Peak CPU or RSS increase | >= 1% | >= 5% |
+| Reliability increase | >= 0.01 percentage points | >= 0.1 percentage points |
+
+These are deterministic review thresholds, not a statistical-significance or
+noise model. Detailed panels retain improvements and individual measurements so
+the status can be investigated rather than treated as a statistical conclusion.
 
 Cross-RMW comparisons use IPC-off because it is the common transport represented
 for Fast DDS, Cyclone DDS, and Zenoh. IPC-on effectiveness is restricted to
@@ -162,8 +183,9 @@ single-process scenarios with both IPC modes, while loaned-message comparisons
 are restricted to Fast DDS Pub/Sub. Missing combinations are omitted rather
 than treated as zero.
 The current Service results do not export throughput or message-reliability
-metrics and do not support loaned messages, so those Pub/Sub-specific panels
-show no data when `Service` is selected instead of mixing in Pub/Sub results.
+metrics and do not support loaned messages, so those category statuses show
+`N/A` and Pub/Sub-specific detail panels show no data instead of mixing in
+Pub/Sub results.
 
 The dashboard uses different visual forms for different questions. Headline
 regressions remain stat cards, ordered payload scaling uses XY lines, categorical
@@ -191,8 +213,9 @@ Manual mode is for investigating one precise scenario:
    its corresponding ROS distribution.
 4. Keep the benchmark topology, process mode, payload, RMW, and transport
    identical using the chained scenario selectors.
-5. Read the percentage deltas first. Green indicates no regression and red
-   indicates a regression in the new run.
+5. Read the five workload status cards, then use the selected-scenario deltas to
+   investigate the responsible measurements. Green means no regression, orange
+   needs review, and red exceeds the regression threshold.
 6. Confirm the exact reference and new-run values. Their refs and versions are
    shown directly in the reference and new-run cards. A built version shows its
    commit; a packaged version shows `packaged`.

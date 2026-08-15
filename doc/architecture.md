@@ -34,7 +34,7 @@ container runner
   -> raw artifacts
   -> normalized JSONL
   -> validated comparison dataset
-  -> Prometheus exporter
+  -> Prometheus exporter and comparison policy
   -> Prometheus
   -> Grafana
 ```
@@ -57,5 +57,6 @@ manifest. Optional median runs retain only low-cardinality aggregation metadata
 in metric rows; source run IDs and checksums remain in the manifest.
 
 The current dashboard path starts from a normalized JSONL dataset. It does not
-run benchmarks, parse raw artifacts, or detect regressions as part of dashboard
-startup.
+run benchmarks or parse raw artifacts as part of dashboard startup. The local
+exporter derives deterministic per-category comparison statuses before exposing
+the dataset to Prometheus; statistical analysis remains outside this boundary.
