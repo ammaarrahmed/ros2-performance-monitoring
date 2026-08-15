@@ -90,6 +90,11 @@ def write_jsonl(records, output_path):
 
 def write_json(item, output_path):
     """Write one deterministic JSON document through the atomic output path."""
-    output_path = Path(output_path).expanduser().resolve()
     contents = json.dumps(item, sort_keys=True, indent=2) + '\n'
+    write_text(contents, output_path)
+
+
+def write_text(contents, output_path):
+    """Write text through the atomic output path."""
+    output_path = Path(output_path).expanduser().resolve()
     _write_chunks_atomically((contents,), output_path)
