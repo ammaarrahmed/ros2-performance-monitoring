@@ -29,6 +29,8 @@ from .container_build import build_container
 from .container_provider import get_default_container_repo, setup_container_repo
 from .dashboard import dashboard_down
 from .dashboard import dashboard_up
+from .dataset import build_dataset
+from .dataset import DatasetError
 from .exporters.prometheus import serve_metrics
 from .parsers.ros2_benchmark_container import latest_run_metadata
 from .parsers.ros2_benchmark_container import parse_artifact
@@ -44,6 +46,7 @@ class CommandArgumentParser(argparse.ArgumentParser):
             and (
                 'argument command:' in message
                 or 'argument dashboard_command:' in message
+                or 'argument dataset_command:' in message
             )
         )
         if unknown_command:
@@ -162,6 +165,25 @@ def build_container_command(args: argparse.Namespace) -> None:
     print(f'successfully built container at : {rel_path}')
 
 
+def dataset_build_command(args: argparse.Namespace) -> None:
+    try:
+        result = build_dataset(
+            args.inputs,
+            args.output,
+            exclude_runs=args.exclude_run,
+            aggregate=args.aggregate,
+        )
+    except (DatasetError, OSError) as exc:
+        raise SystemExit(str(exc)) from exc
+    for message in result.skipped_groups:
+        print(message, file=sys.stderr)
+    print(
+        f'Wrote {result.record_count} normalized metrics across '
+        f'{result.run_count} runs to {args.output}'
+    )
+    print(f'Wrote dataset manifest to {result.manifest_path}')
+
+
 def main() -> Any:
     defaults = RunDefaults()
     parser = CommandArgumentParser(prog='ros2-performance-monitoring')
@@ -191,6 +213,20 @@ def main() -> Any:
     dashboard_up_parser.set_defaults(func=bring_up_dashboard)
     dashboard_down_parser = dashboard_subparsers.add_parser('down', help='Stop local dashboard')
     dashboard_down_parser.set_defaults(func=bring_down_dashboard)
+
+    dataset_parser = subparsers.add_parser(
+        'dataset',
+        help='Build comparison datasets',
+    )
+    dataset_subparsers = dataset_parser.add_subparsers(
+        dest='dataset_command',
+        required=True,
+    )
+    dataset_build_parser = dataset_subparsers.add_parser(
+        'build',
+        help='Combine normalized runs into one comparison dataset',
+    )
+    dataset_build_parser.set_defaults(func=dataset_build_command)
 
     serve_prometheus_parser = subparsers.add_parser(
         'serve-prometheus',
@@ -270,6 +306,27 @@ def main() -> Any:
     )
     parse_parser.add_argument('results_dir', help='Results directory created by run')
     parse_parser.add_argument('--output', required=True, help='JSONL output path')
+    dataset_build_parser.add_argument(
+        'inputs',
+        nargs='+',
+        help='Normalized JSONL input paths',
+    )
+    dataset_build_parser.add_argument(
+        '--output',
+        required=True,
+        help='Comparison dataset JSONL output path',
+    )
+    dataset_build_parser.add_argument(
+        '--aggregate',
+        choices=('median',),
+        help='Add aggregate runs for compatible repeated measurements',
+    )
+    dataset_build_parser.add_argument(
+        '--exclude-run',
+        action='append',
+        default=[],
+        help='Run ID to omit; may be repeated',
+    )
     dashboard_up_parser.add_argument(
         '--input',
         required=True,
@@ -289,6 +346,7 @@ def main() -> Any:
             doctor_parser,
             build_container_parser,
             parse_parser,
+            dataset_build_parser,
             dashboard_up_parser,
             dashboard_down_parser,
             serve_prometheus_parser,
