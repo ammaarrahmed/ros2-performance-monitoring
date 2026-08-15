@@ -225,6 +225,40 @@ def test_infer_topology_rejects_unsupported_layout_with_context(tmp_path):
     assert 'unsupported benchmark family pub-sub_service' in str(exc_info.value)
 
 
+@pytest.mark.parametrize(
+    ('shape', 'rmw_directory', 'message'),
+    (
+        ('pub_sub_10hz_5mb', 'fastrtps_ipc_on', 'unsupported payload 5mb'),
+        ('pub_sub_10hz_10b', 'unknown_ipc_on', 'unsupported RMW name unknown'),
+        (
+            'pub_sub_10hz_10b',
+            'cyclonedds_ipc_on',
+            'unsupported communication mode ipc_on for cyclonedds',
+        ),
+    ),
+)
+def test_infer_topology_rejects_unknown_shared_layout_values(
+    tmp_path,
+    shape,
+    rmw_directory,
+    message,
+):
+    leaf = (
+        tmp_path
+        / 'benchmark'
+        / 'lyrical'
+        / 'pub-sub_single_process'
+        / shape
+        / rmw_directory
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        infer_topology(leaf)
+
+    assert str(leaf) in str(exc_info.value)
+    assert message in str(exc_info.value)
+
+
 def test_parse_artifact_normalizes_service_latency_and_resources(tmp_path):
     leaf = _service_artifact_leaf(
         tmp_path,

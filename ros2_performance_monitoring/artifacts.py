@@ -17,13 +17,11 @@ from pathlib import Path
 import re
 import warnings
 
+from ros2_performance_monitoring import benchmark_layout
+
 
 BENCHMARK_ROOTS = ('benchmark',)
 REQUIRED_FILES = ('metadata.txt', 'resources.txt', 'latency_all.txt', 'latency_total.txt')
-SUPPORTED_PUBSUB_FAMILIES = ('pub-sub_single_process', 'pub-sub_multi_process')
-SUPPORTED_SERVICE_FAMILIES = ('cli-srv_single_process', 'cli-srv_multi_process')
-SUPPORTED_FAMILIES = SUPPORTED_PUBSUB_FAMILIES + SUPPORTED_SERVICE_FAMILIES
-SUPPORTED_PAYLOADS = ('10b', '100kb', '1mb', '4mb')
 PAYLOAD_RE = r'(?P<payload>\d+(?:b|kb|mb))'
 PUBSUB_TOPOLOGY_RE = re.compile(
     rf'^pub_sub_\d+(?:\.\d+)?hz_{PAYLOAD_RE}$',
@@ -32,7 +30,6 @@ PUBSUB_TOPOLOGY_RE = re.compile(
 PUBSUB_MULTI_TOPOLOGY_RE = re.compile(rf'^{PAYLOAD_RE}$', re.IGNORECASE)
 SERVICE_SINGLE_TOPOLOGY_RE = re.compile(rf'^cli_srv_{PAYLOAD_RE}$', re.IGNORECASE)
 SERVICE_MULTI_TOPOLOGY_RE = re.compile(rf'^{PAYLOAD_RE}$', re.IGNORECASE)
-RMW_RE = re.compile(r'^(cyclonedds|fastrtps|zenoh)_(ipc_on|ipc_off|loaned)$')
 
 
 class ArtifactError(ValueError):
@@ -65,50 +62,49 @@ def discover_benchmark_artifacts(results_dir, ros_distro=None):
         for distro in distro_dirs:
             if not distro.is_dir():
                 continue
-            for family_name in SUPPORTED_PUBSUB_FAMILIES:
-                family = distro / family_name
-                if not family.is_dir():
+            for family_name, definition in benchmark_layout.BENCHMARK_FAMILIES.items():
+                family_dir = distro / family_name
+                if not family_dir.is_dir():
                     continue
-                if family_name == 'pub-sub_multi_process':
-                    leaves = family.glob('*/*/*')
-                    nested = True
+
+                nested = definition.process_mode == 'multi_process'
+                if definition.topology == 'pub-sub':
+                    if nested:
+                        leaves = family_dir.glob('*/*/*')
+                        topology_re = PUBSUB_MULTI_TOPOLOGY_RE
+                    else:
+                        leaves = family_dir.glob('pub_sub_*/*')
+                        topology_re = PUBSUB_TOPOLOGY_RE
                 else:
-                    leaves = family.glob('pub_sub_*/*')
-                    nested = False
+                    if nested:
+                        leaves = family_dir.glob('*/*/*')
+                        topology_re = SERVICE_MULTI_TOPOLOGY_RE
+                    else:
+                        leaves = family_dir.glob('cli_srv_*/*')
+                        topology_re = SERVICE_SINGLE_TOPOLOGY_RE
+
                 for leaf in leaves:
-                    if leaf.is_dir():
-                        topology_re = PUBSUB_MULTI_TOPOLOGY_RE if nested else PUBSUB_TOPOLOGY_RE
-                        _collect_leaf(leaf, topology_re, artifacts, errors, nested)
-
-            family = distro / 'cli-srv_single_process'
-            if family.is_dir():
-                for leaf in family.glob('cli_srv_*/*'):
-                    if leaf.is_dir():
-                        _collect_leaf(leaf, SERVICE_SINGLE_TOPOLOGY_RE, artifacts, errors)
-
-            family = distro / 'cli-srv_multi_process'
-            if family.is_dir():
-                for leaf in family.glob('*/*/*'):
                     if leaf.is_dir():
                         _collect_leaf(
                             leaf,
-                            SERVICE_MULTI_TOPOLOGY_RE,
+                            family_name,
+                            topology_re,
                             artifacts,
                             errors,
-                            True,
+                            nested,
                         )
 
     if errors:
         raise ArtifactError('incomplete benchmark artifacts:\n' + '\n'.join(errors))
     if not artifacts:
-        names = ', '.join(SUPPORTED_FAMILIES)
+        names = ', '.join(benchmark_layout.BENCHMARK_FAMILIES)
         raise ArtifactError(
             f'no supported pub/sub or service artifacts found under {results_dir} ({names})'
         )
     return tuple(sorted(artifacts, key=lambda item: str(item.directory)))
 
 
-def _collect_leaf(leaf, topology_re, artifacts, errors, nested=False):
+def _collect_leaf(leaf, family_name, topology_re, artifacts, errors, nested=False):
     topology_name = leaf.parent.parent.name if nested else leaf.parent.name
     rmw_name = leaf.parent.name if nested else leaf.name
     match = topology_re.match(topology_name)
@@ -116,11 +112,15 @@ def _collect_leaf(leaf, topology_re, artifacts, errors, nested=False):
         errors.append(f'{leaf}: malformed topology directory')
         return
     payload = match.group('payload').lower()
-    if payload not in SUPPORTED_PAYLOADS:
-        warnings.warn(f'{leaf}: skipping unsupported payload {payload}', stacklevel=2)
+    try:
+        benchmark_layout.get_payload(payload)
+    except benchmark_layout.BenchmarkLayoutError as exc:
+        warnings.warn(f'{leaf}: skipping {exc}', stacklevel=2)
         return
-    if not RMW_RE.match(rmw_name):
-        errors.append(f'{leaf}: malformed RMW directory')
+    try:
+        benchmark_layout.parse_rmw_directory(family_name, rmw_name)
+    except benchmark_layout.BenchmarkLayoutError as exc:
+        errors.append(f'{leaf}: {exc}')
         return
 
     missing = [name for name in REQUIRED_FILES if not (leaf / name).is_file()]
