@@ -203,7 +203,10 @@ def test_parse_artifact_normalizes_reduced_pubsub_matrix_labels(
     for record in records:
         assert record.client_library_source == 'build'
         assert record.platform == 'arm64'
-        assert record.schema_version == 4
+        assert record.schema_version == 5
+        assert record.run_kind == 'measured'
+        assert record.aggregation_method == 'none'
+        assert record.repeat_count == 1
         for key, value in expected.items():
             assert getattr(record, key) == value
 
