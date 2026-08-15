@@ -40,7 +40,7 @@ def _write_all(stream, contents):
         offset += written
 
 
-def _write_text_atomically(contents, output_path):
+def _write_chunks_atomically(chunks, output_path):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -49,10 +49,13 @@ def _write_text_atomically(contents, output_path):
         output_mode = None
 
     temporary_path, stream = _open_temporary_file(output_path)
+    count = 0
     try:
         if output_mode is not None:
             temporary_path.chmod(output_mode)
-        _write_all(stream, contents)
+        for chunk in chunks:
+            _write_all(stream, chunk)
+            count += 1
         stream.flush()
         os.fsync(stream.fileno())
         stream.close()
@@ -68,18 +71,18 @@ def _write_text_atomically(contents, output_path):
         except FileNotFoundError:
             pass
         raise
+    return count
 
 
-def write_jsonl(records, output_path):
-    lines = []
+def _serialize_records(records):
     for record in records:
         item = record.to_dict()
         value = item.get('numeric_value')
         if not math.isfinite(value):
             raise ValueError(f'non-finite metric value for {item.get("metric_name")}')
-        lines.append(json.dumps(item, sort_keys=True, separators=(',', ':')))
+        yield json.dumps(item, sort_keys=True, separators=(',', ':')) + '\n'
 
+
+def write_jsonl(records, output_path):
     output_path = Path(output_path).expanduser().resolve()
-    contents = ''.join(f'{line}\n' for line in lines)
-    _write_text_atomically(contents, output_path)
-    return len(lines)
+    return _write_chunks_atomically(_serialize_records(records), output_path)
