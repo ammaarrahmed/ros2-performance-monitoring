@@ -19,6 +19,8 @@ import pytest
 from ros2_performance_monitoring.dataset import build_dataset
 from ros2_performance_monitoring.dataset import DatasetError
 from ros2_performance_monitoring.dataset import manifest_path_for
+from ros2_performance_monitoring.exporters.prometheus import load_records
+from ros2_performance_monitoring.exporters.prometheus import records_to_prometheus
 
 
 def test_combines_runs_deterministically_and_records_input_lineage(tmp_path):
@@ -314,6 +316,32 @@ def test_reports_singleton_compatible_groups_as_skipped(tmp_path):
     assert result.skipped_groups == (
         'Skipped median aggregation for run group [run-a]: '
         'only 1 compatible measured run',
+    )
+
+
+def test_built_dataset_exports_measured_and_aggregate_run_choices(tmp_path):
+    first = tmp_path / 'first.jsonl'
+    second = tmp_path / 'second.jsonl'
+    output = tmp_path / 'dataset.jsonl'
+    _write_records(first, [_record('run-a', 1.0)])
+    _write_records(second, [_record('run-b', 3.0)])
+
+    build_dataset([first, second], output, aggregate='median')
+    prometheus = records_to_prometheus(load_records(output))
+
+    run_info = [
+        line for line in prometheus.splitlines()
+        if line.startswith('ros2_perf_run_info{')
+    ]
+    assert len(run_info) == 3
+    assert any('run_id="run-a"' in line and 'run_kind="measured"' in line for line in run_info)
+    assert any('run_id="run-b"' in line and 'run_kind="measured"' in line for line in run_info)
+    assert any(
+        'run_id="aggregate-median-' in line
+        and 'run_kind="aggregate"' in line
+        and 'aggregation_method="median"' in line
+        and 'repeat_count="2"' in line
+        for line in run_info
     )
 
 
