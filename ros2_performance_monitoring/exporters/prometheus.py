@@ -18,6 +18,8 @@ import json
 import math
 from pathlib import Path
 
+from ros2_performance_monitoring.comparison import comparison_results
+from ros2_performance_monitoring.comparison import run_display_name
 from ros2_performance_monitoring.model import client_library_version
 from ros2_performance_monitoring.model import normalize_client_library_source
 from ros2_performance_monitoring.model import normalize_platform
@@ -76,6 +78,10 @@ METRIC_FAMILIES = {
         'help': 'ROS 2 performance run metadata.',
         'type': 'gauge',
     },
+    'ros2_perf_comparison_status': {
+        'help': 'Deterministic ROS 2 performance comparison status by KPI category.',
+        'type': 'gauge',
+    },
 }
 
 
@@ -101,6 +107,7 @@ def records_to_prometheus(records):
         info_labels['run_kind'] = record.get('run_kind', 'measured')
         info_labels['aggregation_method'] = record.get('aggregation_method', 'none')
         info_labels['repeat_count'] = str(record.get('repeat_count', 1))
+        info_labels['run_display'] = run_display_name(record)
         lines.append(_sample('ros2_perf_run_info', info_labels, 1))
 
     for record in records:
@@ -111,6 +118,20 @@ def records_to_prometheus(records):
     for labels, count in _resource_counts(records).items():
         resource_labels = dict(labels)
         lines.append(_sample('ros2_perf_resource_samples_total', resource_labels, count))
+
+    for result in comparison_results(records):
+        labels = {
+            'baseline_run': result.baseline_run,
+            'candidate_run': result.candidate_run,
+            'baseline_distro': result.baseline_distro,
+            'candidate_distro': result.candidate_distro,
+            'client_library': result.client_library,
+            'client_source': result.client_source,
+            'platform': result.platform,
+            'topology': result.topology,
+            'category': result.category,
+        }
+        lines.append(_sample('ros2_perf_comparison_status', labels, result.status))
 
     lines.append('')
     return '\n'.join(lines)
