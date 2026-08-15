@@ -18,35 +18,22 @@ from pathlib import Path
 import re
 import sys
 
+from ros2_performance_monitoring import benchmark_layout
 from ros2_performance_monitoring.model import MetricRecord
 from ros2_performance_monitoring.model import normalize_client_library_source
 from ros2_performance_monitoring.model import normalize_platform
 from ros2_performance_monitoring.model import SCHEMA_VERSION
 
 
-SIZE_UNITS = {'b': 1, 'kb': 1024, 'mb': 1024 * 1024}
 csv.field_size_limit(sys.maxsize)
-SUPPORTED_FAMILIES = {
-    'pub-sub_single_process': ('pub-sub', 'single_process'),
-    'pub-sub_multi_process': ('pub-sub', 'multi_process'),
-    'cli-srv_single_process': ('service', 'single_process'),
-    'cli-srv_multi_process': ('service', 'multi_process'),
-}
-RMW_NAMES = {
-    'cyclonedds': 'rmw_cyclonedds_cpp',
-    'fastrtps': 'rmw_fastrtps_cpp',
-    'zenoh': 'rmw_zenoh_cpp',
-}
-COMMUNICATION_MODES = ('ipc_on', 'ipc_off', 'loaned')
-SUPPORTED_PAYLOADS_RE = r'(?P<size>10b|100kb|1mb|4mb)'
+PAYLOAD_RE = r'(?P<size>\d+(?:b|kb|mb))'
 PUBSUB_TOPOLOGY_RE = re.compile(
-    rf'^pub_sub_(?P<freq>\d+(?:\.\d+)?)hz_{SUPPORTED_PAYLOADS_RE}$',
+    rf'^pub_sub_(?P<freq>\d+(?:\.\d+)?)hz_{PAYLOAD_RE}$',
     re.IGNORECASE,
 )
-PUBSUB_MULTI_TOPOLOGY_RE = re.compile(rf'^{SUPPORTED_PAYLOADS_RE}$', re.IGNORECASE)
-SERVICE_SINGLE_TOPOLOGY_RE = re.compile(rf'^cli_srv_{SUPPORTED_PAYLOADS_RE}$', re.IGNORECASE)
-SERVICE_MULTI_TOPOLOGY_RE = re.compile(rf'^{SUPPORTED_PAYLOADS_RE}$', re.IGNORECASE)
-RMW_RE = re.compile(r'^(cyclonedds|fastrtps|zenoh)_(ipc_on|ipc_off|loaned)$')
+PUBSUB_MULTI_TOPOLOGY_RE = re.compile(rf'^{PAYLOAD_RE}$', re.IGNORECASE)
+SERVICE_SINGLE_TOPOLOGY_RE = re.compile(rf'^cli_srv_{PAYLOAD_RE}$', re.IGNORECASE)
+SERVICE_MULTI_TOPOLOGY_RE = re.compile(rf'^{PAYLOAD_RE}$', re.IGNORECASE)
 
 SUBSCRIPTION_METRICS = {
     'received_msgs': ('subscription_messages_received', 'count', 'total'),
@@ -153,7 +140,16 @@ def parse_metadata_txt(path):
 
 def infer_topology(directory):
     leaf = Path(directory)
-    if RMW_RE.match(leaf.parent.name):
+    multi_process_family = benchmark_layout.BENCHMARK_FAMILIES.get(
+        leaf.parent.parent.parent.name
+    )
+    if (
+        (
+            multi_process_family is not None
+            and multi_process_family.process_mode == 'multi_process'
+        )
+        or (multi_process_family is None and _node_role(leaf.name))
+    ):
         shape = leaf.parent.parent.name
         rmw_directory = leaf.parent.name
         family_name = leaf.parent.parent.parent.name
@@ -165,37 +161,31 @@ def infer_topology(directory):
         family_name = leaf.parent.parent.name
         distro = leaf.parent.parent.parent.name
         node_role = ''
-    if family_name not in SUPPORTED_FAMILIES:
-        raise ValueError(f'{directory}: unsupported benchmark family {family_name}')
+    try:
+        family = benchmark_layout.get_benchmark_family(family_name)
+        rmw, communication_mode = benchmark_layout.parse_rmw_directory(
+            family_name,
+            rmw_directory,
+        )
+    except benchmark_layout.BenchmarkLayoutError as exc:
+        raise ValueError(f'{directory}: {exc}') from exc
 
-    if '_' not in rmw_directory:
-        raise ValueError(f'{directory}: unsupported RMW directory {rmw_directory}')
-
-    rmw, communication_mode = rmw_directory.split('_', 1)
-    if rmw not in RMW_NAMES:
-        raise ValueError(f'{directory}: unsupported RMW directory {rmw_directory}')
-    if communication_mode not in COMMUNICATION_MODES:
-        raise ValueError(f'{directory}: unsupported communication mode {communication_mode}')
-
-    topology, process_mode = SUPPORTED_FAMILIES[family_name]
-    match = _match_topology(topology, process_mode, shape)
+    match = _match_topology(family.topology, family.process_mode, shape)
     if not match:
         raise ValueError(f'{directory}: unsupported topology directory {shape}')
 
-    size_match = re.match(
-        r'(?P<count>\d+)(?P<unit>b|kb|mb)$',
-        match.group('size'),
-        re.IGNORECASE,
-    )
-    size = int(size_match.group('count')) * SIZE_UNITS[size_match.group('unit').lower()]
+    try:
+        payload = benchmark_layout.get_payload(match.group('size'))
+    except benchmark_layout.BenchmarkLayoutError as exc:
+        raise ValueError(f'{directory}: {exc}') from exc
     frequency = float(match.group('freq')) if 'freq' in match.groupdict() else 0.0
     return {
         'ros_distro': distro,
-        'rmw_implementation': RMW_NAMES[rmw],
-        'topology': topology,
-        'process_mode': process_mode,
+        'rmw_implementation': rmw.implementation_name,
+        'topology': family.topology,
+        'process_mode': family.process_mode,
         'communication_mode': communication_mode,
-        'payload_size': size,
+        'payload_size': payload.size_bytes,
         'frequency': frequency,
         'node_role': node_role,
     }

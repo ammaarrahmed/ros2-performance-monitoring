@@ -133,7 +133,7 @@ def test_discovers_supported_families_in_sorted_order(tmp_path):
         'lyrical',
         'pub-sub_single_process',
         'pub_sub_10hz_10b',
-        'cyclonedds_ipc_on',
+        'cyclonedds_ipc_off',
     )
 
     artifacts = discover_benchmark_artifacts(tmp_path)
@@ -219,6 +219,23 @@ def test_unsupported_service_payload_raises_clear_error(tmp_path):
     with pytest.warns(UserWarning, match='skipping unsupported payload 5mb'):
         with pytest.raises(ArtifactError, match='no supported pub/sub or service artifacts'):
             discover_benchmark_artifacts(tmp_path)
+
+
+def test_invalid_family_rmw_mode_combination_raises_clear_error(tmp_path):
+    leaf = _artifact_leaf(
+        tmp_path,
+        'benchmark',
+        'lyrical',
+        'cli-srv_multi_process',
+        '10b',
+        'fastrtps_ipc_on/cli_10b',
+    )
+
+    with pytest.raises(ArtifactError) as exc_info:
+        discover_benchmark_artifacts(tmp_path)
+
+    assert str(leaf) in str(exc_info.value)
+    assert 'unsupported communication mode ipc_on for fastrtps' in str(exc_info.value)
 
 
 def _artifact_leaf(tmp_path, root, distro, family, topology, rmw, missing=()):
