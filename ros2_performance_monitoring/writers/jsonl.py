@@ -14,7 +14,60 @@
 
 import json
 import math
+import os
 from pathlib import Path
+import stat
+import uuid
+
+
+def _open_temporary_file(output_path):
+    while True:
+        temporary_path = output_path.parent / (
+            f'.ros2-performance-monitoring-{uuid.uuid4().hex}.tmp'
+        )
+        try:
+            return temporary_path, temporary_path.open('x', encoding='utf-8')
+        except FileExistsError:
+            continue
+
+
+def _write_all(stream, contents):
+    offset = 0
+    while offset < len(contents):
+        written = stream.write(contents[offset:])
+        if written is None or written <= 0:
+            raise OSError('failed to write complete JSONL output')
+        offset += written
+
+
+def _write_text_atomically(contents, output_path):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        output_mode = stat.S_IMODE(output_path.stat().st_mode)
+    except FileNotFoundError:
+        output_mode = None
+
+    temporary_path, stream = _open_temporary_file(output_path)
+    try:
+        if output_mode is not None:
+            temporary_path.chmod(output_mode)
+        _write_all(stream, contents)
+        stream.flush()
+        os.fsync(stream.fileno())
+        stream.close()
+        os.replace(temporary_path, output_path)
+    except BaseException:
+        if not stream.closed:
+            try:
+                stream.close()
+            except BaseException:
+                pass
+        try:
+            temporary_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def write_jsonl(records, output_path):
@@ -27,8 +80,6 @@ def write_jsonl(records, output_path):
         lines.append(json.dumps(item, sort_keys=True, separators=(',', ':')))
 
     output_path = Path(output_path).expanduser().resolve()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open('w') as stream:
-        for line in lines:
-            stream.write(line + '\n')
+    contents = ''.join(f'{line}\n' for line in lines)
+    _write_text_atomically(contents, output_path)
     return len(lines)
