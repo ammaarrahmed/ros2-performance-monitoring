@@ -20,8 +20,13 @@ http://localhost:3000
 ```
 
 The stack creates a Prometheus datasource pointing at `http://prometheus:9090`
-and loads the `ROS 2 Pub/Sub Client Library Performance Comparison` dashboard from
-`config/grafana/dashboards/rclcpp_pubsub_overview.json`.
+and opens `ROS 2 Performance · Default Regression Views` as the home dashboard.
+Its overall, latency, throughput, resource, and reliability status cards are
+also available in `ROS 2 Performance · Manual Explorer`. Measured and median
+aggregate runs are labeled separately in the selectors.
+
+The status policy and missing-data behavior are documented in
+[`doc/dashboard.md`](../doc/dashboard.md#comparison-policy).
 
 Stop the containers with:
 

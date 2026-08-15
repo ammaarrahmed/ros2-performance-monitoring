@@ -21,10 +21,12 @@ benchmark container run
   -> Grafana
 ```
 
-The dashboard compares runs and highlights possible regressions, but the project
-does not enforce a CI-gating regression policy or run hosted infrastructure.
-Comparisons can be scoped by ROS client library ref, ROS distro, RMW
-implementation, communication mode, and payload size.
+The dashboard compares runs and reports separate latency, throughput, resource,
+reliability, and overall statuses. Missing required results and non-applicable
+service metrics are explicit rather than treated as passing measurements. The
+project does not enforce a CI-gating regression policy or run hosted
+infrastructure. Comparisons can be scoped by ROS client library ref, ROS distro,
+RMW implementation, communication mode, and payload size.
 
 ## Prerequisites
 
@@ -202,6 +204,8 @@ ros2-performance-monitoring dataset build \
 
 `--exclude-run` may be repeated. Aggregate runs are only created from at least
 two measured runs with identical provenance and scenario/metric coverage.
+Dashboard selectors distinguish measured runs from median aggregates and show
+the aggregate repeat count.
 
 ### 5. Check The Exporter Directly
 
@@ -247,7 +251,10 @@ ROS 2 Performance · Default Regression Views
 
 Use the mode control to move between the automatic full-matrix checks and the
 manual scenario explorer. Click either run card to open that run's metadata,
-scenario inventory, and complete performance profile.
+scenario inventory, and complete performance profile. Both comparison views
+show the same five KPI statuses and deterministic thresholds; see
+[`doc/dashboard.md`](doc/dashboard.md#comparison-policy) for the policy and
+missing-data rules.
 
 ### 7. Stop The Dashboard
 
