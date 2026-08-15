@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from itertools import product
 from types import MappingProxyType
 
+from ros2_performance_monitoring import benchmark_layout
 from ros2_performance_monitoring.model import normalize_client_library_source
 from ros2_performance_monitoring.model import normalize_platform
 
@@ -98,7 +99,12 @@ class _Run:
         return frozenset(record.get('topology', '') for record in self.records)
 
 
-def evaluate_comparison(baseline_records, candidate_records, topology):
+def evaluate_comparison(
+    baseline_records,
+    candidate_records,
+    topology,
+    required_scenarios=(),
+):
     """Evaluate all KPI categories for one workload and ordered run pair."""
     baseline = tuple(
         record for record in baseline_records
@@ -113,6 +119,13 @@ def evaluate_comparison(baseline_records, candidate_records, topology):
 
     if not baseline_scenarios or baseline_scenarios != candidate_scenarios:
         return {category: CANNOT_COMPARE for category in STATUS_CATEGORIES}
+    if topology not in ('pub-sub', 'service'):
+        return {
+            'overall': CANNOT_COMPARE,
+            **{category: NOT_APPLICABLE for category in CATEGORIES},
+        }
+    if not set(required_scenarios).issubset(baseline_scenarios):
+        return _incomplete_layout_statuses(topology)
 
     statuses = {
         'latency': _evaluate_category(
@@ -178,6 +191,7 @@ def comparison_results(records):
                     baseline.records,
                     candidate.records,
                     topology,
+                    _required_scenarios(topology, baseline.records),
                 )
             for category in STATUS_CATEGORIES:
                 results.append(ComparisonResult(
@@ -246,6 +260,54 @@ def _group_runs(records):
         _Run(*key, tuple(run_records))
         for key, run_records in sorted(grouped.items())
     )
+
+
+def _required_scenarios(topology, records):
+    executors = {
+        str(record.get('executor', ''))
+        for record in records
+        if record.get('topology') == topology
+    }
+    scenarios = set()
+    for family in benchmark_layout.BENCHMARK_FAMILIES.values():
+        if family.topology != topology:
+            continue
+        if family.process_mode == 'multi_process':
+            if topology == 'pub-sub':
+                node_roles = ('publisher', 'subscription')
+            else:
+                node_roles = ('client', 'service')
+        else:
+            node_roles = ('',)
+        for payload in benchmark_layout.PAYLOADS.values():
+            for short_name, communication_modes in family.communication_modes.items():
+                rmw = benchmark_layout.get_rmw(short_name)
+                for communication_mode in communication_modes:
+                    for executor in executors:
+                        for node_role in node_roles:
+                            scenarios.add((
+                                topology,
+                                family.process_mode,
+                                payload.size_bytes,
+                                rmw.implementation_name,
+                                communication_mode,
+                                executor,
+                                node_role,
+                            ))
+    return scenarios
+
+
+def _incomplete_layout_statuses(topology):
+    statuses = {
+        'latency': INCOMPLETE_RESULTS,
+        'throughput': INCOMPLETE_RESULTS,
+        'resources': INCOMPLETE_RESULTS,
+        'reliability': INCOMPLETE_RESULTS,
+    }
+    if topology == 'service':
+        statuses['throughput'] = NOT_APPLICABLE
+        statuses['reliability'] = NOT_APPLICABLE
+    return {'overall': INCOMPLETE_RESULTS, **statuses}
 
 
 def _scenario_identity(record):
