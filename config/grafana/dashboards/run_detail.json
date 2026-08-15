@@ -251,16 +251,16 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\"}))",
+        "definition": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\"}))",
         "hide": 0,
         "includeAll": false,
         "label": "Run",
         "multi": false,
         "name": "run",
         "options": [],
-        "query": {"query": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\"}))", "refId": "Prometheus-run-Variable-Query"},
+        "query": {"query": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$ros_distro\",client_source=\"$client_source\"}))", "refId": "Prometheus-run-Variable-Query"},
         "refresh": 1,
-        "regex": "/.*run_id=\"([^\"]+)\".*/",
+        "regex": "/.*run_display=\"(?<text>[^\"]+)\".*run_id=\"(?<value>[^\"]+)\".*/",
         "skipUrlSync": false,
         "sort": 3,
         "type": "query"
@@ -383,6 +383,6 @@
   "timezone": "browser",
   "title": "ROS 2 Performance · Run Details",
   "uid": "ros2-run-detail",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

@@ -67,7 +67,25 @@
       },
       "id": 4,
       "panels": [],
-      "title": "Regression signals · new run change from reference",
+      "title": "Workload status · worst result across every applicable KPI",
+      "type": "row"
+    },
+    {"datasource":"Prometheus","description":"Highest severity across every applicable KPI category. N/A categories are excluded; incomplete data cannot produce a passing result.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"decimals":0,"mappings":[{"options":{"0":{"color":"green","index":0,"text":"No regression"},"1":{"color":"orange","index":1,"text":"Possible regression"},"2":{"color":"red","index":2,"text":"Regression"},"3":{"color":"yellow","index":3,"text":"Incomplete results"},"4":{"color":"gray","index":4,"text":"Cannot compare"},"5":{"color":"blue","index":5,"text":"N/A"}},"type":"value"}],"noValue":"Status unavailable","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":1},{"color":"red","value":2},{"color":"yellow","value":3},{"color":"gray","value":4},{"color":"blue","value":5}]}},"overrides":[]},"gridPos":{"h":4,"w":8,"x":0,"y":7},"id":31,"options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"vertical","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value","wideLayout":true},"targets":[{"expr":"ros2_perf_comparison_status{client_library=\"$library\",platform=\"$platform\",client_source=\"$client_source\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",baseline_run=\"$baseline_run\",candidate_run=\"$candidate_run\",topology=\"$topology\",category=\"overall\"}","instant":true,"legendFormat":"Overall status","refId":"A"}],"title":"Overall status","type":"stat"},
+    {"datasource":"Prometheus","description":"Worst applicable mean or p95 latency increase. Possible regression at 0.5%; regression at 2%.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"decimals":0,"mappings":[{"options":{"0":{"color":"green","index":0,"text":"No regression"},"1":{"color":"orange","index":1,"text":"Possible regression"},"2":{"color":"red","index":2,"text":"Regression"},"3":{"color":"yellow","index":3,"text":"Incomplete results"},"4":{"color":"gray","index":4,"text":"Cannot compare"},"5":{"color":"blue","index":5,"text":"N/A"}},"type":"value"}],"noValue":"Status unavailable","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":1},{"color":"red","value":2},{"color":"yellow","value":3},{"color":"gray","value":4},{"color":"blue","value":5}]}},"overrides":[]},"gridPos":{"h":4,"w":4,"x":8,"y":7},"id":32,"options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"vertical","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value","wideLayout":true},"targets":[{"expr":"ros2_perf_comparison_status{client_library=\"$library\",platform=\"$platform\",client_source=\"$client_source\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",baseline_run=\"$baseline_run\",candidate_run=\"$candidate_run\",topology=\"$topology\",category=\"latency\"}","instant":true,"legendFormat":"Latency","refId":"A"}],"title":"Latency","type":"stat"},
+    {"datasource":"Prometheus","description":"Worst applicable throughput decrease. Possible regression at 0.5%; regression at 2%. Service benchmarks report N/A.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"decimals":0,"mappings":[{"options":{"0":{"color":"green","index":0,"text":"No regression"},"1":{"color":"orange","index":1,"text":"Possible regression"},"2":{"color":"red","index":2,"text":"Regression"},"3":{"color":"yellow","index":3,"text":"Incomplete results"},"4":{"color":"gray","index":4,"text":"Cannot compare"},"5":{"color":"blue","index":5,"text":"N/A"}},"type":"value"}],"noValue":"Status unavailable","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":1},{"color":"red","value":2},{"color":"yellow","value":3},{"color":"gray","value":4},{"color":"blue","value":5}]}},"overrides":[]},"gridPos":{"h":4,"w":4,"x":12,"y":7},"id":33,"options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"vertical","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value","wideLayout":true},"targets":[{"expr":"ros2_perf_comparison_status{client_library=\"$library\",platform=\"$platform\",client_source=\"$client_source\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",baseline_run=\"$baseline_run\",candidate_run=\"$candidate_run\",topology=\"$topology\",category=\"throughput\"}","instant":true,"legendFormat":"Throughput","refId":"A"}],"title":"Throughput","type":"stat"},
+    {"datasource":"Prometheus","description":"Worst applicable peak CPU or RSS increase. Possible regression at 1%; regression at 5%.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"decimals":0,"mappings":[{"options":{"0":{"color":"green","index":0,"text":"No regression"},"1":{"color":"orange","index":1,"text":"Possible regression"},"2":{"color":"red","index":2,"text":"Regression"},"3":{"color":"yellow","index":3,"text":"Incomplete results"},"4":{"color":"gray","index":4,"text":"Cannot compare"},"5":{"color":"blue","index":5,"text":"N/A"}},"type":"value"}],"noValue":"Status unavailable","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":1},{"color":"red","value":2},{"color":"yellow","value":3},{"color":"gray","value":4},{"color":"blue","value":5}]}},"overrides":[]},"gridPos":{"h":4,"w":4,"x":16,"y":7},"id":34,"options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"vertical","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value","wideLayout":true},"targets":[{"expr":"ros2_perf_comparison_status{client_library=\"$library\",platform=\"$platform\",client_source=\"$client_source\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",baseline_run=\"$baseline_run\",candidate_run=\"$candidate_run\",topology=\"$topology\",category=\"resources\"}","instant":true,"legendFormat":"Resources","refId":"A"}],"title":"Resources","type":"stat"},
+    {"datasource":"Prometheus","description":"Worst applicable lost-, late-, or too-late-message increase. Possible regression at 0.01 percentage points; regression at 0.1 percentage points. Service benchmarks report N/A.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"decimals":0,"mappings":[{"options":{"0":{"color":"green","index":0,"text":"No regression"},"1":{"color":"orange","index":1,"text":"Possible regression"},"2":{"color":"red","index":2,"text":"Regression"},"3":{"color":"yellow","index":3,"text":"Incomplete results"},"4":{"color":"gray","index":4,"text":"Cannot compare"},"5":{"color":"blue","index":5,"text":"N/A"}},"type":"value"}],"noValue":"Status unavailable","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":1},{"color":"red","value":2},{"color":"yellow","value":3},{"color":"gray","value":4},{"color":"blue","value":5}]}},"overrides":[]},"gridPos":{"h":4,"w":4,"x":20,"y":7},"id":35,"options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"vertical","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value","wideLayout":true},"targets":[{"expr":"ros2_perf_comparison_status{client_library=\"$library\",platform=\"$platform\",client_source=\"$client_source\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",baseline_run=\"$baseline_run\",candidate_run=\"$candidate_run\",topology=\"$topology\",category=\"reliability\"}","instant":true,"legendFormat":"Reliability","refId":"A"}],"title":"Reliability","type":"stat"},
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 30,
+      "panels": [],
+      "title": "Selected scenario signals · new run change from reference",
       "type": "row"
     },
     {
@@ -88,8 +106,12 @@
                 "value": null
               },
               {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
                 "color": "red",
-                "value": 1
+                "value": 2
               }
             ]
           },
@@ -101,7 +123,7 @@
         "h": 3,
         "w": 5,
         "x": 0,
-        "y": 7
+        "y": 12
       },
       "id": 5,
       "options": {
@@ -147,8 +169,12 @@
                 "value": null
               },
               {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
                 "color": "red",
-                "value": 1
+                "value": 2
               }
             ]
           },
@@ -160,7 +186,7 @@
         "h": 3,
         "w": 5,
         "x": 5,
-        "y": 7
+        "y": 12
       },
       "id": 6,
       "options": {
@@ -190,7 +216,7 @@
     },
     {
       "datasource": "Prometheus",
-      "description": "Positive is better: the candidate moved more data per second.",
+      "description": "Positive is worse: the candidate moved less data per second.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -202,12 +228,16 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "green",
                 "value": null
               },
               {
-                "color": "green",
-                "value": 0
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 2
               }
             ]
           },
@@ -219,7 +249,7 @@
         "h": 3,
         "w": 5,
         "x": 10,
-        "y": 7
+        "y": 12
       },
       "id": 7,
       "options": {
@@ -238,13 +268,13 @@
       },
       "targets": [
         {
-          "expr": "100 * (avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}) - avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})) / clamp_min(avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}), 0.000001)",
+          "expr": "100 * (avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}) - avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"})) / clamp_min(avg(ros2_perf_throughput_kb_per_second{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\",process_mode=\"$process_mode\",payload_bytes=\"$payload\",rmw=\"$rmw\",comm=\"$comm\"}), 0.000001)",
           "instant": true,
           "legendFormat": "Throughput",
           "refId": "A"
         }
       ],
-      "title": "Throughput Δ",
+      "title": "Throughput loss Δ",
       "type": "stat"
     },
     {
@@ -265,8 +295,12 @@
                 "value": null
               },
               {
-                "color": "red",
+                "color": "orange",
                 "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
               }
             ]
           },
@@ -278,7 +312,7 @@
         "h": 3,
         "w": 4,
         "x": 15,
-        "y": 7
+        "y": 12
       },
       "id": 8,
       "options": {
@@ -324,8 +358,12 @@
                 "value": null
               },
               {
-                "color": "red",
+                "color": "orange",
                 "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
               }
             ]
           },
@@ -337,7 +375,7 @@
         "h": 3,
         "w": 5,
         "x": 19,
-        "y": 7
+        "y": 12
       },
       "id": 9,
       "options": {
@@ -371,7 +409,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 10
+        "y": 15
       },
       "id": 10,
       "panels": [],
@@ -424,7 +462,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 11
+        "y": 16
       },
       "id": 11,
       "options": {
@@ -505,7 +543,7 @@
         "h": 6,
         "w": 8,
         "x": 8,
-        "y": 11
+        "y": 16
       },
       "id": 12,
       "options": {
@@ -586,7 +624,7 @@
         "h": 6,
         "w": 8,
         "x": 16,
-        "y": 11
+        "y": 16
       },
       "id": 13,
       "options": {
@@ -667,7 +705,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 22
       },
       "id": 14,
       "options": {
@@ -748,7 +786,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 22
       },
       "id": 15,
       "options": {
@@ -829,7 +867,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 23
+        "y": 28
       },
       "id": 16,
       "options": {
@@ -911,7 +949,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 23
+        "y": 28
       },
       "id": 17,
       "options": {
@@ -993,7 +1031,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 23
+        "y": 28
       },
       "id": 18,
       "options": {
@@ -1035,7 +1073,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 32
       },
       "id": 23,
       "panels": [],
@@ -1089,7 +1127,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 28
+        "y": 33
       },
       "id": 24,
       "options": {
@@ -1199,7 +1237,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 28
+        "y": 33
       },
       "id": 25,
       "options": {
@@ -1309,7 +1347,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 28
+        "y": 33
       },
       "id": 26,
       "options": {
@@ -1378,7 +1416,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 40
       },
       "id": 20,
       "panels": [],
@@ -1444,7 +1482,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 41
       },
       "id": 21,
       "options": {
@@ -1570,7 +1608,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 36
+        "y": 41
       },
       "id": 22,
       "options": {
@@ -1643,7 +1681,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 49
       },
       "id": 27,
       "panels": [],
@@ -1697,7 +1735,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 50
       },
       "id": 28,
       "options": {
@@ -1794,7 +1832,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 45
+        "y": 50
       },
       "id": 29,
       "options": {
@@ -1979,7 +2017,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\"}))",
+        "definition": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\"}))",
         "description": "The earlier or accepted result used as the comparison point.",
         "hide": 0,
         "includeAll": false,
@@ -1988,11 +2026,11 @@
         "name": "baseline_run",
         "options": [],
         "query": {
-          "query": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\"}))",
+          "query": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\"}))",
           "refId": "Prometheus-baseline-run-Variable-Query"
         },
         "refresh": 1,
-        "regex": "/.*run_id=\"([^\"]+)\".*/",
+        "regex": "/.*run_display=\"(?<text>[^\"]+)\".*run_id=\"(?<value>[^\"]+)\".*/",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
@@ -2000,7 +2038,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id!=\"$baseline_run\"}))",
+        "definition": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id!=\"$baseline_run\"}))",
         "description": "The newer commit, branch, or distribution being checked for regressions.",
         "hide": 0,
         "includeAll": false,
@@ -2009,11 +2047,11 @@
         "name": "candidate_run",
         "options": [],
         "query": {
-          "query": "query_result(max by (run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id!=\"$baseline_run\"}))",
+          "query": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id!=\"$baseline_run\"}))",
           "refId": "Prometheus-candidate-run-Variable-Query"
         },
         "refresh": 1,
-        "regex": "/.*run_id=\"([^\"]+)\".*/",
+        "regex": "/.*run_display=\"(?<text>[^\"]+)\".*run_id=\"(?<value>[^\"]+)\".*/",
         "skipUrlSync": false,
         "sort": 2,
         "type": "query"
@@ -2250,6 +2288,6 @@
   "timezone": "browser",
   "title": "ROS 2 Performance · Manual Explorer",
   "uid": "rclcpp-pubsub-overview",
-  "version": 3,
+  "version": 4,
   "weekStart": ""
 }
