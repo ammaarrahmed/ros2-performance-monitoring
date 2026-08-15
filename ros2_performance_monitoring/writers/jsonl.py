@@ -68,7 +68,7 @@ def _write_chunks_atomically(chunks, output_path):
                 pass
         try:
             temporary_path.unlink()
-        except FileNotFoundError:
+        except BaseException:
             pass
         raise
     return count

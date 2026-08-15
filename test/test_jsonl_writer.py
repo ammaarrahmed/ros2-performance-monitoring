@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 import stat
 
 import pytest
@@ -169,6 +170,25 @@ def test_io_failure_preserves_existing_output_and_removes_temporary_file(
 
     assert output.read_text() == 'existing output\n'
     assert list(tmp_path.iterdir()) == [output]
+
+
+def test_cleanup_failure_does_not_mask_original_error(tmp_path, monkeypatch):
+    output = tmp_path / 'metrics.jsonl'
+    output.write_text('existing output\n')
+    _wrap_temporary_stream(monkeypatch, failure_point='write')
+    real_unlink = Path.unlink
+
+    def fail_temporary_unlink(path):
+        if path != output:
+            raise PermissionError('simulated cleanup failure')
+        return real_unlink(path)
+
+    monkeypatch.setattr(Path, 'unlink', fail_temporary_unlink)
+
+    with pytest.raises(OSError, match='simulated write failure'):
+        write_jsonl([Record('latency', 1.25)], output)
+
+    assert output.read_text() == 'existing output\n'
 
 
 def test_invalid_record_does_not_overwrite_existing_output(tmp_path):
