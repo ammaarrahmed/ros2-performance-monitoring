@@ -187,7 +187,7 @@ def test_serialization_failure_does_not_overwrite_existing_output(tmp_path):
     output.write_text('existing output\n')
 
     with pytest.raises(TypeError, match='not JSON serializable'):
-        write_jsonl([UnserializableRecord()], output)
+        write_jsonl([Record('valid', 1.0), UnserializableRecord()], output)
 
     assert output.read_text() == 'existing output\n'
     assert list(tmp_path.iterdir()) == [output]
