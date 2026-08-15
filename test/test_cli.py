@@ -22,6 +22,8 @@ import pytest
 import ros2_performance_monitoring.cli as cli
 from ros2_performance_monitoring.config import RunDefaults
 from ros2_performance_monitoring.container_provider import get_default_container_repo
+from ros2_performance_monitoring.dataset import DatasetBuildResult
+from ros2_performance_monitoring.dataset import DatasetError
 
 pytestmark = pytest.mark.smoke
 
@@ -75,6 +77,7 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         'doctor',
         'build-container',
         'parse',
+        'dataset build',
         'dashboard up',
         'dashboard down',
         'serve-prometheus',
@@ -88,6 +91,7 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
     (
         ['unknown'],
         ['dashboard', 'unknown'],
+        ['dataset', 'unknown'],
     ),
 )
 def test_unknown_command_suggests_help(monkeypatch, capsys, arguments):
@@ -154,6 +158,84 @@ def test_build_container_command_returns_subprocess_error(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert 'successfully built container' not in captured.out
     assert 'Command failed with exit code 7' in captured.err
+
+
+def test_dataset_build_command_passes_options_and_reports_result(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    importlib.reload(cli)
+    output = tmp_path / 'dashboard-data.jsonl'
+    manifest = tmp_path / 'dashboard-data.manifest.json'
+    received = {}
+
+    def fake_build_dataset(inputs, output_path, exclude_runs=(), aggregate=None):
+        received.update({
+            'inputs': inputs,
+            'output': output_path,
+            'exclude_runs': exclude_runs,
+            'aggregate': aggregate,
+        })
+        return DatasetBuildResult(
+            record_count=30,
+            run_count=3,
+            aggregate_count=1,
+            manifest_path=manifest,
+            skipped_groups=('Skipped median aggregation for run group [run-c]',),
+        )
+
+    monkeypatch.setattr(cli, 'build_dataset', fake_build_dataset)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'dataset',
+        'build',
+        'run-a.jsonl',
+        'run-b.jsonl',
+        '--aggregate',
+        'median',
+        '--exclude-run',
+        'warm-up',
+        '--exclude-run',
+        'bad-run',
+        '--output',
+        str(output),
+    ])
+
+    cli.main()
+
+    captured = capsys.readouterr()
+    assert received == {
+        'inputs': ['run-a.jsonl', 'run-b.jsonl'],
+        'output': str(output),
+        'exclude_runs': ['warm-up', 'bad-run'],
+        'aggregate': 'median',
+    }
+    assert f'Wrote 30 normalized metrics across 3 runs to {output}' in captured.out
+    assert f'Wrote dataset manifest to {manifest}' in captured.out
+    assert 'Skipped median aggregation for run group [run-c]' in captured.err
+
+
+def test_dataset_build_command_reports_validation_errors(monkeypatch, capsys):
+    importlib.reload(cli)
+
+    def fail_build_dataset(*args, **kwargs):
+        raise DatasetError('invalid normalized input')
+
+    monkeypatch.setattr(cli, 'build_dataset', fail_build_dataset)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'dataset',
+        'build',
+        'run.jsonl',
+        '--output',
+        'dataset.jsonl',
+    ])
+
+    with pytest.raises(SystemExit, match='invalid normalized input'):
+        cli.main()
+
+    assert 'Wrote' not in capsys.readouterr().out
 
 
 def test_run_with_default_smoke(monkeypatch):
