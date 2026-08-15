@@ -14,6 +14,8 @@ artifacts, and makes those results visible in Grafana.
 benchmark container run
   -> raw benchmark artifacts
   -> normalized_metrics.jsonl
+  -> dataset build
+  -> dashboard-data.jsonl
   -> local Prometheus exporter
   -> Prometheus
   -> Grafana
@@ -163,13 +165,51 @@ host provenance. Grafana can scope comparisons by client library, platform,
 ROS distribution, and whether the client library was built or packaged. Built
 versions show their commit; packaged versions are identified as `packaged`.
 
-### 4. Check The Exporter Directly
+### 4. Build A Comparison Dataset
+
+The dashboard needs at least two runs in one JSONL input. Run the benchmark in
+separate result directories, then combine their normalized files:
+
+```bash
+ros2-performance-monitoring run ./results/reference
+ros2-performance-monitoring run ./results/candidate
+```
+
+Each `run` creates its own `normalized_metrics.jsonl`. Build the shared dataset:
+
+```bash
+ros2-performance-monitoring dataset build \
+  ./results/reference/normalized_metrics.jsonl \
+  ./results/candidate/normalized_metrics.jsonl \
+  --output ./results/dashboard-data.jsonl
+```
+
+The command validates schemas, metric identities, and run provenance before it
+atomically replaces the output. Input order does not affect the output bytes. A
+`dashboard-data.manifest.json` sidecar records input checksums and source run
+IDs.
+
+For repeated measurements, keep the measured runs and add a median run for each
+compatible group:
+
+```bash
+ros2-performance-monitoring dataset build \
+  ./results/repeats/*/normalized_metrics.jsonl \
+  --aggregate median \
+  --exclude-run <warm-up-run-id> \
+  --output ./results/dashboard-data.jsonl
+```
+
+`--exclude-run` may be repeated. Aggregate runs are only created from at least
+two measured runs with identical provenance and scenario/metric coverage.
+
+### 5. Check The Exporter Directly
 
 This step is optional, but useful when you want to verify the metrics before
 starting Grafana:
 
 ```bash
-ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl --port 9108
+ros2-performance-monitoring serve-prometheus --input ./results/dashboard-data.jsonl --port 9108
 ```
 
 Then open:
@@ -180,12 +220,12 @@ http://localhost:9108/metrics
 
 Stop the exporter with `Ctrl+C`.
 
-### 5. Start Grafana And Prometheus
+### 6. Start Grafana And Prometheus
 
 Start the local dashboard stack:
 
 ```bash
-ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
+ros2-performance-monitoring dashboard up --input ./results/dashboard-data.jsonl
 ```
 
 This starts Prometheus and Grafana with Docker Compose, then keeps the metrics
@@ -209,7 +249,7 @@ Use the mode control to move between the automatic full-matrix checks and the
 manual scenario explorer. Click either run card to open that run's metadata,
 scenario inventory, and complete performance profile.
 
-### 6. Stop The Dashboard
+### 7. Stop The Dashboard
 
 Press `Ctrl+C` in the terminal running `dashboard up`, then stop the containers:
 
@@ -229,6 +269,15 @@ Serve Prometheus metrics without starting Grafana:
 
 ```bash
 ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl --port 9108
+```
+
+Combine two completed runs without aggregation:
+
+```bash
+ros2-performance-monitoring dataset build \
+  ./results/reference/normalized_metrics.jsonl \
+  ./results/candidate/normalized_metrics.jsonl \
+  --output ./results/dashboard-data.jsonl
 ```
 
 Parse into a run directory instead of the top-level results directory:
@@ -322,6 +371,9 @@ ros2-performance-monitoring help
 ros2-performance-monitoring run
 ros2-performance-monitoring build-container
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
+ros2-performance-monitoring dataset build \
+  ./results/run-1.jsonl ./results/run-2.jsonl \
+  --output ./results/dashboard-data.jsonl
 ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl
 ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
 ```
@@ -360,6 +412,9 @@ Run the CLI through ROS 2:
 ros2 run ros2_performance_monitoring ros2-performance-monitoring run
 ros2 run ros2_performance_monitoring ros2-performance-monitoring build-container
 ros2 run ros2_performance_monitoring ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
+ros2 run ros2_performance_monitoring ros2-performance-monitoring dataset build \
+  ./results/run-1.jsonl ./results/run-2.jsonl \
+  --output ./results/dashboard-data.jsonl
 ros2 run ros2_performance_monitoring ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
 ```
 
@@ -560,6 +615,41 @@ Each JSONL record keeps the dimensions needed for local analysis:
 If required artifact files are missing or the directory layout is unsupported,
 the command exits with a clear error instead of silently producing partial
 metrics.
+
+### Build a comparison dataset
+
+`dataset build` accepts normalized JSONL files, validates every non-empty line,
+and creates the multi-run input expected by the dashboard. It rejects
+unsupported schemas, non-finite metric values, conflicting run provenance,
+duplicate metric identities, run IDs split across files, and output/input path
+collisions before replacing an existing dataset.
+
+```bash
+ros2-performance-monitoring dataset build \
+  <run-1>/normalized_metrics.jsonl \
+  <run-2>/normalized_metrics.jsonl \
+  --output dashboard-data.jsonl
+```
+
+Rows have stable ordering, so reversing the input arguments produces the same
+JSONL. The adjacent `dashboard-data.manifest.json` records each resolved input
+path, SHA-256 checksum, and included run IDs.
+
+Use `--aggregate median` for repeated measurements. Runs only share an
+aggregate when their schema, ROS distribution, benchmark and client-library
+provenance, platform, executor, benchmark layout, and complete metric identity
+sets match. Commits, payloads, topologies, RMW implementations, communication
+modes, and partial metric coverage are never mixed. For an even repeat count,
+the median is the arithmetic mean of the two middle values after sorting. The
+command reports compatible groups with fewer than two measured runs without
+creating an aggregate for them.
+
+Aggregate rows use a stable `aggregate-median-...` run ID and expose
+`run_kind="aggregate"`, `aggregation_method="median"`, and `repeat_count` to
+`ros2_perf_run_info`. Source run IDs and input checksums are stored once in the
+sidecar manifest instead of being repeated on every metric row. Schema v4
+measured records remain accepted; new parser output and aggregate records use
+schema v5.
 
 Service support includes request/response latency, CPU, and RSS visibility for
 the local `10b`, `100kb`, `1mb`, and `4mb` layouts. Long-running actions,

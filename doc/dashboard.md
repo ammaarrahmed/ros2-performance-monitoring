@@ -9,14 +9,19 @@ initial service visibility for request/response latency, CPU, and RSS metrics.
 - Docker is installed and running.
 - Docker Compose plugin is installed.
 - Ports `3000`, `9090`, and `9108` are available.
-- `normalized_metrics.jsonl` exists.
+- At least two per-run `normalized_metrics.jsonl` files exist.
 
 ## Expected Input
 
-Create normalized metrics from a results directory:
+Create normalized metrics from each results directory, then build the dashboard
+dataset:
 
 ```bash
 ros2-performance-monitoring parse <results-dir> --output <results-dir>/normalized_metrics.jsonl
+ros2-performance-monitoring dataset build \
+  <reference-results>/normalized_metrics.jsonl \
+  <candidate-results>/normalized_metrics.jsonl \
+  --output dashboard-data.jsonl
 ```
 
 The normalized records keep benchmark harness provenance separate from client
@@ -24,6 +29,12 @@ library and host provenance. Dashboard comparisons can be scoped by client
 library, platform, ROS distribution, and whether the client library was built
 or installed from packages. Built versions show their client-library commit;
 packaged versions are identified as `packaged`.
+
+For compatible repeated measurements, pass `--aggregate median`. Measured runs
+remain selectable alongside the generated aggregate run. Its run kind,
+aggregation method, and repeat count are exported on `ros2_perf_run_info`; the
+source run IDs and input checksums are recorded in
+`dashboard-data.manifest.json`.
 
 Supported service artifacts currently include `cli-srv_single_process` leaves
 named `cli_srv_10b`, `cli_srv_100kb`, `cli_srv_1mb`, and `cli_srv_4mb`, and
@@ -35,7 +46,7 @@ regressions. It starts from the normalized JSONL file.
 ## Start
 
 ```bash
-ros2-performance-monitoring dashboard up --input <results-dir>/normalized_metrics.jsonl
+ros2-performance-monitoring dashboard up --input dashboard-data.jsonl
 ```
 
 The command starts Prometheus and Grafana with Docker Compose, then keeps the
@@ -79,7 +90,7 @@ ros2-performance-monitoring dashboard down
 Run the exporter without Grafana or Prometheus:
 
 ```bash
-ros2-performance-monitoring serve-prometheus --input <results-dir>/normalized_metrics.jsonl --port 9108
+ros2-performance-monitoring serve-prometheus --input dashboard-data.jsonl --port 9108
 ```
 
 Then inspect:
