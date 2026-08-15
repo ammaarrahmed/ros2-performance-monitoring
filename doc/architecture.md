@@ -33,6 +33,7 @@ The design uses a small adapter boundary:
 container runner
   -> raw artifacts
   -> normalized JSONL
+  -> validated comparison dataset
   -> Prometheus exporter
   -> Prometheus
   -> Grafana
@@ -49,6 +50,12 @@ Examples of future output sinks:
 - JSONL files for local inspection and regression artifacts.
 - Prometheus-compatible metrics for Grafana.
 
-The current dashboard path starts from `normalized_metrics.jsonl`. It does not
+The dataset builder is the trust boundary between per-run normalized artifacts
+and dashboard input. It validates schemas, run provenance, benchmark layout,
+and unique metric identities, then writes deterministic JSONL and a checksum
+manifest. Optional median runs retain only low-cardinality aggregation metadata
+in metric rows; source run IDs and checksums remain in the manifest.
+
+The current dashboard path starts from a normalized JSONL dataset. It does not
 run benchmarks, parse raw artifacts, or detect regressions as part of dashboard
 startup.

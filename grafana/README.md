@@ -6,7 +6,11 @@ The local dashboard stack provisions Grafana automatically from files under
 Run:
 
 ```bash
-ros2-performance-monitoring dashboard up --input <results-dir>/normalized_metrics.jsonl
+ros2-performance-monitoring dataset build \
+  <reference-results>/normalized_metrics.jsonl \
+  <candidate-results>/normalized_metrics.jsonl \
+  --output dashboard-data.jsonl
+ros2-performance-monitoring dashboard up --input dashboard-data.jsonl
 ```
 
 Then open:
