@@ -26,6 +26,7 @@ from ros2_performance_monitoring.model import MetricRecord
 from ros2_performance_monitoring.model import SUPPORTED_SCHEMA_VERSIONS
 from ros2_performance_monitoring.writers.jsonl import write_json
 from ros2_performance_monitoring.writers.jsonl import write_jsonl
+from ros2_performance_monitoring.writers.jsonl import write_text
 
 
 AGGREGATION_FIELDS = frozenset({
@@ -82,6 +83,7 @@ METRIC_IDENTITY_FIELDS = SCENARIO_IDENTITY_FIELDS + (
     'unit',
     'aggregation',
 )
+_MISSING_MANIFEST = object()
 
 
 class DatasetError(ValueError):
@@ -156,8 +158,7 @@ def build_dataset(input_paths, output_path, exclude_runs=(), aggregate=None):
         aggregate_manifest,
     )
 
-    write_json(manifest, manifest_path)
-    count = write_jsonl(records, output)
+    count = _write_dataset_and_manifest(records, output, manifest, manifest_path)
     return DatasetBuildResult(
         record_count=count,
         run_count=len(selected_runs) + len(aggregate_runs),
@@ -171,6 +172,26 @@ def manifest_path_for(output_path):
     """Return the sidecar manifest path for a dataset output path."""
     output = Path(output_path).expanduser().resolve()
     return output.with_suffix('.manifest.json')
+
+
+def _write_dataset_and_manifest(records, output, manifest, manifest_path):
+    try:
+        previous_manifest = manifest_path.read_text(encoding='utf-8')
+    except FileNotFoundError:
+        previous_manifest = _MISSING_MANIFEST
+
+    write_json(manifest, manifest_path)
+    try:
+        return write_jsonl(records, output)
+    except BaseException:
+        try:
+            if previous_manifest is _MISSING_MANIFEST:
+                manifest_path.unlink()
+            else:
+                write_text(previous_manifest, manifest_path)
+        except BaseException:
+            pass
+        raise
 
 
 def _resolve_inputs(input_paths, output, manifest_path):

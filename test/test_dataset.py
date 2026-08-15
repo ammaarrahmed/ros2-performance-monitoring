@@ -16,6 +16,7 @@ import hashlib
 import json
 
 import pytest
+from ros2_performance_monitoring import dataset as dataset_module
 from ros2_performance_monitoring.dataset import build_dataset
 from ros2_performance_monitoring.dataset import DatasetError
 from ros2_performance_monitoring.dataset import manifest_path_for
@@ -139,6 +140,42 @@ def test_rejects_conflicting_run_provenance_without_replacing_output(tmp_path):
         build_dataset([input_path], output)
 
     assert output.read_text() == 'existing output\n'
+
+
+@pytest.mark.parametrize('existing_manifest', (False, True))
+def test_output_failure_restores_previous_manifest(
+    tmp_path,
+    monkeypatch,
+    existing_manifest,
+):
+    old_input = tmp_path / 'old.jsonl'
+    new_input = tmp_path / 'new.jsonl'
+    output = tmp_path / 'dataset.jsonl'
+    manifest_path = manifest_path_for(output)
+    _write_records(old_input, [_record('old-run', 1.0)])
+    _write_records(new_input, [_record('new-run', 2.0)])
+
+    if existing_manifest:
+        build_dataset([old_input], output)
+        previous_manifest = manifest_path.read_bytes()
+    else:
+        output.write_text('existing output\n')
+        previous_manifest = None
+    previous_output = output.read_bytes()
+
+    def fail_jsonl_write(_records, _output):
+        raise OSError('simulated dataset write failure')
+
+    monkeypatch.setattr(dataset_module, 'write_jsonl', fail_jsonl_write)
+
+    with pytest.raises(OSError, match='simulated dataset write failure'):
+        build_dataset([new_input], output)
+
+    assert output.read_bytes() == previous_output
+    if previous_manifest is None:
+        assert not manifest_path.exists()
+    else:
+        assert manifest_path.read_bytes() == previous_manifest
 
 
 def test_rejects_run_id_spread_across_input_files(tmp_path):
