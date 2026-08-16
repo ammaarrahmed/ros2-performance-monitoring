@@ -1,15 +1,14 @@
 # Architecture
 
-This repository is planned as a local-first visibility layer for ROS 2
+This repository is a local-first execution and visibility layer for ROS 2
 performance results.
 
 ## Boundary
 
-Benchmark execution remains outside this repository.
-
-The parser reads artifacts produced by external tools such as `ros2-performance`
-or `ros2-benchmark-container`, normalizes them into a stable internal
-representation, and exposes them to dashboard tooling.
+Benchmark implementations remain external. This repository resolves their
+source inputs, constructs and verifies local derived images, invokes the
+external runner, and normalizes its artifacts into a stable internal
+representation for dashboard tooling.
 
 This keeps the project focused on:
 
@@ -17,20 +16,23 @@ This keeps the project focused on:
 - Metric normalization.
 - Developer-friendly export formats.
 - Local Grafana dashboards.
+- Exact local rclcpp target resolution and provenance verification.
+- Content-addressed local benchmark images and containers.
 
 It avoids taking ownership of:
 
-- Benchmark topology execution.
-- RMW test matrix orchestration.
-- Docker image construction.
+- Ownership or vendoring of benchmark topology implementations.
+- General experiment and repeated-trial orchestration.
 - Long-running hosted infrastructure.
 
-## Planned Bridge Shape
+## Bridge Shape
 
 The design uses a small adapter boundary:
 
 ```text
-container runner
+resolved benchmark + rclcpp target
+  -> labelled image + in-image target manifest
+  -> verified container runner
   -> raw artifacts
   -> normalized JSONL
   -> validated comparison dataset
@@ -39,7 +41,20 @@ container runner
   -> Grafana
 ```
 
-Examples of future artifact sources:
+The target key is a SHA-256 digest over the ROS distribution, architecture,
+benchmark repository commit, client-library source and commit, and relevant
+build configuration. The same key determines image and retained-container
+identity. A matching name is not sufficient for reuse: labels, the manifest,
+image ID, active rclcpp package prefix, and the benchmark executable's dynamic
+library resolution are checked before execution.
+
+Source-built rclcpp targets are resolved through a managed Git mirror and
+immutable worktree. The derived image builds that checkout as an overlay, then
+rebuilds the benchmark workspace against it. Packaged targets retain the ROS
+installation underlay and are labelled explicitly as packaged. Run metadata is
+created from the verified target rather than from user-provided commit claims.
+
+Artifact sources include:
 
 - `ros2-benchmark-container` result directories.
 - Direct `ros2-performance` output directories.

@@ -40,6 +40,7 @@ This package does not vendor benchmark engines. In particular:
 - `ros2-performance` is treated as an external benchmark framework.
 - `ros2-benchmark-container` is treated as an external benchmark runner and
   artifact producer.
-- This repository consumes result artifacts produced by external tools instead
-  of copying their source code or adding them as git submodules.
-
+- Upstream benchmark and rclcpp sources are resolved into managed local caches
+  for derived image builds; they are not copied into this repository or added
+  as git submodules.
+- Result artifacts remain the boundary consumed by parsers and dashboard tools.

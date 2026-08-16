@@ -119,23 +119,36 @@ ros2-performance-monitoring run \
   ./results
 ```
 
-If you are comparing a specific client-library branch or commit, record it with
-the run:
+To benchmark an exact rclcpp branch, tag, or commit, request a source build:
 
 ```bash
 ros2-performance-monitoring run \
   --client-library rclcpp \
   --client-library-source build \
-  --client-library-ref <rclcpp-branch-or-ref> \
-  --client-library-commit <rclcpp-commit-sha>
+  --client-library-ref <rclcpp-branch-tag-or-commit>
 ```
 
-These client-library options record provenance only; they do not build or inject
-a client library into the container. The benchmark container ref and the
-client-library ref are tracked separately. The default Docker flow records the
-client library as `packaged`. When the image already contains a locally built
-client library, use `--client-library-source build` with the ref and commit
-options to describe it accurately. The host architecture is recorded
+The default source repository is `https://github.com/ros2/rclcpp.git`. Use an
+explicit fork when needed:
+
+```bash
+ros2-performance-monitoring run \
+  --client-library-source build \
+  --client-library-repo-url https://github.com/<owner>/rclcpp.git \
+  --client-library-ref <branch-tag-or-commit>
+```
+
+The command fetches the repository into a managed Git cache, resolves the ref to
+one full commit SHA, and creates an immutable checkout before Docker starts. It
+then builds rclcpp into `/target_ws/install`, rebuilds the benchmark workspace
+against that overlay, and verifies the active package prefix and linked
+`librclcpp` before writing run metadata or starting a benchmark. There is no
+option to supply a claimed commit separately from the resolved source.
+
+Without `--client-library-source build`, the normal ROS package installation is
+used and recorded explicitly as `packaged`. Packaged images receive the same
+label, manifest, prefix, and dynamic-library checks. The benchmark repository
+ref and rclcpp ref remain separate, and the host architecture is detected
 automatically.
 
 The current runner writes benchmark artifacts under paths like:
@@ -165,7 +178,9 @@ Wrote <count> normalized metrics to ./results/normalized_metrics.jsonl
 The normalized records include separate benchmark harness, client-library, and
 host provenance. Grafana can scope comparisons by client library, platform,
 ROS distribution, and whether the client library was built or packaged. Built
-versions show their commit; packaged versions are identified as `packaged`.
+versions show their resolved commit; packaged versions are identified as
+`packaged`. The adjacent run metadata also records the verified image name, ID,
+digest, and complete target key.
 
 ### 4. Build A Comparison Dataset
 
@@ -272,6 +287,14 @@ Build only the benchmark container:
 ros2-performance-monitoring build-container
 ```
 
+Build and verify an exact source target without running a benchmark:
+
+```bash
+ros2-performance-monitoring build-container \
+  --client-library-source build \
+  --client-library-ref <branch-tag-or-commit>
+```
+
 Serve Prometheus metrics without starting Grafana:
 
 ```bash
@@ -340,6 +363,13 @@ docker compose version
 docker info
 ```
 
+If a source ref is missing or is ambiguous between a branch and tag, resolution
+stops before Docker or metadata creation. Use a fully qualified ref such as
+`refs/heads/rolling` or `refs/tags/<tag>` to disambiguate it. Source and
+benchmark checkouts must also be clean at their resolved commits; the builder
+rejects local cache edits because they would make the image provenance
+unverifiable.
+
 ## Repository Boundary
 
 This repository does not vendor the benchmark engines.
@@ -347,10 +377,13 @@ This repository does not vendor the benchmark engines.
 - `ros2-performance` is treated as an external ROS 2 benchmark framework.
 - `ros2-benchmark-container` is treated as an external benchmark runner and
   artifact producer.
-- No iRobot benchmark source code or result files are copied into this project.
+- rclcpp and benchmark sources are fetched into managed caches and copied only
+  into derived local images; they are not vendored in this repository.
+- No iRobot benchmark source code or result files are committed to this project.
 
-The goal here is the local visibility layer: artifact parsing, normalization,
-export, and dashboards.
+The repository owns exact local image preparation and provenance verification
+in addition to artifact parsing, normalization, export, and dashboards. It does
+not own the external benchmark implementations or hosted infrastructure.
 
 ## Development Checks
 
@@ -427,7 +460,7 @@ ros2 run ros2_performance_monitoring ros2-performance-monitoring dashboard up --
 
 ### Benchmark container build
 
-The `build-container` command builds the external benchmark container. It
+The `build-container` command prepares a verified local benchmark image. It
 requires Docker and Docker Buildx to be installed and available on `PATH` in the
 same shell that runs the command:
 
@@ -436,24 +469,47 @@ docker version
 docker buildx version
 ```
 
-It also uses `vcstool` to fetch the external benchmark container repository.
-For pip installs, this is installed as a Python package dependency. For ROS 2
-workspace installs, `rosdep` installs it from the `python3-vcstool` package.
-The Docker image build pulls and exports a large ROS 2 base image, so make sure
-Docker has several GB of free disk space available.
+It uses `vcstool` to fetch the external benchmark container repository and Git
+to resolve optional rclcpp source targets. For pip installs, `vcstool` is
+installed as a Python package dependency. For ROS 2 workspace installs,
+`rosdep` installs it from the `python3-vcstool` package. The Docker build pulls
+and exports a large ROS 2 base image, so make sure Docker has several GB of free
+disk space available.
 
-The Docker build scripts are not stored in this repository. The command fetches
-or updates the external `ros2-benchmark-container` checkout in the cache
-directory before starting Docker. By default that cache directory is:
+The upstream benchmark Dockerfile remains in the external repository. The
+command fetches or updates that checkout before starting Docker. By default it
+is stored at:
 
 ```bash
 ~/.cache/ros2-performance-monitoring
 ```
 
+Managed rclcpp mirrors, immutable worktrees, and prepared benchmark script
+contexts are stored beside it under:
+
+```text
+~/.cache/ros2-performance-monitoring-targets
+```
+
+The final image identity includes the ROS distribution, Docker architecture,
+benchmark-container commit, rclcpp source and commit, and build configuration.
+The image tag and retained-container name contain a prefix of that identity
+key. Full inputs are recorded in Docker labels and in
+`/etc/ros2-performance-monitoring/target-manifest.json` inside the image.
+
 On a fresh machine, `build-container` can be run directly:
 
 ```bash
 ros2-performance-monitoring build-container
+```
+
+That command builds a packaged-rclcpp image. Add the same source options used by
+`run` to build a derived rclcpp image:
+
+```bash
+ros2-performance-monitoring build-container \
+  --client-library-source build \
+  --client-library-ref <branch-tag-or-commit>
 ```
 
 With a ROS 2 workspace build, use the equivalent `ros2 run` commands:
@@ -474,11 +530,13 @@ finding an older installed `ros2-performance-monitoring` executable.
 
 The `run` command executes the current local benchmark path:
 
-1. Fetch or update the external `ros2-benchmark-container` checkout.
-2. Build the benchmark container image for the selected ROS distro.
-3. Start the container and run the selected reduced benchmark suite.
-4. Write raw benchmark outputs under the results directory.
-5. Normalize the benchmark outputs to `normalized_metrics.jsonl`.
+1. Resolve the requested packaged or source-built rclcpp target.
+2. Fetch and resolve the external `ros2-benchmark-container` checkout.
+3. Build an image keyed by all target inputs and store its provenance manifest.
+4. Verify image labels, manifest, rclcpp prefix, and linked dynamic library.
+5. Write metadata from the resolved and verified target.
+6. Start the container, repeat runtime verification, and run the selected suite.
+7. Write raw outputs and normalize them to `normalized_metrics.jsonl`.
 
 The default run uses ROS `lyrical`, a 60 second duration, the
 `EventsCBGExecutor` executor, the `rclcpp-minimal` suite, `./results` for
@@ -505,7 +563,7 @@ the checkout elsewhere, such as on a persistent CI cache volume.
 
 By default, `run` creates a benchmark container and removes it when the command
 finishes. Pass `--keep-container` to retain it. A later `run --keep-container`
-for the same ROS distribution reuses that container and skips the image build:
+for the exact same target reuses that container and skips the image build:
 
 ```bash
 ros2-performance-monitoring run --keep-container ./results/repeats/1-lyrical
@@ -516,15 +574,18 @@ Results directories used with one retained container must have the same parent
 directory. This keeps every run separate while allowing the original results
 root to remain mounted in the container. The command rejects an incompatible
 results path instead of writing artifacts to the wrong location. Remove a
-retained container when the repeated runs are complete:
+retained container when the repeated runs are complete, using the exact name
+printed by `run`:
 
 ```bash
-docker rm -f ros2-benchmark-container-lyrical-amd64
+docker rm -f ros2-performance-monitoring-<distro>-<architecture>-<target-key>
 ```
 
-Retaining the container avoids repeated Buildx work. It does not allow one
-container to be shared by different ROS distributions; Jazzy and Lyrical use
-separate images and container names.
+Retaining the container avoids repeated Buildx work. A different ROS
+distribution, architecture, benchmark commit, rclcpp commit, source type, or
+build configuration produces a different image and container name. Labels and
+the actual image ID are still checked before reuse, so modifying a matching-name
+container does not bypass target verification.
 
 If the required image has already been built, `--skip-build` prevents the first
 retained run from invoking Buildx as well:
@@ -536,9 +597,9 @@ ros2-performance-monitoring run \
   ./results/repeats/1-lyrical
 ```
 
-The command checks that the selected distribution image exists and fails with
-a clear error if it is missing. Omit `--skip-build` when the cached container
-source has changed and the image needs to be rebuilt.
+The command checks that the exact target image exists and verifies its labels,
+manifest, package prefix, and linked library. It fails if any value is missing
+or mismatched. Omit `--skip-build` when the requested target has not been built.
 
 Supported suites are:
 
