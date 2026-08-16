@@ -35,6 +35,17 @@ SUPPORTED_ARCHITECTURES = {
     'arm64': 'arm64',
     'x86_64': 'amd64',
 }
+BROKEN_MULTI_PROCESS_COMMAND = (
+    'COMMAND="${IROBOT_BENCHMARK} ${TOP1_PATH} ${TOP2_PATH} --executor ${EXECUTOR_ARG} '
+    '${THREADS_OPTION} --ipc off -t ${ROS2_BENCHMARK_TEST_DURATION} -s 1000 --csv-out on '
+    '--results-dir ${RESULT_FOLDER      echo -e "     Command: \\n       $COMMAND"'
+)
+FIXED_MULTI_PROCESS_COMMAND = (
+    'COMMAND="${IROBOT_BENCHMARK} ${TOP1_PATH} ${TOP2_PATH} --executor ${EXECUTOR_ARG} '
+    '${THREADS_OPTION} --ipc off -t ${ROS2_BENCHMARK_TEST_DURATION} -s 1000 --csv-out on '
+    '--results-dir ${RESULT_FOLDER}"\n'
+    '      echo -e "     Command: \\n       $COMMAND"'
+)
 
 
 @dataclass(frozen=True)
@@ -45,6 +56,7 @@ class BuildConfiguration:
     cmake_build_type: str = 'Release'
     benchmark_builder: str = 'upstream-dockerfile-v1'
     source_overlay_builder: str = 'colcon-merge-install-v1'
+    benchmark_runner_patch: str = 'multi-process-results-dir-v1'
 
     def __post_init__(self) -> None:
         allowed_build_types = {'Debug', 'MinSizeRel', 'RelWithDebInfo', 'Release'}
@@ -60,6 +72,7 @@ class BuildConfiguration:
             'cmake_build_type': self.cmake_build_type,
             'benchmark_builder': self.benchmark_builder,
             'source_overlay_builder': self.source_overlay_builder,
+            'benchmark_runner_patch': self.benchmark_runner_patch,
         }
 
 
@@ -171,13 +184,21 @@ class BenchmarkImageSpec:
     def labels(self) -> dict[str, str]:
         """Return labels used to reject unsafe image and container reuse."""
         manifest_json = _canonical_json(self.manifest())
+        build_configuration_json = _canonical_json(self.build_configuration.to_dict())
         return {
             f'{LABEL_PREFIX}.target-key': self.target_key,
             f'{LABEL_PREFIX}.ros-distro': self.ros_distro,
             f'{LABEL_PREFIX}.architecture': self.architecture,
+            f'{LABEL_PREFIX}.benchmark-repository': self.benchmark_repository_url,
+            f'{LABEL_PREFIX}.benchmark-ref': self.benchmark_requested_ref,
             f'{LABEL_PREFIX}.benchmark-commit': self.benchmark_resolved_commit,
             f'{LABEL_PREFIX}.client-source': self.client_target.source,
+            f'{LABEL_PREFIX}.client-repository': self.client_target.repository_url or '',
+            f'{LABEL_PREFIX}.client-ref': self.client_target.requested_ref,
             f'{LABEL_PREFIX}.client-commit': self.client_target.resolved_commit,
+            f'{LABEL_PREFIX}.build-configuration-sha256': hashlib.sha256(
+                build_configuration_json.encode()
+            ).hexdigest(),
             f'{LABEL_PREFIX}.manifest-sha256': hashlib.sha256(
                 manifest_json.encode()
             ).hexdigest(),
@@ -212,9 +233,21 @@ def build_benchmark_image(spec: BenchmarkImageSpec, cache_dir: str) -> VerifiedI
         raise RuntimeError(
             f'Benchmark repository at {benchmark_context} has no Dockerfile'
         )
+    _verify_git_checkout(
+        benchmark_context,
+        spec.benchmark_resolved_commit,
+        'benchmark repository',
+    )
+    if spec.client_target.source == 'build':
+        _verify_git_checkout(
+            spec.client_target.checkout_path,
+            spec.client_target.resolved_commit,
+            'rclcpp target',
+        )
+    benchmark_scripts = _prepare_benchmark_scripts(spec, benchmark_context)
     _select_builder(spec.architecture)
     _build_base_image(spec, benchmark_context)
-    _build_final_image(spec)
+    _build_final_image(spec, benchmark_scripts)
     return verify_benchmark_image(spec)
 
 
@@ -281,6 +314,20 @@ def verify_benchmark_image(spec: BenchmarkImageSpec) -> VerifiedImage:
 
 def verify_benchmark_container(spec: BenchmarkImageSpec) -> VerifiedImage:
     """Verify a retained container and its active rclcpp installation."""
+    expected_image = validate_benchmark_container(spec)
+    _verify_manifest(
+        spec,
+        ['docker', 'exec', spec.container_name, 'cat', MANIFEST_PATH],
+    )
+    _verify_runtime(
+        spec,
+        ['docker', 'exec', spec.container_name, 'bash', '-lc'],
+    )
+    return expected_image
+
+
+def validate_benchmark_container(spec: BenchmarkImageSpec) -> VerifiedImage:
+    """Validate stopped or running container identity without executing in it."""
     result = subprocess.run(
         ['docker', 'container', 'inspect', spec.container_name],
         check=False,
@@ -305,14 +352,6 @@ def verify_benchmark_container(spec: BenchmarkImageSpec) -> VerifiedImage:
             f'Cannot reuse container {spec.container_name}: image ID is '
             f'{actual_image_id!r}, expected {expected_image.image_id!r}'
         )
-    _verify_manifest(
-        spec,
-        ['docker', 'exec', spec.container_name, 'cat', MANIFEST_PATH],
-    )
-    _verify_runtime(
-        spec,
-        ['docker', 'exec', spec.container_name, 'bash', '-lc'],
-    )
     return expected_image
 
 
@@ -352,22 +391,26 @@ def _build_base_image(spec: BenchmarkImageSpec, benchmark_context: Path) -> None
     subprocess.run(command, check=True)
 
 
-def _build_final_image(spec: BenchmarkImageSpec) -> None:
+def _build_final_image(spec: BenchmarkImageSpec, benchmark_scripts: Path) -> None:
     manifest_b64 = base64.b64encode(_canonical_json(spec.manifest()).encode()).decode()
     if spec.client_target.source == 'build':
         if spec.client_target.checkout_path is None:
             raise ValueError('A source-built rclcpp target requires a checkout path')
         dockerfile = SOURCE_DOCKERFILE
-        context = spec.client_target.checkout_path
+        source_context_arguments = [
+            '--build-context', f'rclcpp={spec.client_target.checkout_path}',
+        ]
     elif spec.client_target.source == 'packaged':
         dockerfile = PACKAGED_DOCKERFILE
-        context = PACKAGED_DOCKERFILE.parent
+        source_context_arguments = []
     else:
         raise ValueError(f'Unsupported client-library source: {spec.client_target.source!r}')
     command = [
         'docker', 'buildx', 'build', '--load',
         '--platform', f'linux/{spec.architecture}',
         '--file', str(dockerfile),
+        '--build-context', f'benchmark={benchmark_scripts}',
+        *source_context_arguments,
         '--build-arg', f'BASE_IMAGE={spec.base_image_name}',
         '--build-arg', f'ROS_DISTRO={spec.ros_distro}',
         '--build-arg', f'CMAKE_BUILD_TYPE={spec.build_configuration.cmake_build_type}',
@@ -375,8 +418,54 @@ def _build_final_image(spec: BenchmarkImageSpec) -> None:
         '--tag', spec.image_name,
     ]
     command.extend(_label_arguments(spec.labels()))
-    command.append(str(context))
+    command.append(str(PACKAGED_DOCKERFILE.parent))
     subprocess.run(command, check=True)
+
+
+def _verify_git_checkout(path: Path | None, expected_commit: str, label: str) -> None:
+    if path is None:
+        raise RuntimeError(f'The {label} has no checkout path')
+    revision = subprocess.run(
+        ['git', '-C', str(path), 'rev-parse', '--verify', 'HEAD'],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if revision.returncode != 0 or revision.stdout.strip() != expected_commit:
+        raise RuntimeError(
+            f'The {label} at {path} is not checked out at {expected_commit}'
+        )
+    status = subprocess.run(
+        ['git', '-C', str(path), 'status', '--porcelain', '--untracked-files=all'],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if status.stdout.strip():
+        raise RuntimeError(
+            f'The {label} at {path} has local changes; refusing an unverifiable build'
+        )
+
+
+def _prepare_benchmark_scripts(
+    spec: BenchmarkImageSpec,
+    benchmark_context: Path,
+) -> Path:
+    managed_cache = benchmark_context.with_name(f'{benchmark_context.name}-targets')
+    destination = managed_cache / 'benchmark-scripts' / spec.target_key / 'benchmark'
+    shutil.copytree(
+        benchmark_context / 'benchmark',
+        destination,
+        dirs_exist_ok=True,
+    )
+    runner = destination / 'scripts' / 'runners' / 'run_multi_process_benchmark.sh'
+    if runner.is_file():
+        runner_text = runner.read_text()
+        if BROKEN_MULTI_PROCESS_COMMAND in runner_text:
+            runner.write_text(
+                runner_text.replace(BROKEN_MULTI_PROCESS_COMMAND, FIXED_MULTI_PROCESS_COMMAND)
+            )
+    return destination
 
 
 def _verify_labels(spec: BenchmarkImageSpec, actual_labels: dict, kind: str) -> None:

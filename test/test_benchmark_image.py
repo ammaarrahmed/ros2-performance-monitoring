@@ -19,9 +19,12 @@ import subprocess
 
 import pytest
 from ros2_performance_monitoring.benchmark_image import BenchmarkImageSpec
+from ros2_performance_monitoring.benchmark_image import BROKEN_MULTI_PROCESS_COMMAND
 from ros2_performance_monitoring.benchmark_image import build_benchmark_image
 from ros2_performance_monitoring.benchmark_image import BuildConfiguration
+from ros2_performance_monitoring.benchmark_image import FIXED_MULTI_PROCESS_COMMAND
 from ros2_performance_monitoring.benchmark_image import MANIFEST_PATH
+from ros2_performance_monitoring.benchmark_image import validate_benchmark_container
 from ros2_performance_monitoring.benchmark_image import verify_benchmark_image
 from ros2_performance_monitoring.client_target import ClientLibraryTarget
 
@@ -86,6 +89,32 @@ def test_image_label_mismatch_is_rejected_before_runtime(monkeypatch):
         verify_benchmark_image(spec)
 
 
+def test_retained_container_rejects_target_label_mismatch(monkeypatch):
+    spec = _source_spec()
+    labels = spec.labels()
+    labels['ros2-performance-monitoring.target-key'] = 'wrong-target'
+    container_data = {
+        'Image': f'sha256:{"d" * 64}',
+        'Config': {'Labels': labels},
+    }
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps([container_data]),
+        )
+
+    monkeypatch.setattr(subprocess, 'run', fake_run)
+
+    with pytest.raises(RuntimeError, match='Cannot reuse container'):
+        validate_benchmark_container(spec)
+
+    assert calls == [['docker', 'container', 'inspect', spec.container_name]]
+
+
 @pytest.mark.parametrize(
     'runtime_output',
     (
@@ -116,10 +145,25 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
     spec.client_target.checkout_path.mkdir()
     (tmp_path / 'cache').mkdir()
     (tmp_path / 'cache' / 'Dockerfile').write_text('FROM scratch\n')
+    runner = (
+        tmp_path / 'cache' / 'benchmark' / 'scripts' / 'runners'
+        / 'run_multi_process_benchmark.sh'
+    )
+    runner.parent.mkdir(parents=True)
+    runner.write_text(f'before\n{BROKEN_MULTI_PROCESS_COMMAND}\nafter\n')
     calls = []
 
     def fake_run(command, **kwargs):
         calls.append((command, kwargs))
+        if command[0] == 'git':
+            if 'rev-parse' in command:
+                commit = (
+                    spec.benchmark_resolved_commit
+                    if command[2] == str((tmp_path / 'cache').resolve())
+                    else spec.client_target.resolved_commit
+                )
+                return subprocess.CompletedProcess(command, 0, stdout=f'{commit}\n')
+            return subprocess.CompletedProcess(command, 0, stdout='')
         if command[:3] == ['docker', 'buildx', 'inspect']:
             return subprocess.CompletedProcess(command, 1)
         return subprocess.CompletedProcess(command, 0)
@@ -133,7 +177,7 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
 
     assert build_benchmark_image(spec, str(tmp_path / 'cache')) is spec
 
-    commands = [command for command, _ in calls]
+    commands = [command for command, _ in calls if command[0] == 'docker']
     assert commands[0] == [
         'docker', 'buildx', 'inspect', 'ros2-performance-monitoring-amd64-builder',
     ]
@@ -155,7 +199,16 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
     assert '--label' in source_build
     assert f'BASE_IMAGE={spec.base_image_name}' in source_build
     assert f'ros2-performance-monitoring.target-key={spec.target_key}' in source_build
-    assert source_build[-1] == str(spec.client_target.checkout_path)
+    assert f'rclcpp={spec.client_target.checkout_path}' in source_build
+    benchmark_context = next(
+        item.removeprefix('benchmark=')
+        for item in source_build
+        if item.startswith('benchmark=')
+    )
+    patched_runner = Path(benchmark_context) / runner.relative_to(tmp_path / 'cache' / 'benchmark')
+    assert FIXED_MULTI_PROCESS_COMMAND in patched_runner.read_text()
+    assert BROKEN_MULTI_PROCESS_COMMAND not in patched_runner.read_text()
+    assert source_build[-1].endswith('ros2_performance_monitoring')
     assert all('shell' not in kwargs for _, kwargs in calls)
 
 

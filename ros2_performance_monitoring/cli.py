@@ -20,12 +20,19 @@ from typing import Any
 
 from .artifacts import ArtifactError
 from .artifacts import discover_benchmark_artifacts
-from .benchmark_runner import benchmark_container_exists
-from .benchmark_runner import benchmark_image_exists
+from .benchmark_image import benchmark_container_exists
+from .benchmark_image import benchmark_image_exists
+from .benchmark_image import BenchmarkImageSpec
+from .benchmark_image import build_benchmark_image
+from .benchmark_image import detect_architecture
+from .benchmark_image import validate_benchmark_container
+from .benchmark_image import verify_benchmark_image
 from .benchmark_runner import benchmark_runner
+from .client_target import ClientLibraryTarget
+from .client_target import DEFAULT_RCLCPP_REPOSITORY
+from .client_target import resolve_rclcpp_target
 from .config import RunDefaults
 from .config import SUPPORTED_ROS_DISTROS
-from .container_build import build_container
 from .container_provider import get_default_container_repo, setup_container_repo
 from .dashboard import dashboard_down
 from .dashboard import dashboard_up
@@ -56,42 +63,41 @@ class CommandArgumentParser(argparse.ArgumentParser):
 
 def run_command(args: argparse.Namespace) -> None:
     print('Running Performance Monitor...')
-    container_repo_url, container_ref = get_default_container_repo()
-    if args.container_repo_url is None:
-        args.container_repo_url = container_repo_url
-    if args.container_ref is None:
-        args.container_ref = container_ref
-    commit_hash = setup_container_repo(
-        container_repo_url=args.container_repo_url,
-        container_ref=args.container_ref,
-        cache_dir=args.cache_dir,
+    image_spec = _prepare_image_spec(args)
+    print(
+        'Benchmark repository is ready at commit: '
+        f'{image_spec.benchmark_resolved_commit}'
     )
-    print(f'Container Repo Loaded is ready now! checked out commit : {commit_hash}')
-    generation_rundata(args, args.results_dir, commit_hash)
     reuse_container = (
-        args.keep_container and benchmark_container_exists(args.ros_distro)
+        args.keep_container and benchmark_container_exists(image_spec)
     )
     if args.skip_build:
-        if not benchmark_image_exists(args.ros_distro):
+        if not benchmark_image_exists(image_spec):
             raise RuntimeError(
-                f'Cannot skip build: ros2-benchmark-container:'
-                f'{args.ros_distro}-amd64 does not exist.'
+                f'Cannot skip build: exact target image {image_spec.image_name} '
+                'does not exist.'
             )
-        print('Using existing benchmark image; skipping image build.')
+        if reuse_container:
+            verified_image = validate_benchmark_container(image_spec)
+            print(f'Using verified retained container: {image_spec.container_name}')
+        else:
+            verified_image = verify_benchmark_image(image_spec)
+            print(f'Using verified benchmark image: {image_spec.image_name}')
     elif reuse_container:
-        print('Retained benchmark container found; skipping image build.')
-    else:
-        rel_path = build_container(
-            ros_distro=args.ros_distro,
-            cache_dir=args.cache_dir,
+        verified_image = validate_benchmark_container(image_spec)
+        print(
+            'Verified retained benchmark container; skipping image build: '
+            f'{image_spec.container_name}'
         )
-        print(f'successfully built container at : {rel_path}')
+    else:
+        verified_image = build_benchmark_image(image_spec, args.cache_dir)
+        print(f'Successfully built verified image: {verified_image.image_name}')
+    generation_rundata(args, args.results_dir, image_spec, verified_image)
     benchmark_runner(
-        cache_dir=args.cache_dir,
         results_dir=args.results_dir,
         benchmark_option=args.suite,
         duration=args.duration,
-        ros_distro=args.ros_distro,
+        image_spec=image_spec,
         executor=args.executor,
         keep_container=args.keep_container,
         cpuset_cpus=args.cpuset_cpus,
@@ -151,18 +157,49 @@ def help_command(args: argparse.Namespace) -> None:
 
 def build_container_command(args: argparse.Namespace) -> None:
     print('Building the container now...')
-    container_repo_url, container_ref = get_default_container_repo()
-    commit_hash = setup_container_repo(
+    image_spec = _prepare_image_spec(args)
+    verified_image = build_benchmark_image(image_spec, args.cache_dir)
+    print(f'Successfully built verified image: {verified_image.image_name}')
+
+
+def _prepare_image_spec(args: argparse.Namespace) -> BenchmarkImageSpec:
+    client_target = _prepare_client_target(args)
+    default_repo_url, default_ref = get_default_container_repo()
+    container_repo_url = args.container_repo_url or default_repo_url
+    container_ref = args.container_ref or default_ref
+    benchmark_commit = setup_container_repo(
         container_repo_url=container_repo_url,
         container_ref=container_ref,
         cache_dir=args.cache_dir,
     )
-    print(f'Container Repo Loaded is ready now! checked out commit : {commit_hash}')
-    rel_path = build_container(
+    return BenchmarkImageSpec(
         ros_distro=args.ros_distro,
+        architecture=detect_architecture(),
+        benchmark_repository_url=container_repo_url,
+        benchmark_requested_ref=container_ref,
+        benchmark_resolved_commit=benchmark_commit,
+        client_target=client_target,
+    )
+
+
+def _prepare_client_target(args: argparse.Namespace) -> ClientLibraryTarget:
+    if args.client_library_source == 'packaged':
+        if args.client_library_repo_url or args.client_library_ref:
+            raise RuntimeError(
+                '--client-library-repo-url and --client-library-ref require '
+                '--client-library-source build'
+            )
+        return ClientLibraryTarget.packaged(args.ros_distro)
+    if not args.client_library_ref:
+        raise RuntimeError(
+            '--client-library-ref is required with --client-library-source build'
+        )
+    repository_url = args.client_library_repo_url or DEFAULT_RCLCPP_REPOSITORY
+    return resolve_rclcpp_target(
+        repository_url=repository_url,
+        requested_ref=args.client_library_ref,
         cache_dir=args.cache_dir,
     )
-    print(f'successfully built container at : {rel_path}')
 
 
 def dataset_build_command(args: argparse.Namespace) -> None:
@@ -270,11 +307,11 @@ def main() -> Any:
     )
     run_parser.add_argument(
         '--keep-container', action='store_true',
-        help='Keep and reuse the distro benchmark container between runs',
+        help='Keep and reuse the exact-target benchmark container between runs',
     )
     run_parser.add_argument(
         '--skip-build', action='store_true',
-        help='Use the existing distro image instead of invoking Buildx',
+        help='Use the verified exact-target image instead of invoking Buildx',
     )
     run_parser.add_argument(
         '--cpuset-cpus',
@@ -282,19 +319,21 @@ def main() -> Any:
     )
     run_parser.add_argument(
         '--client-library', default=defaults.client_library,
+        choices=('rclcpp',),
         help='Client library under test',
     )
     run_parser.add_argument(
         '--client-library-ref', default=defaults.client_library_ref,
-        help='Client library branch or ref under test',
-    )
-    run_parser.add_argument(
-        '--client-library-commit', default=defaults.client_library_commit,
-        help='Resolved client library commit under test',
+        help='rclcpp branch, tag, or commit to resolve and build',
     )
     run_parser.add_argument(
         '--client-library-source', default=defaults.client_library_source,
-        help='Whether the client library under test is a build or packaged',
+        choices=('build', 'packaged'),
+        help='Build rclcpp from a ref or use ROS packages',
+    )
+    run_parser.add_argument(
+        '--client-library-repo-url',
+        help=f'rclcpp repository URL (build default: {DEFAULT_RCLCPP_REPOSITORY})',
     )
     build_container_parser.add_argument(
         'ros_distro', nargs='?', choices=SUPPORTED_ROS_DISTROS, default=defaults.ros_distro,
@@ -303,6 +342,32 @@ def main() -> Any:
     build_container_parser.add_argument(
         'cache_dir', nargs='?', default=defaults.cache_dir,
         help='Cache Directory where fetched repo code is',
+    )
+    build_container_parser.add_argument(
+        '--container-repo-url',
+        help='Container Repo URL',
+    )
+    build_container_parser.add_argument(
+        '--container-ref',
+        help='Container Repository Ref',
+    )
+    build_container_parser.add_argument(
+        '--client-library', default=defaults.client_library,
+        choices=('rclcpp',),
+        help='Client library under test',
+    )
+    build_container_parser.add_argument(
+        '--client-library-ref', default=defaults.client_library_ref,
+        help='rclcpp branch, tag, or commit to build',
+    )
+    build_container_parser.add_argument(
+        '--client-library-source', default=defaults.client_library_source,
+        choices=('build', 'packaged'),
+        help='Build rclcpp from a ref or use ROS packages',
+    )
+    build_container_parser.add_argument(
+        '--client-library-repo-url',
+        help=f'rclcpp repository URL (build default: {DEFAULT_RCLCPP_REPOSITORY})',
     )
     parse_parser.add_argument('results_dir', help='Results directory created by run')
     parse_parser.add_argument('--output', required=True, help='JSONL output path')

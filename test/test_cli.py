@@ -19,7 +19,9 @@ import subprocess
 import sys
 
 import pytest
+from ros2_performance_monitoring.benchmark_image import VerifiedImage
 import ros2_performance_monitoring.cli as cli
+from ros2_performance_monitoring.client_target import ClientLibraryTarget
 from ros2_performance_monitoring.config import RunDefaults
 from ros2_performance_monitoring.container_provider import get_default_container_repo
 from ros2_performance_monitoring.dataset import DatasetBuildResult
@@ -29,6 +31,7 @@ pytestmark = pytest.mark.smoke
 
 DEFAULT_CONTAINER_REPO_URL = 'https://github.com/ros2/ros2-benchmark-container'
 DEFAULT_CONTAINER_REF = 'rolling'
+DEFAULT_CONTAINER_COMMIT = 'a' * 40
 
 
 def test_default_container_repo_uses_ros2_upstream():
@@ -45,9 +48,15 @@ def test_run_command_prints_message(monkeypatch, capsys):
         'get_default_container_repo',
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
-    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(
+        cli, 'setup_container_repo', lambda **kwargs: DEFAULT_CONTAINER_COMMIT
+    )
     monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
-    monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
+    monkeypatch.setattr(
+        cli,
+        'build_benchmark_image',
+        lambda image_spec, cache_dir: _verified_image(image_spec),
+    )
     monkeypatch.setattr(cli, 'benchmark_runner', lambda **kwargs: None)
     monkeypatch.setattr(cli, 'parse_command', lambda args: None)
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'run', '--duration', '60'])
@@ -118,7 +127,12 @@ def test_build_container_command(monkeypatch, capsys):
 
     def fake_setup_container_repo(**kwargs):
         received['container_kwargs'] = kwargs
-        return 'abc123'
+        return DEFAULT_CONTAINER_COMMIT
+
+    def fake_build_image(image_spec, cache_dir):
+        received['image_name'] = image_spec.image_name
+        received['cache_dir'] = cache_dir
+        return _verified_image(image_spec)
 
     monkeypatch.setattr(
         cli,
@@ -126,7 +140,11 @@ def test_build_container_command(monkeypatch, capsys):
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
     monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
-    monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
+    monkeypatch.setattr(
+        cli,
+        'build_benchmark_image',
+        fake_build_image,
+    )
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'build-container'])
     cli.main()
     captured = capsys.readouterr()
@@ -135,15 +153,15 @@ def test_build_container_command(monkeypatch, capsys):
         'container_ref': DEFAULT_CONTAINER_REF,
         'cache_dir': RunDefaults().cache_dir,
     }
+    assert received['cache_dir'] == RunDefaults().cache_dir
     assert 'Building the container now...' in captured.out
-    assert 'Container Repo Loaded is ready now! checked out commit : abc123' in captured.out
-    assert 'successfully built container at : container/path' in captured.out
+    assert f'Successfully built verified image: {received["image_name"]}' in captured.out
 
 
 def test_build_container_command_returns_subprocess_error(monkeypatch, capsys):
     importlib.reload(cli)
 
-    def fake_build_container(**kwargs):
+    def fake_build_container(image_spec, cache_dir):
         raise subprocess.CalledProcessError(7, ['docker/build', '-d', 'lyrical'])
 
     monkeypatch.setattr(
@@ -151,12 +169,14 @@ def test_build_container_command_returns_subprocess_error(monkeypatch, capsys):
         'get_default_container_repo',
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
-    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
-    monkeypatch.setattr(cli, 'build_container', fake_build_container)
+    monkeypatch.setattr(
+        cli, 'setup_container_repo', lambda **kwargs: DEFAULT_CONTAINER_COMMIT
+    )
+    monkeypatch.setattr(cli, 'build_benchmark_image', fake_build_container)
     monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', 'build-container'])
     assert cli.main() == 7
     captured = capsys.readouterr()
-    assert 'successfully built container' not in captured.out
+    assert 'Successfully built verified image' not in captured.out
     assert 'Command failed with exit code 7' in captured.err
 
 
@@ -245,7 +265,7 @@ def test_run_with_default_smoke(monkeypatch):
 
     def fake_setup_container_repo(**kwargs):
         received['container_kwargs'] = kwargs
-        return 'abc123'
+        return DEFAULT_CONTAINER_COMMIT
 
     def fake_benchmark_runner(**kwargs):
         received['benchmark_kwargs'] = kwargs
@@ -257,7 +277,11 @@ def test_run_with_default_smoke(monkeypatch):
     )
     monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
     monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
-    monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
+    monkeypatch.setattr(
+        cli,
+        'build_benchmark_image',
+        lambda image_spec, cache_dir: _verified_image(image_spec),
+    )
     monkeypatch.setattr(cli, 'benchmark_runner', fake_benchmark_runner)
     monkeypatch.setattr(
         cli,
@@ -275,16 +299,17 @@ def test_run_with_default_smoke(monkeypatch):
         'container_ref': DEFAULT_CONTAINER_REF,
         'cache_dir': defaults.cache_dir,
     }
-    assert received['benchmark_kwargs'] == {
-        'cache_dir': defaults.cache_dir,
+    benchmark_kwargs = received['benchmark_kwargs']
+    assert benchmark_kwargs == {
         'results_dir': defaults.results_dir,
         'benchmark_option': defaults.default_benchmark,
         'duration': defaults.duration,
-        'ros_distro': defaults.ros_distro,
+        'image_spec': benchmark_kwargs['image_spec'],
         'executor': defaults.executor,
         'keep_container': False,
         'cpuset_cpus': None,
     }
+    assert benchmark_kwargs['image_spec'].client_target.source == 'packaged'
     assert received['parse_args'].results_dir == defaults.results_dir
     assert received['parse_args'].output == Path(defaults.results_dir) / 'normalized_metrics.jsonl'
 
@@ -295,7 +320,7 @@ def test_run_with_explicit_arguments(monkeypatch):
 
     def fake_setup_container_repo(**kwargs):
         received['container_kwargs'] = kwargs
-        return 'abc123'
+        return DEFAULT_CONTAINER_COMMIT
 
     def fake_benchmark_runner(**kwargs):
         received['benchmark_kwargs'] = kwargs
@@ -307,7 +332,11 @@ def test_run_with_explicit_arguments(monkeypatch):
     )
     monkeypatch.setattr(cli, 'setup_container_repo', fake_setup_container_repo)
     monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
-    monkeypatch.setattr(cli, 'build_container', lambda **kwargs: 'container/path')
+    monkeypatch.setattr(
+        cli,
+        'build_benchmark_image',
+        lambda image_spec, cache_dir: _verified_image(image_spec),
+    )
     monkeypatch.setattr(cli, 'benchmark_runner', fake_benchmark_runner)
     monkeypatch.setattr(
         cli,
@@ -343,16 +372,17 @@ def test_run_with_explicit_arguments(monkeypatch):
         'container_ref': DEFAULT_CONTAINER_REF,
         'cache_dir': '~/.cache/custom-ros2-performance-monitoring',
     }
-    assert received['benchmark_kwargs'] == {
-        'cache_dir': '~/.cache/custom-ros2-performance-monitoring',
+    benchmark_kwargs = received['benchmark_kwargs']
+    assert benchmark_kwargs == {
         'results_dir': './custom-results',
         'benchmark_option': 'service-rclcpp-minimal',
         'duration': 120,
-        'ros_distro': 'rolling',
+        'image_spec': benchmark_kwargs['image_spec'],
         'executor': 'MultiThreadedExecutor',
         'keep_container': False,
         'cpuset_cpus': None,
     }
+    assert benchmark_kwargs['image_spec'].ros_distro == 'rolling'
     assert received['parse_args'].results_dir == './custom-results'
     assert received['parse_args'].output == Path('./custom-results/normalized_metrics.jsonl')
 
@@ -366,13 +396,20 @@ def test_run_reuses_retained_container_without_building(monkeypatch):
         'get_default_container_repo',
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
-    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(
+        cli, 'setup_container_repo', lambda **kwargs: DEFAULT_CONTAINER_COMMIT
+    )
     monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(cli, 'benchmark_container_exists', lambda distro: True)
     monkeypatch.setattr(
         cli,
-        'build_container',
-        lambda **kwargs: pytest.fail('a retained container must skip the image build'),
+        'validate_benchmark_container',
+        lambda image_spec: _verified_image(image_spec),
+    )
+    monkeypatch.setattr(
+        cli,
+        'build_benchmark_image',
+        lambda *args: pytest.fail('a retained container must skip the image build'),
     )
     monkeypatch.setattr(
         cli,
@@ -400,14 +437,21 @@ def test_run_can_skip_build_when_image_exists(monkeypatch):
         'get_default_container_repo',
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
-    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(
+        cli, 'setup_container_repo', lambda **kwargs: DEFAULT_CONTAINER_COMMIT
+    )
     monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(cli, 'benchmark_container_exists', lambda distro: False)
     monkeypatch.setattr(cli, 'benchmark_image_exists', lambda distro: True)
     monkeypatch.setattr(
         cli,
-        'build_container',
-        lambda **kwargs: pytest.fail('--skip-build must not invoke Buildx'),
+        'verify_benchmark_image',
+        lambda image_spec: _verified_image(image_spec),
+    )
+    monkeypatch.setattr(
+        cli,
+        'build_benchmark_image',
+        lambda *args: pytest.fail('--skip-build must not invoke Buildx'),
     )
     monkeypatch.setattr(
         cli,
@@ -434,7 +478,9 @@ def test_run_cannot_skip_missing_image(monkeypatch):
         'get_default_container_repo',
         lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
     )
-    monkeypatch.setattr(cli, 'setup_container_repo', lambda **kwargs: 'abc123')
+    monkeypatch.setattr(
+        cli, 'setup_container_repo', lambda **kwargs: DEFAULT_CONTAINER_COMMIT
+    )
     monkeypatch.setattr(cli, 'generation_rundata', lambda *args: None)
     monkeypatch.setattr(cli, 'benchmark_container_exists', lambda distro: False)
     monkeypatch.setattr(cli, 'benchmark_image_exists', lambda distro: False)
@@ -445,6 +491,111 @@ def test_run_cannot_skip_missing_image(monkeypatch):
     )
 
     assert cli.main() == 1
+
+
+def test_run_resolves_source_target_before_build_and_metadata(monkeypatch):
+    importlib.reload(cli)
+    calls = []
+    source_target = ClientLibraryTarget(
+        name='rclcpp',
+        source='build',
+        repository_url='https://github.com/example/rclcpp.git',
+        requested_ref='feature/test',
+        resolved_commit='b' * 40,
+        checkout_path=Path('/cache/rclcpp'),
+    )
+
+    def fake_resolve(**kwargs):
+        calls.append(('resolve', kwargs))
+        return source_target
+
+    def fake_setup(**kwargs):
+        calls.append(('benchmark', kwargs))
+        return DEFAULT_CONTAINER_COMMIT
+
+    def fake_build(image_spec, cache_dir):
+        calls.append(('build', image_spec.client_target))
+        return _verified_image(image_spec)
+
+    def fake_metadata(args, results_dir, image_spec, verified_image):
+        calls.append(('metadata', image_spec.client_target, verified_image))
+
+    monkeypatch.setattr(cli, 'resolve_rclcpp_target', fake_resolve)
+    monkeypatch.setattr(cli, 'setup_container_repo', fake_setup)
+    monkeypatch.setattr(cli, 'build_benchmark_image', fake_build)
+    monkeypatch.setattr(cli, 'generation_rundata', fake_metadata)
+    monkeypatch.setattr(cli, 'benchmark_runner', lambda **kwargs: None)
+    monkeypatch.setattr(cli, 'parse_command', lambda args: None)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'run',
+        '--client-library-source',
+        'build',
+        '--client-library-repo-url',
+        'https://github.com/example/rclcpp.git',
+        '--client-library-ref',
+        'feature/test',
+    ])
+
+    assert cli.main() is None
+
+    assert [name for name, *_ in calls] == [
+        'resolve', 'benchmark', 'build', 'metadata',
+    ]
+    assert calls[0][1] == {
+        'repository_url': 'https://github.com/example/rclcpp.git',
+        'requested_ref': 'feature/test',
+        'cache_dir': RunDefaults().cache_dir,
+    }
+    assert calls[2][1] is source_target
+    assert calls[3][1] is source_target
+
+
+def test_source_build_requires_ref_before_docker_or_metadata(monkeypatch):
+    importlib.reload(cli)
+    monkeypatch.setattr(
+        cli,
+        'setup_container_repo',
+        lambda **kwargs: pytest.fail('benchmark setup must not start'),
+    )
+    monkeypatch.setattr(
+        cli,
+        'build_benchmark_image',
+        lambda *args: pytest.fail('Docker build must not start'),
+    )
+    monkeypatch.setattr(
+        cli,
+        'generation_rundata',
+        lambda *args: pytest.fail('metadata must not be created'),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'run',
+        '--client-library-source',
+        'build',
+    ])
+
+    assert cli.main() == 1
+
+
+def test_user_supplied_client_commit_is_not_accepted(monkeypatch):
+    importlib.reload(cli)
+    monkeypatch.setattr(
+        cli,
+        'setup_container_repo',
+        lambda **kwargs: pytest.fail('repository setup must not start'),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'run',
+        '--client-library-commit',
+        'claimed-commit',
+    ])
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 2
 
 
 def test_run_with_invalid_duration_exits(monkeypatch):
@@ -528,3 +679,12 @@ def test_parse_scopes_artifacts_to_metadata_distribution(tmp_path, monkeypatch):
         'results_dir': str(tmp_path),
         'ros_distro': 'rolling',
     }
+
+
+def _verified_image(image_spec):
+    return VerifiedImage(
+        image_name=image_spec.image_name,
+        image_id=f'sha256:{"d" * 64}',
+        image_digest=f'sha256:{"e" * 64}',
+        target_key=image_spec.target_key,
+    )

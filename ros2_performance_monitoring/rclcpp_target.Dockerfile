@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Copyright 2026 Ammaar Ahmed
 # Licensed under the Apache License, Version 2.0
 
@@ -8,7 +9,8 @@ ARG ROS_DISTRO
 ARG CMAKE_BUILD_TYPE=Release
 ARG TARGET_MANIFEST_B64
 
-COPY . /target_ws/src/rclcpp
+COPY --from=benchmark . /ws/src/ros2_benchmark_container/benchmark
+COPY --from=rclcpp . /target_ws/src/rclcpp
 
 RUN rm -f /target_ws/src/rclcpp/.git \
     && rosdep install \
