@@ -1,9 +1,7 @@
-# syntax=docker/dockerfile:1
 # Copyright 2026 Ammaar Ahmed
 # Licensed under the Apache License, Version 2.0
 
-ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+FROM ros2-benchmark-container AS ros2-performance-monitoring-target
 
 ARG ROS_DISTRO
 ARG TARGET_MANIFEST_B64

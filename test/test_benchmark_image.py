@@ -185,19 +185,16 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
         'docker', 'buildx', 'create', '--name',
         'ros2-performance-monitoring-amd64-builder', '--use',
     ]
-    base_build = commands[2]
-    assert base_build[:12] == [
-        'docker', 'buildx', 'build', '--load', '--platform', 'linux/amd64',
-        '--target', 'ros2-benchmark-container', '--build-arg', 'ROS_DISTRO=lyrical',
-        '--build-arg', 'BASE_IMAGE=osrf/ros:lyrical-desktop',
-    ]
-    assert base_build[-1] == str((tmp_path / 'cache').resolve())
-    source_build = commands[3]
+    source_build = commands[2]
     assert source_build[:7] == [
         'docker', 'buildx', 'build', '--load', '--platform', 'linux/amd64', '--file',
     ]
+    dockerfile = Path(source_build[7])
+    assert source_build[8:10] == [
+        '--target', 'ros2-performance-monitoring-target',
+    ]
     assert '--label' in source_build
-    assert f'BASE_IMAGE={spec.base_image_name}' in source_build
+    assert 'BASE_IMAGE=osrf/ros:lyrical-desktop' in source_build
     assert f'ros2-performance-monitoring.target-key={spec.target_key}' in source_build
     assert f'rclcpp={spec.client_target.checkout_path}' in source_build
     benchmark_context = next(
@@ -208,7 +205,13 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
     patched_runner = Path(benchmark_context) / runner.relative_to(tmp_path / 'cache' / 'benchmark')
     assert FIXED_MULTI_PROCESS_COMMAND in patched_runner.read_text()
     assert BROKEN_MULTI_PROCESS_COMMAND not in patched_runner.read_text()
-    assert source_build[-1].endswith('ros2_performance_monitoring')
+    assert dockerfile.parent.name == spec.target_key
+    assert dockerfile.read_text().startswith('FROM scratch\n')
+    assert (
+        'FROM ros2-benchmark-container AS ros2-performance-monitoring-target'
+        in dockerfile.read_text()
+    )
+    assert source_build[-1] == str((tmp_path / 'cache').resolve())
     assert all('shell' not in kwargs for _, kwargs in calls)
 
 

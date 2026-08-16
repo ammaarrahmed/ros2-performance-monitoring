@@ -54,7 +54,7 @@ class BuildConfiguration:
 
     schema_version: int = 1
     cmake_build_type: str = 'Release'
-    benchmark_builder: str = 'upstream-dockerfile-v1'
+    benchmark_builder: str = 'upstream-combined-dockerfile-v1'
     source_overlay_builder: str = 'colcon-merge-install-v1'
     benchmark_runner_patch: str = 'multi-process-results-dir-v1'
 
@@ -104,37 +104,11 @@ class BenchmarkImageSpec:
         return _digest(self.identity_payload())
 
     @property
-    def base_key(self) -> str:
-        """Return the content identity for the upstream benchmark base image."""
-        return _digest({
-            'schema_version': 1,
-            'ros_distro': self.ros_distro,
-            'architecture': self.architecture,
-            'benchmark_repository': {
-                'url': self.benchmark_repository_url,
-                'requested_ref': self.benchmark_requested_ref,
-                'resolved_commit': self.benchmark_resolved_commit,
-            },
-            'build_configuration': {
-                'schema_version': self.build_configuration.schema_version,
-                'benchmark_builder': self.build_configuration.benchmark_builder,
-            },
-        })
-
-    @property
     def image_name(self) -> str:
         """Return the exact final image tag for this target."""
         return (
             'ros2-performance-monitoring/benchmark:'
             f'{self.ros_distro}-{self.architecture}-{self.target_key[:16]}'
-        )
-
-    @property
-    def base_image_name(self) -> str:
-        """Return the internal upstream benchmark image tag."""
-        return (
-            'ros2-performance-monitoring/benchmark-base:'
-            f'{self.ros_distro}-{self.architecture}-{self.base_key[:16]}'
         )
 
     @property
@@ -246,8 +220,7 @@ def build_benchmark_image(spec: BenchmarkImageSpec, cache_dir: str) -> VerifiedI
         )
     benchmark_scripts = _prepare_benchmark_scripts(spec, benchmark_context)
     _select_builder(spec.architecture)
-    _build_base_image(spec, benchmark_context)
-    _build_final_image(spec, benchmark_scripts)
+    _build_final_image(spec, benchmark_context, benchmark_scripts)
     return verify_benchmark_image(spec)
 
 
@@ -371,55 +344,55 @@ def _select_builder(architecture: str) -> None:
     )
 
 
-def _build_base_image(spec: BenchmarkImageSpec, benchmark_context: Path) -> None:
-    labels = {
-        f'{LABEL_PREFIX}.base-key': spec.base_key,
-        f'{LABEL_PREFIX}.ros-distro': spec.ros_distro,
-        f'{LABEL_PREFIX}.architecture': spec.architecture,
-        f'{LABEL_PREFIX}.benchmark-commit': spec.benchmark_resolved_commit,
-    }
-    command = [
-        'docker', 'buildx', 'build', '--load',
-        '--platform', f'linux/{spec.architecture}',
-        '--target', 'ros2-benchmark-container',
-        '--build-arg', f'ROS_DISTRO={spec.ros_distro}',
-        '--build-arg', f'BASE_IMAGE=osrf/ros:{spec.ros_distro}-desktop',
-        '--tag', spec.base_image_name,
-    ]
-    command.extend(_label_arguments(labels))
-    command.append(str(benchmark_context))
-    subprocess.run(command, check=True)
-
-
-def _build_final_image(spec: BenchmarkImageSpec, benchmark_scripts: Path) -> None:
+def _build_final_image(
+    spec: BenchmarkImageSpec,
+    benchmark_context: Path,
+    benchmark_scripts: Path,
+) -> None:
     manifest_b64 = base64.b64encode(_canonical_json(spec.manifest()).encode()).decode()
     if spec.client_target.source == 'build':
         if spec.client_target.checkout_path is None:
             raise ValueError('A source-built rclcpp target requires a checkout path')
-        dockerfile = SOURCE_DOCKERFILE
+        fragment = SOURCE_DOCKERFILE
         source_context_arguments = [
             '--build-context', f'rclcpp={spec.client_target.checkout_path}',
         ]
     elif spec.client_target.source == 'packaged':
-        dockerfile = PACKAGED_DOCKERFILE
+        fragment = PACKAGED_DOCKERFILE
         source_context_arguments = []
     else:
         raise ValueError(f'Unsupported client-library source: {spec.client_target.source!r}')
+    dockerfile = _prepare_combined_dockerfile(spec, benchmark_context, fragment)
     command = [
         'docker', 'buildx', 'build', '--load',
         '--platform', f'linux/{spec.architecture}',
         '--file', str(dockerfile),
+        '--target', 'ros2-performance-monitoring-target',
         '--build-context', f'benchmark={benchmark_scripts}',
         *source_context_arguments,
-        '--build-arg', f'BASE_IMAGE={spec.base_image_name}',
+        '--build-arg', f'BASE_IMAGE=osrf/ros:{spec.ros_distro}-desktop',
         '--build-arg', f'ROS_DISTRO={spec.ros_distro}',
         '--build-arg', f'CMAKE_BUILD_TYPE={spec.build_configuration.cmake_build_type}',
         '--build-arg', f'TARGET_MANIFEST_B64={manifest_b64}',
         '--tag', spec.image_name,
     ]
     command.extend(_label_arguments(spec.labels()))
-    command.append(str(PACKAGED_DOCKERFILE.parent))
+    command.append(str(benchmark_context))
     subprocess.run(command, check=True)
+
+
+def _prepare_combined_dockerfile(
+    spec: BenchmarkImageSpec,
+    benchmark_context: Path,
+    fragment: Path,
+) -> Path:
+    managed_cache = benchmark_context.with_name(f'{benchmark_context.name}-targets')
+    dockerfile = managed_cache / 'dockerfiles' / spec.target_key / 'Dockerfile'
+    dockerfile.parent.mkdir(parents=True, exist_ok=True)
+    upstream_text = (benchmark_context / 'Dockerfile').read_text().rstrip()
+    fragment_text = fragment.read_text().rstrip()
+    dockerfile.write_text(f'{upstream_text}\n\n{fragment_text}\n')
+    return dockerfile
 
 
 def _verify_git_checkout(path: Path | None, expected_commit: str, label: str) -> None:
