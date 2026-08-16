@@ -17,22 +17,14 @@ from pathlib import Path
 import subprocess
 
 from ros2_performance_monitoring import benchmark_layout
+from ros2_performance_monitoring.benchmark_image import benchmark_container_exists
+from ros2_performance_monitoring.benchmark_image import BenchmarkImageSpec
+from ros2_performance_monitoring.benchmark_image import verify_benchmark_container
 
 
 FASTDDS_PROFILE = 'shared_memory_fastdds_preallocated_w_realloc.xml'
 CYCLONEDDS_PROFILE = 'shared_memory_cyclonedds.xml'
 ZENOH_SESSION_PROFILE = 'ZENOH_DEFAULT_SESSION_CONFIG.json5'
-BROKEN_MULTI_PROCESS_COMMAND = (
-    'COMMAND="${IROBOT_BENCHMARK} ${TOP1_PATH} ${TOP2_PATH} --executor ${EXECUTOR_ARG} '
-    '${THREADS_OPTION} --ipc off -t ${ROS2_BENCHMARK_TEST_DURATION} -s 1000 --csv-out on '
-    '--results-dir ${RESULT_FOLDER      echo -e "     Command: \\n       $COMMAND"'
-)
-FIXED_MULTI_PROCESS_COMMAND = (
-    'COMMAND="${IROBOT_BENCHMARK} ${TOP1_PATH} ${TOP2_PATH} --executor ${EXECUTOR_ARG} '
-    '${THREADS_OPTION} --ipc off -t ${ROS2_BENCHMARK_TEST_DURATION} -s 1000 --csv-out on '
-    '--results-dir ${RESULT_FOLDER}"\n'
-    '      echo -e "     Command: \\n       $COMMAND"'
-)
 
 BENCHMARK_SUITES = {
     'pubsub-rclcpp-minimal': (
@@ -138,20 +130,15 @@ def _runner_details(family_name):
 
 
 def benchmark_runner(
-    cache_dir: str,
     results_dir: str,
     benchmark_option: str,
     duration: int,
-    ros_distro: str,
+    image_spec: BenchmarkImageSpec,
     executor: str,
     keep_container: bool = False,
     cpuset_cpus: str | None = None,
 ) -> None:
-    relative_path = Path(cache_dir)
-    absolute_path = relative_path.expanduser().resolve()
-    container_repo = absolute_path
-    benchmark_folder = container_repo / 'benchmark'
-
+    ros_distro = image_spec.ros_distro
     results_absolute_path = Path(results_dir).expanduser().resolve()
 
     selected_benchmarks = BENCHMARK_SUITES.get(benchmark_option)
@@ -161,10 +148,9 @@ def benchmark_runner(
 
     benchmark_results_dir = results_absolute_path / 'benchmark' / ros_distro
     benchmark_results_dir.mkdir(parents=True, exist_ok=True)
-    _patch_known_runner_typo(benchmark_folder)
     config_dir = benchmark_results_dir / '.ros2_performance_monitoring'
     config_dir.mkdir(parents=True, exist_ok=True)
-    container_name = f'ros2-benchmark-container-{ros_distro}-amd64'
+    container_name = image_spec.container_name
     host_owner = f'{os.getuid()}:{os.getgid()}'
 
     if keep_container:
@@ -185,28 +171,29 @@ def benchmark_runner(
         '--privileged',
         '--shm-size=1000mb',
         '-v', f'{results_mount}:/benchmark_results',
-        '-v', f'{benchmark_folder}:/ws/src/ros2_benchmark_container/benchmark',
         '-v', '/var/run/docker.sock:/var/run/docker.sock',
         '-e', 'ROS_DOMAIN_ID=28',
         '-e', f'SYSTEM_EXECUTOR={executor}',
         '--label', f'ros2-performance-monitoring.results-root={results_mount}',
-        '--label', f'ros2-performance-monitoring.benchmark-root={benchmark_folder}',
         '--name', container_name,
-        f'ros2-benchmark-container:{ros_distro}-amd64',
+        image_spec.image_name,
         'sleep', 'infinity',
     ]
+    identity_labels = []
+    for name, value in sorted(image_spec.labels().items()):
+        identity_labels.extend(('--label', f'{name}={value}'))
+    cmd[cmd.index('--name'):cmd.index('--name')] = identity_labels
     if cpuset_cpus:
         cmd[3:3] = ['--cpuset-cpus', cpuset_cpus]
         cmd[cmd.index('--name'):cmd.index('--name')] = [
             '--label', f'ros2-performance-monitoring.cpuset-cpus={cpuset_cpus}',
         ]
 
-    reuse_container = keep_container and benchmark_container_exists(ros_distro)
+    reuse_container = keep_container and benchmark_container_exists(image_spec)
     if reuse_container:
         _validate_retained_container(
             container_name,
             results_mount,
-            benchmark_folder,
             cpuset_cpus,
         )
         subprocess.run(['docker', 'start', container_name], check=True)
@@ -216,6 +203,7 @@ def benchmark_runner(
         subprocess.run(cmd, check=True)
 
     try:
+        verify_benchmark_container(image_spec)
         for family_name in selected_benchmarks:
             label, runner_script, config_name, config_text = _runner_details(family_name)
             config_path = config_dir / config_name
@@ -229,6 +217,7 @@ def benchmark_runner(
                 '-e', f'SYSTEM_EXECUTOR={executor}',
                 container_name,
                 'bash', '-lc',
+                'source "$RCLCPP_TARGET_PREFIX/setup.bash" && '
                 'source /ws/install/setup.bash && /ws/src/ros2_benchmark_container/'
                 f'benchmark/scripts/runners/{runner_script} '
                 f'{container_results_dir}/.ros2_performance_monitoring/{config_name}',
@@ -248,39 +237,13 @@ def benchmark_runner(
             subprocess.run(['docker', 'rm', '-f', container_name], check=False)
 
 
-def benchmark_container_exists(ros_distro: str) -> bool:
-    """Return whether the named benchmark container already exists."""
-    container_name = f'ros2-benchmark-container-{ros_distro}-amd64'
-    result = subprocess.run(
-        ['docker', 'container', 'inspect', container_name],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    return result.returncode == 0
-
-
-def benchmark_image_exists(ros_distro: str) -> bool:
-    """Return whether the benchmark image for a ROS distribution exists."""
-    image_name = f'ros2-benchmark-container:{ros_distro}-amd64'
-    result = subprocess.run(
-        ['docker', 'image', 'inspect', image_name],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    return result.returncode == 0
-
-
 def _validate_retained_container(
     container_name,
     results_mount,
-    benchmark_folder,
     cpuset_cpus,
 ):
     labels = {
         'results-root': str(results_mount),
-        'benchmark-root': str(benchmark_folder),
         'cpuset-cpus': cpuset_cpus or '',
     }
     for label, expected in labels.items():
@@ -302,13 +265,3 @@ def _validate_retained_container(
                 f'expected {expected!r}. Remove the container or use results '
                 'directories with the same parent.'
             )
-
-
-def _patch_known_runner_typo(benchmark_folder):
-    runner = benchmark_folder / 'scripts' / 'runners' / 'run_multi_process_benchmark.sh'
-    if not runner.is_file():
-        return
-    text = runner.read_text()
-    if BROKEN_MULTI_PROCESS_COMMAND not in text:
-        return
-    runner.write_text(text.replace(BROKEN_MULTI_PROCESS_COMMAND, FIXED_MULTI_PROCESS_COMMAND))

@@ -21,8 +21,7 @@ SUPPORTED_ROS_DISTROS = ('jazzy', 'lyrical', 'rolling')
 @dataclass(frozen=True)
 class RunDefaults:
     client_library: str = 'rclcpp'
-    client_library_ref: str = ''
-    client_library_commit: str = 'unknown'
+    client_library_ref: str | None = None
     client_library_source: str = 'packaged'
     ros_distro: str = 'lyrical'
     executor: str = 'EventsCBGExecutor'
