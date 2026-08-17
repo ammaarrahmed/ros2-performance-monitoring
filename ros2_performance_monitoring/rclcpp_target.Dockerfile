@@ -5,7 +5,9 @@ FROM ros2-benchmark-container AS ros2-performance-monitoring-target
 
 ARG ROS_DISTRO
 ARG CMAKE_BUILD_TYPE=Release
+ARG SOURCE_OVERLAY_PARALLEL_WORKERS=2
 ARG TARGET_MANIFEST_B64
+ENV MAKEFLAGS="-j${SOURCE_OVERLAY_PARALLEL_WORKERS} -l${SOURCE_OVERLAY_PARALLEL_WORKERS}"
 
 COPY --from=benchmark . /ws/src/ros2_benchmark_container/benchmark
 COPY --from=rclcpp . /target_ws/src/rclcpp
@@ -23,7 +25,8 @@ RUN rm -f /target_ws/src/rclcpp/.git \
          --base-paths /target_ws/src \
          --build-base /target_ws/build \
          --install-base /target_ws/install \
-         --cmake-args -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" \
+         --parallel-workers ${SOURCE_OVERLAY_PARALLEL_WORKERS} \
+         --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" \
     && rm -rf /ws/build /ws/install /ws/log \
     && /bin/bash -c \
       "source /opt/ros/${ROS_DISTRO}/setup.bash; \
@@ -33,7 +36,8 @@ RUN rm -f /target_ws/src/rclcpp/.git \
          --base-paths /ws/src \
          --build-base /ws/build \
          --install-base /ws/install \
-         --cmake-args -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" \
+         --parallel-workers ${SOURCE_OVERLAY_PARALLEL_WORKERS} \
+         --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" \
     && mkdir -p /etc/ros2-performance-monitoring \
     && printf '%s' "${TARGET_MANIFEST_B64}" \
       | base64 --decode > /etc/ros2-performance-monitoring/target-manifest.json

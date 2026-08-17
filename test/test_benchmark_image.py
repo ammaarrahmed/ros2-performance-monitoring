@@ -43,6 +43,10 @@ from ros2_performance_monitoring.client_target import ClientLibraryTarget
             spec,
             build_configuration=BuildConfiguration(cmake_build_type='RelWithDebInfo'),
         ),
+        lambda spec: replace(
+            spec,
+            build_configuration=BuildConfiguration(source_overlay_parallel_workers=1),
+        ),
     ),
 )
 def test_every_build_input_changes_target_identity(changed_spec):
@@ -68,6 +72,11 @@ def test_matching_image_is_verified_and_returns_provenance(monkeypatch):
     assert calls[2][0:6] == [
         'docker', 'run', '--rm', '--entrypoint', 'bash', spec.image_name,
     ]
+
+
+def test_source_overlay_parallel_workers_must_be_positive():
+    with pytest.raises(ValueError, match='parallel workers'):
+        BuildConfiguration(source_overlay_parallel_workers=0)
 
 
 def test_image_label_mismatch_is_rejected_before_runtime(monkeypatch):
@@ -195,6 +204,7 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
     ]
     assert '--label' in source_build
     assert 'BASE_IMAGE=osrf/ros:lyrical-desktop' in source_build
+    assert 'SOURCE_OVERLAY_PARALLEL_WORKERS=2' in source_build
     assert f'ros2-performance-monitoring.target-key={spec.target_key}' in source_build
     assert f'rclcpp={spec.client_target.checkout_path}' in source_build
     benchmark_context = next(
@@ -211,6 +221,9 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
         'FROM ros2-benchmark-container AS ros2-performance-monitoring-target'
         in dockerfile.read_text()
     )
+    assert '--parallel-workers ${SOURCE_OVERLAY_PARALLEL_WORKERS}' in dockerfile.read_text()
+    assert '-DBUILD_TESTING=OFF' in dockerfile.read_text()
+    assert 'ENV MAKEFLAGS="-j${SOURCE_OVERLAY_PARALLEL_WORKERS}' in dockerfile.read_text()
     assert source_build[-1] == str((tmp_path / 'cache').resolve())
     assert all('shell' not in kwargs for _, kwargs in calls)
 

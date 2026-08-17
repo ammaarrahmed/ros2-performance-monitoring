@@ -32,6 +32,8 @@ pytestmark = [
     ),
 ]
 
+ROLLING_INTEGRATION_RCLCPP_COMMIT = '20536064aac0d547e128d95337867b473c3efa85'
+
 
 def test_source_target_builds_and_verifies_inside_image():
     cache_dir = os.environ.get(
@@ -39,7 +41,10 @@ def test_source_target_builds_and_verifies_inside_image():
         '~/.cache/ros2-performance-monitoring-integration',
     )
     ros_distro = os.environ.get('ROS2_PERFORMANCE_INTEGRATION_DISTRO', 'rolling')
-    rclcpp_ref = os.environ.get('ROS2_PERFORMANCE_INTEGRATION_RCLCPP_REF', 'rolling')
+    rclcpp_ref = os.environ.get(
+        'ROS2_PERFORMANCE_INTEGRATION_RCLCPP_REF',
+        ROLLING_INTEGRATION_RCLCPP_COMMIT,
+    )
     benchmark_url, benchmark_ref = get_default_container_repo()
     target = resolve_rclcpp_target(
         DEFAULT_RCLCPP_REPOSITORY,

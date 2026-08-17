@@ -55,7 +55,8 @@ class BuildConfiguration:
     schema_version: int = 1
     cmake_build_type: str = 'Release'
     benchmark_builder: str = 'upstream-combined-dockerfile-v1'
-    source_overlay_builder: str = 'colcon-merge-install-v1'
+    source_overlay_builder: str = 'colcon-merge-install-v3'
+    source_overlay_parallel_workers: int = 2
     benchmark_runner_patch: str = 'multi-process-results-dir-v1'
 
     def __post_init__(self) -> None:
@@ -64,6 +65,8 @@ class BuildConfiguration:
             raise ValueError(
                 f'Unsupported CMake build type: {self.cmake_build_type!r}'
             )
+        if self.source_overlay_parallel_workers < 1:
+            raise ValueError('Source overlay parallel workers must be positive')
 
     def to_dict(self) -> dict:
         """Return a stable, serializable build configuration."""
@@ -72,6 +75,7 @@ class BuildConfiguration:
             'cmake_build_type': self.cmake_build_type,
             'benchmark_builder': self.benchmark_builder,
             'source_overlay_builder': self.source_overlay_builder,
+            'source_overlay_parallel_workers': self.source_overlay_parallel_workers,
             'benchmark_runner_patch': self.benchmark_runner_patch,
         }
 
@@ -356,6 +360,9 @@ def _build_final_image(
         fragment = SOURCE_DOCKERFILE
         source_context_arguments = [
             '--build-context', f'rclcpp={spec.client_target.checkout_path}',
+            '--build-arg',
+            'SOURCE_OVERLAY_PARALLEL_WORKERS='
+            f'{spec.build_configuration.source_overlay_parallel_workers}',
         ]
     elif spec.client_target.source == 'packaged':
         fragment = PACKAGED_DOCKERFILE
