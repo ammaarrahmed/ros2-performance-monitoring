@@ -128,6 +128,9 @@ ros2-performance-monitoring run \
   --client-library-ref <rclcpp-branch-tag-or-commit>
 ```
 
+Source overlay builds compile without test targets and use two parallel workers
+to keep memory use predictable on developer machines.
+
 The default source repository is `https://github.com/ros2/rclcpp.git`. Use an
 explicit fork when needed:
 
