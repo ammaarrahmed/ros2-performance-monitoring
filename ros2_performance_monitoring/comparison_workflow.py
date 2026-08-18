@@ -39,6 +39,7 @@ from .experiment import build_experiment_plan
 from .experiment import load_experiment_evidence
 from .experiment import prepare_experiment
 from .experiment import run_experiment
+from .preflight import DEFAULT_MINIMUM_FREE_BYTES
 from .preflight import run_comparison_preflight
 from .statistical_comparison import build_comparison_report
 from .statistical_comparison import CANNOT_COMPARE
@@ -130,10 +131,22 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             root,
             options.cpuset_cpus,
             dashboard_requested=options.start_dashboard,
+            minimum_free_bytes=(
+                0 if options.dry_run else DEFAULT_MINIMUM_FREE_BYTES
+            ),
         )
     except Exception as exc:
         raise ComparisonWorkflowError(f'preflight failed: {exc}') from exc
     if options.dry_run:
+        available = min(
+            preflight.result_filesystem_free_bytes,
+            preflight.docker_filesystem_free_bytes,
+        )
+        if available < DEFAULT_MINIMUM_FREE_BYTES:
+            print(
+                'Dry-run warning: a real build would fail the 10 GiB free-space '
+                'preflight requirement.'
+            )
         try:
             return _plan_dry_run(options, root, preflight.architecture)
         except Exception as exc:

@@ -23,7 +23,7 @@ from .benchmark_image import detect_architecture
 from .experiment import validate_cpuset_cpus
 
 
-DEFAULT_MINIMUM_FREE_BYTES = 5 * 1024 ** 3
+DEFAULT_MINIMUM_FREE_BYTES = 10 * 1024 ** 3
 DEFAULT_DASHBOARD_PORTS = (3000, 9090, 9108)
 
 

@@ -192,7 +192,7 @@ for a workflow that must remain resumable after branches move.
 
 Before fetching persistent source checkouts, the command checks Git, vcstool,
 Docker daemon access, Buildx and native architecture support, result-directory
-access, at least 5 GiB of free result and Docker storage, and CPU-set syntax.
+access, at least 10 GiB of free result and Docker storage, and CPU-set syntax.
 Docker Compose and ports `3000`, `9090`, and the selected exporter port are
 checked only with `--start-dashboard`.
 
