@@ -24,6 +24,7 @@ from ros2_performance_monitoring.client_target import ClientLibraryTarget
 from ros2_performance_monitoring.dataset import verify_dataset_bundle
 from ros2_performance_monitoring.experiment import build_experiment_plan
 from ros2_performance_monitoring.experiment import ExperimentError
+from ros2_performance_monitoring.experiment import load_completed_experiment
 from ros2_performance_monitoring.experiment import run_experiment
 from ros2_performance_monitoring.writers.jsonl import write_json
 
@@ -105,6 +106,55 @@ def test_warmups_complete_but_never_enter_dataset_or_aggregate_lineage(tmp_path)
     }
     assert aggregate_sources == measured_ids
     assert (result.experiment_dir / 'experiment.complete.json').is_file()
+
+
+def test_completed_experiment_loader_returns_only_verified_measured_trials(tmp_path):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=1, repeats=2)
+    root = tmp_path / 'experiment'
+    run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=_successful_trial,
+        environment_collector=_environment,
+    )
+
+    completed = load_completed_experiment(root)
+
+    assert completed.plan == plan
+    assert completed.environment['cpu_model'] == 'Test CPU'
+    assert [trial.trial_id for trial in completed.measured_trials] == [
+        trial['trial_id'] for trial in plan['schedule']['trials']
+        if trial['kind'] == 'measured'
+    ]
+    assert all(
+        record['run_kind'] == 'measured'
+        for trial in completed.measured_trials
+        for record in trial.records
+    )
+
+
+def test_completed_experiment_loader_rejects_invalid_completion(tmp_path):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=0, repeats=1)
+    root = tmp_path / 'experiment'
+    run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=_successful_trial,
+        environment_collector=_environment,
+    )
+    completion_path = root / 'experiment.complete.json'
+    completion = json.loads(completion_path.read_text())
+    completion['plan_sha256'] = '0' * 64
+    write_json(completion, completion_path)
+
+    with pytest.raises(ExperimentError, match='failed completion verification'):
+        load_completed_experiment(root)
 
 
 def test_resume_reuses_only_checksum_valid_trials(tmp_path):
