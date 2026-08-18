@@ -33,6 +33,10 @@ from .client_target import DEFAULT_RCLCPP_REPOSITORY
 from .client_target import resolve_rclcpp_target
 from .comparison_report import ComparisonReportError
 from .comparison_report import validate_comparison_report
+from .comparison_workflow import ComparisonWorkflowError
+from .comparison_workflow import ComparisonWorkflowOptions
+from .comparison_workflow import OPERATIONAL_ERROR_EXIT
+from .comparison_workflow import run_comparison_workflow
 from .config import RunDefaults
 from .config import SUPPORTED_ROS_DISTROS
 from .container_provider import get_default_container_repo, setup_container_repo
@@ -313,7 +317,7 @@ def experiment_run_command(args: argparse.Namespace) -> None:
     print(f'Comparison dataset: {result.dataset_path}')
 
 
-def experiment_compare_command(args: argparse.Namespace) -> int:
+def experiment_report_command(args: argparse.Namespace) -> int:
     """Write repeat-aware evidence for two targets in a completed experiment."""
     try:
         completed = load_experiment_evidence(args.experiment_dir)
@@ -358,6 +362,98 @@ def experiment_compare_command(args: argparse.Namespace) -> int:
     print(f'Comparison status: {status}')
     print(f'Wrote comparison report to {output}')
     return comparison_exit_code(report)
+
+
+def experiment_compare_command(args: argparse.Namespace) -> int:
+    """Run the end-to-end workflow or preserve the legacy report invocation."""
+    workflow_requested = bool(
+        args.results_dir or args.reference_ref or args.candidate_ref
+    )
+    if not workflow_requested:
+        if not args.experiment_dir:
+            print(
+                'Comparison workflow requires --results-dir, --reference-ref, '
+                'and --candidate-ref.',
+                file=sys.stderr,
+            )
+            return OPERATIONAL_ERROR_EXIT
+        return experiment_report_command(args)
+
+    results_dir = args.results_dir or args.experiment_dir
+    missing = [
+        option for option, value in (
+            ('--results-dir', results_dir),
+            ('--reference-ref', args.reference_ref),
+            ('--candidate-ref', args.candidate_ref),
+        )
+        if not value
+    ]
+    if missing:
+        print(
+            f'Comparison workflow requires {", ".join(missing)}.',
+            file=sys.stderr,
+        )
+        return OPERATIONAL_ERROR_EXIT
+    if args.results_dir and args.experiment_dir:
+        print(
+            'Specify the workflow output with --results-dir or the positional '
+            'directory, not both.',
+            file=sys.stderr,
+        )
+        return OPERATIONAL_ERROR_EXIT
+    if args.output or args.reference != 'reference' or args.candidate != 'candidate':
+        print(
+            '--output, --reference, and --candidate are report-stage options; '
+            'use experiment report for a completed bundle.',
+            file=sys.stderr,
+        )
+        return OPERATIONAL_ERROR_EXIT
+
+    options = ComparisonWorkflowOptions(
+        results_dir=results_dir,
+        reference_ref=args.reference_ref,
+        candidate_ref=args.candidate_ref,
+        ros_distro=args.ros_distro,
+        suite=args.suite,
+        executor=args.executor,
+        duration=args.duration,
+        cpuset_cpus=args.cpuset_cpus,
+        warmups=args.warmups,
+        repeats=args.repeats,
+        order=args.order,
+        schedule_seed=args.seed,
+        cache_dir=args.cache_dir,
+        rclcpp_repository_url=args.rclcpp_repo_url,
+        container_repository_url=args.container_repo_url,
+        container_ref=args.container_ref,
+        skip_build=args.skip_build,
+        dry_run=args.dry_run,
+        confidence_level=args.confidence_level,
+        bootstrap_repeats=args.bootstrap_repeats,
+        bootstrap_seed=args.bootstrap_seed,
+        minimum_trials=args.minimum_trials,
+        start_dashboard=args.start_dashboard,
+        dashboard_port=args.dashboard_port,
+    )
+    try:
+        result = run_comparison_workflow(options)
+        if args.start_dashboard and not result.dry_run:
+            try:
+                dashboard_up(
+                    result.dataset_path,
+                    port=args.dashboard_port,
+                    comparison_report_path=result.report_path,
+                )
+            except KeyboardInterrupt:
+                print('\nDashboard exporter stopped.')
+            except (FileNotFoundError, RuntimeError, ValueError, OSError) as exc:
+                raise ComparisonWorkflowError(
+                    f'dashboard startup failed: {exc}'
+                ) from exc
+        return result.exit_code if result.exit_code is not None else 0
+    except ComparisonWorkflowError as exc:
+        print(f'Comparison workflow failed: {exc}', file=sys.stderr)
+        return OPERATIONAL_ERROR_EXIT
 
 
 def _prepare_experiment_client_target(args, label):
@@ -469,9 +565,14 @@ def main() -> Any:
     experiment_run_parser.set_defaults(func=experiment_run_command)
     experiment_compare_parser = experiment_subparsers.add_parser(
         'compare',
-        help='Write repeat-aware statistical evidence for a completed experiment',
+        help='Run a complete local per-commit comparison',
     )
     experiment_compare_parser.set_defaults(func=experiment_compare_command)
+    experiment_report_parser = experiment_subparsers.add_parser(
+        'report',
+        help='Write statistical evidence for an existing experiment bundle',
+    )
+    experiment_report_parser.set_defaults(func=experiment_report_command)
 
     serve_prometheus_parser = subparsers.add_parser(
         'serve-prometheus',
@@ -667,21 +768,93 @@ def main() -> Any:
         )
     experiment_compare_parser.add_argument(
         'experiment_dir',
-        help='Completed experiment bundle to compare',
+        nargs='?',
+        help='Comparison bundle directory (alternative to --results-dir)',
+    )
+    experiment_compare_parser.add_argument(
+        '--results-dir',
+        help='Comparison bundle directory to create or safely resume',
+    )
+    experiment_compare_parser.add_argument(
+        '--reference-ref',
+        help='rclcpp branch, tag, or commit for the reference target',
+    )
+    experiment_compare_parser.add_argument(
+        '--candidate-ref',
+        help='rclcpp branch, tag, or commit for the candidate target',
+    )
+    experiment_compare_parser.add_argument(
+        '--rclcpp-repo-url',
+        default=DEFAULT_RCLCPP_REPOSITORY,
+        help=f'rclcpp repository URL (default: {DEFAULT_RCLCPP_REPOSITORY})',
+    )
+    experiment_compare_parser.add_argument(
+        '-t', '--duration', type=_positive_integer, default=defaults.duration,
+        help='Duration in seconds for every trial scenario',
+    )
+    experiment_compare_parser.add_argument(
+        '-d', '--ros-distro', choices=SUPPORTED_ROS_DISTROS, default=defaults.ros_distro,
+        help='ROS distribution shared by both targets',
+    )
+    experiment_compare_parser.add_argument(
+        '-x', '--executor', default=defaults.executor,
+        help='Executor shared by every trial',
+    )
+    experiment_compare_parser.add_argument(
+        '--suite', default=defaults.default_benchmark,
+        help='Benchmark suite shared by every trial',
+    )
+    experiment_compare_parser.add_argument(
+        '--cpuset-cpus',
+        help='Restrict every trial to a Docker CPU-set expression',
+    )
+    experiment_compare_parser.add_argument(
+        '--warmups', type=_non_negative_integer, default=1,
+        help='Warm-up trials per target (default: 1)',
+    )
+    experiment_compare_parser.add_argument(
+        '--repeats', type=_positive_integer, default=3,
+        help='Measured trials per target (default: 3)',
+    )
+    experiment_compare_parser.add_argument(
+        '--order', choices=('balanced', 'interleaved'), default='balanced',
+        help='Target scheduling policy (default: balanced)',
+    )
+    experiment_compare_parser.add_argument(
+        '--cache-dir', default=defaults.cache_dir,
+        help='Cache directory for benchmark and target repositories',
+    )
+    experiment_compare_parser.add_argument('--container-repo-url')
+    experiment_compare_parser.add_argument('--container-ref')
+    experiment_compare_parser.add_argument(
+        '--skip-build', action='store_true',
+        help='Require both exact verified target images to exist locally',
+    )
+    experiment_compare_parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Resolve and print the plan without persistent preparation or execution',
+    )
+    experiment_compare_parser.add_argument(
+        '--start-dashboard', action='store_true',
+        help='Start the matching local dashboard after successful comparison',
+    )
+    experiment_compare_parser.add_argument(
+        '--dashboard-port', type=_positive_integer, default=9108,
+        help='Prometheus exporter port used with --start-dashboard (default: 9108)',
     )
     experiment_compare_parser.add_argument(
         '--reference',
         default='reference',
-        help='Plan target label to treat as the reference (default: reference)',
+        help=argparse.SUPPRESS,
     )
     experiment_compare_parser.add_argument(
         '--candidate',
         default='candidate',
-        help='Plan target label to treat as the candidate (default: candidate)',
+        help=argparse.SUPPRESS,
     )
     experiment_compare_parser.add_argument(
         '--output',
-        help='Report path (default: EXPERIMENT_DIR/comparison-report.json)',
+        help=argparse.SUPPRESS,
     )
     experiment_compare_parser.add_argument(
         '--confidence-level',
@@ -699,9 +872,57 @@ def main() -> Any:
         '--seed',
         type=int,
         default=DEFAULT_SEED,
+        help=f'Deterministic scheduling seed (default: {DEFAULT_SEED})',
+    )
+    experiment_compare_parser.add_argument(
+        '--bootstrap-seed',
+        type=int,
+        default=DEFAULT_SEED,
         help=f'Deterministic bootstrap seed (default: {DEFAULT_SEED})',
     )
     experiment_compare_parser.add_argument(
+        '--minimum-trials',
+        type=_minimum_trial_count,
+        default=MINIMUM_MEASURED_TRIALS,
+        help=f'Minimum measured trial pairs (default: {MINIMUM_MEASURED_TRIALS})',
+    )
+    experiment_report_parser.add_argument(
+        'experiment_dir',
+        help='Completed experiment bundle to compare',
+    )
+    experiment_report_parser.add_argument(
+        '--reference',
+        default='reference',
+        help='Plan target label to treat as the reference (default: reference)',
+    )
+    experiment_report_parser.add_argument(
+        '--candidate',
+        default='candidate',
+        help='Plan target label to treat as the candidate (default: candidate)',
+    )
+    experiment_report_parser.add_argument(
+        '--output',
+        help='Report path (default: EXPERIMENT_DIR/comparison-report.json)',
+    )
+    experiment_report_parser.add_argument(
+        '--confidence-level',
+        type=_confidence_level,
+        default=DEFAULT_CONFIDENCE_LEVEL,
+        help=f'Two-sided confidence level (default: {DEFAULT_CONFIDENCE_LEVEL:g})',
+    )
+    experiment_report_parser.add_argument(
+        '--bootstrap-repeats',
+        type=_positive_integer,
+        default=DEFAULT_BOOTSTRAP_REPEATS,
+        help=f'Paired bootstrap resamples (default: {DEFAULT_BOOTSTRAP_REPEATS})',
+    )
+    experiment_report_parser.add_argument(
+        '--seed',
+        type=int,
+        default=DEFAULT_SEED,
+        help=f'Deterministic bootstrap seed (default: {DEFAULT_SEED})',
+    )
+    experiment_report_parser.add_argument(
         '--minimum-trials',
         type=_minimum_trial_count,
         default=MINIMUM_MEASURED_TRIALS,
@@ -737,6 +958,7 @@ def main() -> Any:
             dataset_build_parser,
             experiment_run_parser,
             experiment_compare_parser,
+            experiment_report_parser,
             dashboard_up_parser,
             dashboard_down_parser,
             serve_prometheus_parser,
