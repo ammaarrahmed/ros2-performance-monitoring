@@ -176,6 +176,11 @@ improvement in one measurement does not cancel a regression in another.
 These are deterministic review thresholds, not a statistical-significance or
 noise model. Detailed panels retain improvements and individual measurements so
 the status can be investigated rather than treated as a statistical conclusion.
+For repeat-aware confidence intervals and evidence statuses, run `experiment
+compare` on a completed balanced experiment bundle; see
+[`statistical-comparison.md`](statistical-comparison.md). Its report is a
+separate artifact and is not currently exported to Prometheus or rendered in
+Grafana.
 
 Cross-RMW comparisons use IPC-off because it is the common transport represented
 for Fast DDS, Cyclone DDS, and Zenoh. IPC-on effectiveness is restricted to

@@ -214,10 +214,43 @@ experiment/
   dataset/dashboard-data.jsonl
   dataset/dashboard-data.manifest.json
   experiment.complete.json
+  comparison-report.json  # after experiment compare
 ```
 
 `experiment.complete.json` is written only after every planned trial and the
 dataset bundle have passed checksum validation.
+
+After the bundle completes, calculate repeat-aware evidence from the measured
+trial pairs:
+
+```bash
+ros2-performance-monitoring experiment compare ./experiments/rclcpp-change
+```
+
+This writes a deterministic, versioned
+`./experiments/rclcpp-change/comparison-report.json`. The default analysis uses
+a paired bootstrap over the recorded balanced trial blocks, a 95% confidence
+level, 10,000 resamples, seed `0`, and a minimum of three measured trial pairs.
+Warm-ups, failed or incomplete trials, and median aggregate records are never
+statistical samples. The command rejects incompatible target provenance,
+environment evidence, scenario coverage, metric coverage, and schedules without
+valid balanced pairs before calculating uncertainty.
+
+To reverse the comparison direction, reverse the plan labels explicitly:
+
+```bash
+ros2-performance-monitoring experiment compare ./experiments/rclcpp-change \
+  --reference candidate \
+  --candidate reference
+```
+
+The report keeps practical thresholds separate from confidence intervals and
+uses `No regression`, `Possible regression`, `Regression`, `Insufficient
+evidence`, `Incomplete results`, `Cannot compare`, and `N/A`. The command exits
+with `0` for no regression, `1` for a supported regression, `2` for possible or
+insufficient evidence, and `3` for an invalid or incomplete comparison. See
+[`doc/statistical-comparison.md`](doc/statistical-comparison.md) for the method,
+report contract, evidence rules, and optional analysis controls.
 
 ### 3. Inspect Or Reprocess The Artifacts
 
@@ -472,6 +505,7 @@ ros2-performance-monitoring run
 ros2-performance-monitoring build-container
 ros2-performance-monitoring experiment run ./experiments/example \
   --reference-ref <reference-commit> --candidate-ref <candidate-commit>
+ros2-performance-monitoring experiment compare ./experiments/example
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ros2-performance-monitoring dataset build \
   ./results/run-1.jsonl ./results/run-2.jsonl \

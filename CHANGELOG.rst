@@ -4,6 +4,9 @@ Changelog for package ros2_performance_monitoring
 
 0.0.0 (unreleased)
 ------------------
+* Added deterministic paired-bootstrap regression reports for completed
+  experiments, with scan-aware confidence intervals and documented CLI exit
+  outcomes.
 * Added immutable, resumable experiment bundles with balanced repeated trials,
   automatic warm-up exclusion, environment evidence, and checksum-verified
   completion state.

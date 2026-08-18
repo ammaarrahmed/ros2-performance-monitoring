@@ -19,11 +19,12 @@ This keeps the project focused on:
 - Exact local rclcpp target resolution and provenance verification.
 - Content-addressed local benchmark images and containers.
 - Immutable experiment plans and repeated-trial bundle orchestration.
+- Repeat-aware local statistical comparison reports.
 
 It avoids taking ownership of:
 
 - Ownership or vendoring of benchmark topology implementations.
-- Statistical verdicts beyond deterministic median aggregation.
+- Hosted statistical analysis or CI-gating policy.
 - Long-running hosted infrastructure.
 
 ## Bridge Shape
@@ -36,10 +37,9 @@ resolved benchmark + rclcpp target
   -> verified container runner
   -> staged trial (raw artifacts + metadata + normalized JSONL)
   -> checksum-verified trial completion
-  -> validated comparison dataset
-  -> Prometheus exporter and comparison policy
-  -> Prometheus
-  -> Grafana
+  -> validated comparison dataset + experiment completion
+     -> paired measured-trial bootstrap -> comparison-report.json
+     -> Prometheus exporter and comparison policy -> Prometheus -> Grafana
 ```
 
 The target key is a SHA-256 digest over the ROS distribution, architecture,
@@ -74,6 +74,15 @@ measured-environment identity; subsequent measured trials must match it before
 they start. Target image ID and digest, benchmark commit, executor, duration,
 suite, and ROS distribution remain recorded with each trial as evidence.
 
+The statistical comparison boundary reads a completed experiment rather than
+its aggregate dataset. It verifies the experiment and trial completion graphs,
+loads only measured records, reconstructs pairs from balanced schedule blocks,
+and rejects incompatible provenance or coverage. A deterministic paired
+bootstrap resamples whole blocks and retains the complete scenario scan in each
+resample. Category decisions use the worst scenario, while overall evidence
+uses the worst category-normalized scenario. The resulting versioned JSON report
+is separate from Prometheus and Grafana formatting.
+
 Artifact sources include:
 
 - `ros2-benchmark-container` result directories.
@@ -97,4 +106,6 @@ checksums remain in the manifest.
 The current dashboard path starts from a normalized JSONL dataset. It does not
 run benchmarks or parse raw artifacts as part of dashboard startup. The local
 exporter derives deterministic per-category comparison statuses before exposing
-the dataset to Prometheus; statistical analysis remains outside this boundary.
+the dataset to Prometheus. Those point-estimate statuses remain a dashboard
+review aid; repeat-aware statistical evidence is produced separately from the
+verified experiment bundle.
