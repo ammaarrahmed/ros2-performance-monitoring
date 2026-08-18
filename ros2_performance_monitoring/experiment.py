@@ -80,6 +80,8 @@ class CompletedExperiment:
     environment: dict | None
     measured_trials: tuple[CompletedTrial, ...]
     experiment_complete: bool
+    dataset_path: Path | None
+    dataset_sha256: str | None
 
 
 def build_experiment_plan(
@@ -246,7 +248,7 @@ def load_experiment_evidence(experiment_dir):
         raise ExperimentError(f'experiment plan does not exist: {plan_path}') from exc
     except json.JSONDecodeError as exc:
         raise ExperimentError(f'invalid experiment plan: {plan_path}') from exc
-    experiment_complete = _verify_experiment_completion(root, plan)
+    completion = _verify_experiment_completion(root, plan)
 
     environment_path = root / ENVIRONMENT_FILENAME
     try:
@@ -316,7 +318,9 @@ def load_experiment_evidence(experiment_dir):
         plan=plan,
         environment=environment,
         measured_trials=tuple(measured_trials),
-        experiment_complete=experiment_complete,
+        experiment_complete=completion is not None,
+        dataset_path=(root / completion['dataset']) if completion else None,
+        dataset_sha256=completion['dataset_sha256'] if completion else None,
     )
 
 
@@ -671,35 +675,35 @@ def _verify_experiment_completion(root, plan):
     try:
         completion = json.loads(path.read_text(encoding='utf-8'))
     except (FileNotFoundError, json.JSONDecodeError):
-        return False
+        return None
     if completion.get('experiment_id') != plan['experiment_id']:
-        return False
+        return None
     if completion.get('plan_sha256') != _file_sha256(root / PLAN_FILENAME):
-        return False
+        return None
     dataset = completion.get('dataset')
     if not isinstance(dataset, str):
-        return False
+        return None
     dataset_path = root / dataset
     try:
         dataset_manifest = verify_dataset_bundle(dataset_path)
     except DatasetError:
-        return False
+        return None
     if dataset_manifest['dataset_sha256'] != completion.get('dataset_sha256'):
-        return False
+        return None
     if _file_sha256(manifest_path_for(dataset_path)) != completion.get(
         'dataset_manifest_sha256'
     ):
-        return False
+        return None
     expected_trials = completion.get('trial_completion_sha256', {})
     for trial in plan['schedule']['trials']:
         complete_path = root / 'trials' / trial['trial_id'] / 'complete.json'
         if not complete_path.is_file():
-            return False
+            return None
         if _file_sha256(complete_path) != expected_trials.get(trial['trial_id']):
-            return False
+            return None
         if _verified_trial(root, trial) is None:
-            return False
-    return True
+            return None
+    return completion
 
 
 def _recover_interrupted_attempts(root, plan):

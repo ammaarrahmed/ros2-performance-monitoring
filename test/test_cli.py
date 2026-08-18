@@ -462,6 +462,7 @@ def test_experiment_compare_writes_report_and_returns_documented_outcome(
         plan={'experiment_id': 'experiment-cli-compare'},
         measured_trials=(measured_trial,),
         experiment_complete=True,
+        dataset_sha256='d' * 64,
     )
     received = {}
 
@@ -505,6 +506,7 @@ def test_experiment_compare_writes_report_and_returns_documented_outcome(
             'bootstrap_repeats': 500,
             'seed': 41,
             'minimum_trials': 4,
+            'dataset_sha256': 'd' * 64,
         },
     }
     captured = capsys.readouterr()

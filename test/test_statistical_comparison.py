@@ -263,6 +263,10 @@ def test_fixed_seed_produces_byte_identical_versioned_reports():
         second, sort_keys=True, separators=(',', ':')
     )
     assert first['schema_version'] == REPORT_SCHEMA_VERSION
+    assert first['dataset'] == {
+        'sha256': None,
+        'experiment_id': 'experiment-statistics-test',
+    }
     assert first['analysis'] == {
         'method': METHOD,
         'confidence_level': 0.95,
