@@ -194,6 +194,35 @@ def test_runner_pins_container_to_requested_cpus(tmp_path, monkeypatch):
     )
 
 
+def test_runner_persists_subprocess_output_when_log_path_is_requested(
+    tmp_path,
+    monkeypatch,
+):
+    image_spec = _image_spec()
+    log_path = tmp_path / 'trial.log'
+
+    def fake_run(cmd, check, **kwargs):
+        stream = kwargs.get('stdout')
+        if stream is not None:
+            stream.write(f'command output: {cmd[0]} {cmd[1]}\n')
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, 'run', fake_run)
+
+    benchmark_runner(
+        results_dir=str(tmp_path / 'results'),
+        benchmark_option='service-rclcpp-minimal',
+        duration=1,
+        image_spec=image_spec,
+        executor='EventsCBGExecutor',
+        log_path=log_path,
+    )
+
+    contents = log_path.read_text()
+    assert 'command output: docker run' in contents
+    assert 'command output: docker exec' in contents
+
+
 def test_runner_reuses_compatible_retained_container(tmp_path, monkeypatch):
     calls = []
     image_spec = _image_spec()

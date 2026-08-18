@@ -137,6 +137,7 @@ def benchmark_runner(
     executor: str,
     keep_container: bool = False,
     cpuset_cpus: str | None = None,
+    log_path: str | Path | None = None,
 ) -> None:
     ros_distro = image_spec.ros_distro
     results_absolute_path = Path(results_dir).expanduser().resolve()
@@ -196,11 +197,19 @@ def benchmark_runner(
             results_mount,
             cpuset_cpus,
         )
-        subprocess.run(['docker', 'start', container_name], check=True)
+        _run_subprocess(
+            ['docker', 'start', container_name],
+            check=True,
+            log_path=log_path,
+        )
         print(f'Reusing retained benchmark container: {container_name}')
     else:
-        subprocess.run(['docker', 'rm', '-f', container_name], check=False)
-        subprocess.run(cmd, check=True)
+        _run_subprocess(
+            ['docker', 'rm', '-f', container_name],
+            check=False,
+            log_path=log_path,
+        )
+        _run_subprocess(cmd, check=True, log_path=log_path)
 
     try:
         verify_benchmark_container(image_spec)
@@ -223,18 +232,37 @@ def benchmark_runner(
                 f'{container_results_dir}/.ros2_performance_monitoring/{config_name}',
             ]
             print(f'Starting {label} inside container...')
-            subprocess.run(exec_cmd, check=True)
+            _run_subprocess(exec_cmd, check=True, log_path=log_path)
         print('Benchmark Completed Successfully :)')
     finally:
-        subprocess.run(
+        _run_subprocess(
             [
                 'docker', 'exec', container_name, 'chown', '-R', host_owner,
                 str(container_results_dir),
             ],
             check=False,
+            log_path=log_path,
         )
         if not keep_container:
-            subprocess.run(['docker', 'rm', '-f', container_name], check=False)
+            _run_subprocess(
+                ['docker', 'rm', '-f', container_name],
+                check=False,
+                log_path=log_path,
+            )
+
+
+def _run_subprocess(command, *, check, log_path=None):
+    if log_path is None:
+        return subprocess.run(command, check=check)
+    output = Path(log_path).expanduser().resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open('a', encoding='utf-8') as stream:
+        return subprocess.run(
+            command,
+            check=check,
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+        )
 
 
 def _validate_retained_container(
