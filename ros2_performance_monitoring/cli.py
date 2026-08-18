@@ -138,7 +138,7 @@ def parse_command(args: argparse.Namespace) -> None:
 
 def bring_up_dashboard(args: argparse.Namespace) -> None:
     try:
-        dashboard_up(args.input)
+        dashboard_up(args.input, comparison_report_path=args.comparison_report)
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -152,7 +152,11 @@ def bring_down_dashboard(args: argparse.Namespace) -> None:
 
 def serve_prometheus(args: argparse.Namespace) -> None:
     try:
-        serve_metrics(args.input, args.port)
+        serve_metrics(
+            args.input,
+            args.port,
+            comparison_report_path=args.comparison_report,
+        )
     except (FileNotFoundError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -692,10 +696,18 @@ def main() -> Any:
         required=True,
         help='Normalized metrics JSONL path',
     )
+    dashboard_up_parser.add_argument(
+        '--comparison-report',
+        help='Versioned statistical comparison report path',
+    )
     serve_prometheus_parser.add_argument(
         '--input',
         required=True,
         help='Normalized metrics JSONL path',
+    )
+    serve_prometheus_parser.add_argument(
+        '--comparison-report',
+        help='Versioned statistical comparison report path',
     )
     serve_prometheus_parser.add_argument('--port', type=int, default=9108, help='Exporter port')
     help_parser.set_defaults(

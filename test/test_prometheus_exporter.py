@@ -14,7 +14,9 @@
 
 from copy import deepcopy
 
+from ros2_performance_monitoring.comparison_report import ValidatedComparisonReport
 from ros2_performance_monitoring.exporters.prometheus import records_to_prometheus
+from ros2_performance_monitoring.statistical_comparison import METHOD
 
 
 def test_records_to_prometheus_converts_normalized_metrics():
@@ -137,6 +139,132 @@ def test_incomplete_comparison_statuses_are_exported_for_dashboard_queries():
     ]
     assert len(comparison_lines) == 5
     assert all(line.endswith(' 3') for line in comparison_lines)
+    assert all('method="threshold-only-v1"' in line for line in comparison_lines)
+
+
+def test_statistical_report_exports_only_report_pair_without_recalculating_status():
+    reference = _record('subscription_latency', 100.0, 'us', 'mean')
+    reference.update({
+        'run_id': 'reference-median',
+        'run_kind': 'aggregate',
+        'aggregation_method': 'median',
+        'repeat_count': 3,
+    })
+    candidate = deepcopy(reference)
+    candidate.update({
+        'run_id': 'candidate-median',
+        'numeric_value': 1000.0,
+    })
+    unrelated = deepcopy(reference)
+    unrelated['run_id'] = 'unrelated-run'
+    validated = ValidatedComparisonReport(
+        report=_statistical_report(),
+        reference_run='reference-median',
+        candidate_run='candidate-median',
+    )
+
+    output = records_to_prometheus(
+        [reference, candidate, unrelated],
+        validated,
+    )
+
+    status_lines = [
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_comparison_status{')
+    ]
+    assert len(status_lines) == 5
+    assert all('baseline_run="reference-median"' in line for line in status_lines)
+    assert all('candidate_run="candidate-median"' in line for line in status_lines)
+    assert all('unrelated-run' not in line for line in status_lines)
+    latency = next(line for line in status_lines if 'category="latency"' in line)
+    assert 'evidence_state="No regression"' in latency
+    assert f'method="{METHOD}"' in latency
+    assert latency.endswith(' 0')
+
+    assert (
+        'ros2_perf_comparison_analysis{' in output
+        and 'confidence_level="0.95"' in output
+        and 'repeat_count="3"' in output
+    )
+    assert _evidence_value(output, 'latency', 'point_estimate') == 3.0
+    assert _evidence_value(output, 'latency', 'interval_lower') == 1.0
+    assert _evidence_value(output, 'latency', 'interval_upper') == 5.0
+    assert _evidence_value(output, 'latency', 'possible_threshold') == 0.5
+    assert _evidence_value(output, 'latency', 'regression_threshold') == 2.0
+    assert 'ros2_perf_comparison_scenario_status{' in output
+    assert 'responsible_payload_bytes="10"' in latency
+
+
+def _evidence_value(output, category, statistic):
+    line = next(
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_comparison_evidence{')
+        and f'category="{category}"' in line
+        and f'statistic="{statistic}"' in line
+    )
+    return float(line.rsplit(' ', 1)[1])
+
+
+def _statistical_report():
+    scenario = {
+        'topology': 'pub-sub',
+        'process_mode': 'single_process',
+        'payload_size': 10,
+        'frequency': 200.0,
+        'rmw_implementation': 'rmw_fastrtps_cpp',
+        'communication_mode': 'ipc_off',
+        'executor': 'EventsExecutor',
+        'node_role': '',
+    }
+    latency = {
+        'status': 'No regression',
+        'practical_threshold': {
+            'possible': 0.5,
+            'regression': 2.0,
+            'unit': 'percent',
+        },
+        'point_estimate': 3.0,
+        'confidence_interval': {'lower': 1.0, 'upper': 5.0},
+        'responsible_scenario': scenario,
+        'responsible_metric': {
+            'metric_name': 'subscription_latency',
+            'aggregation': 'mean',
+            'source_unit': 'us',
+        },
+    }
+    not_applicable = {
+        'status': 'N/A',
+        'practical_threshold': None,
+        'point_estimate': None,
+        'confidence_interval': None,
+        'responsible_scenario': None,
+        'responsible_metric': None,
+    }
+    return {
+        'schema_version': 2,
+        'experiment_id': 'experiment-export-test',
+        'dataset': {
+            'sha256': 'd' * 64,
+            'experiment_id': 'experiment-export-test',
+        },
+        'targets': {},
+        'analysis': {
+            'method': METHOD,
+            'confidence_level': 0.95,
+            'measured_trial_pairs': 3,
+        },
+        'overall': deepcopy(latency),
+        'categories': {
+            'latency': deepcopy(latency),
+            'throughput': deepcopy(not_applicable),
+            'resources': deepcopy(not_applicable),
+            'reliability': deepcopy(not_applicable),
+        },
+        'scenarios': [{
+            'identity': scenario,
+            'categories': {'latency': deepcopy(latency)},
+        }],
+    }
 
 
 def _complete_pubsub_run(run_id):

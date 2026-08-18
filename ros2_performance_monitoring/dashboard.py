@@ -16,14 +16,16 @@ import os
 from pathlib import Path
 import subprocess
 
+from ros2_performance_monitoring.exporters.prometheus import load_export_data
 from ros2_performance_monitoring.exporters.prometheus import serve_metrics
 
 
 PACKAGE_NAME = 'ros2_performance_monitoring'
 
 
-def dashboard_up(input_path, port=9108):
+def dashboard_up(input_path, port=9108, comparison_report_path=None):
     input_path = _validate_input(input_path)
+    load_export_data(input_path, comparison_report_path)
     compose_file = _compose_file()
     _compose(compose_file, 'up', '-d')
     print('Grafana: http://localhost:3000')
@@ -31,7 +33,11 @@ def dashboard_up(input_path, port=9108):
     print(f'Exporter: http://localhost:{port}/metrics')
     print('Press Ctrl+C to stop the exporter.')
     print('Run ros2-performance-monitoring dashboard down to stop Prometheus and Grafana.')
-    serve_metrics(input_path, port=port)
+    serve_metrics(
+        input_path,
+        port=port,
+        comparison_report_path=comparison_report_path,
+    )
 
 
 def dashboard_down():
