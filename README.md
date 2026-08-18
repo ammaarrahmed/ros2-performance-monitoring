@@ -590,6 +590,23 @@ Run the Python tests:
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest
 ```
 
+The two-target Docker smoke test is opt-in because it builds source overlays and
+runs six short benchmark trials. Use a dedicated cache and confirm adequate
+memory and disk space first:
+
+```bash
+ROS2_PERFORMANCE_RUN_WORKFLOW_INTEGRATION=1 \
+ROS2_PERFORMANCE_INTEGRATION_CACHE=~/.cache/ros2-performance-monitoring-integration \
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+python3 -m pytest -q test/test_comparison_workflow_integration.py
+```
+
+Override `ROS2_PERFORMANCE_INTEGRATION_REFERENCE_REF`,
+`ROS2_PERFORMANCE_INTEGRATION_CANDIDATE_REF`,
+`ROS2_PERFORMANCE_INTEGRATION_DISTRO`, or
+`ROS2_PERFORMANCE_INTEGRATION_CPUSET` when the defaults are unsuitable for the
+host.
+
 The `ament-copyright`, `ament-flake8`, and `ament-pep257` test helpers are
 provided by the sourced ROS 2 installation.
 

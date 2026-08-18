@@ -708,8 +708,6 @@ def test_experiment_compare_passes_every_workflow_option(monkeypatch, tmp_path):
         '41',
         '--minimum-trials',
         '4',
-        '--dashboard-port',
-        '9200',
         '--results-dir',
         str(tmp_path / 'comparison'),
     ])
@@ -739,7 +737,6 @@ def test_experiment_compare_passes_every_workflow_option(monkeypatch, tmp_path):
         bootstrap_seed=41,
         minimum_trials=4,
         start_dashboard=False,
-        dashboard_port=9200,
     )
 
 

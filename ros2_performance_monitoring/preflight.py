@@ -73,7 +73,7 @@ def run_comparison_preflight(
     )
     architecture = detect_architecture()
     builder = _check_command(
-        ['docker', 'buildx', 'inspect', '--bootstrap'],
+        ['docker', 'buildx', 'inspect'],
         'Docker Buildx builder is not usable',
     )
     platform_name = f'linux/{architecture}'

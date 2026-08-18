@@ -23,6 +23,7 @@ from ros2_performance_monitoring.client_target import ClientLibraryTarget
 import ros2_performance_monitoring.comparison_workflow as workflow
 from ros2_performance_monitoring.config import RunDefaults
 from ros2_performance_monitoring.experiment import prepare_experiment
+from ros2_performance_monitoring.statistical_comparison import CANNOT_COMPARE
 
 
 RCLCPP_REPOSITORY = 'https://github.com/ros2/rclcpp.git'
@@ -342,6 +343,67 @@ def test_completion_manifest_uses_checksums_of_every_final_artifact(tmp_path):
         b'reference'
     ).hexdigest()
     assert completion['report_sha256'] == hashlib.sha256(b'report').hexdigest()
+
+
+def test_reuses_documented_invalid_comparison_without_dashboard_validation(
+    tmp_path,
+    monkeypatch,
+):
+    options = _options(tmp_path)
+    plan = {
+        'experiment_id': 'experiment-invalid',
+        'targets': [
+            {'label': 'reference', 'target_key': 'reference-key'},
+            {'label': 'candidate', 'target_key': 'candidate-key'},
+        ],
+    }
+    report = {
+        'schema_version': 2,
+        'experiment_id': plan['experiment_id'],
+        'dataset': {
+            'sha256': DATASET_SHA,
+            'experiment_id': plan['experiment_id'],
+        },
+        'targets': {
+            'reference': {
+                'label': 'reference',
+                'target_key': 'reference-key',
+                'identity': {},
+            },
+            'candidate': {
+                'label': 'candidate',
+                'target_key': 'candidate-key',
+                'identity': {},
+            },
+        },
+        'analysis': {
+            'confidence_level': options.confidence_level,
+            'bootstrap_repeats': options.bootstrap_repeats,
+            'seed': options.bootstrap_seed,
+            'minimum_measured_trials': options.minimum_trials,
+        },
+        'overall': {'status': CANNOT_COMPARE},
+        'categories': {
+            category: {'status': CANNOT_COMPARE}
+            for category in workflow.CATEGORIES
+        },
+        'scenarios': [],
+    }
+    report_path = tmp_path / workflow.REPORT_FILENAME
+    report_path.write_text(json.dumps(report))
+    monkeypatch.setattr(
+        workflow,
+        'validate_comparison_report',
+        lambda *args: pytest.fail('invalid evidence is not dashboard-exportable'),
+    )
+
+    assert workflow._load_reusable_report(
+        report_path,
+        [],
+        DATASET_SHA,
+        options,
+        plan,
+    ) == report
 
 
 def _options(root, dry_run=False):
