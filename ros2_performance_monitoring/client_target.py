@@ -19,6 +19,8 @@ import re
 import shutil
 import subprocess
 
+from .remote_ref import resolve_remote_commit
+
 
 DEFAULT_RCLCPP_REPOSITORY = 'https://github.com/ros2/rclcpp.git'
 _COMMIT_PATTERN = re.compile(r'[0-9a-fA-F]{7,40}')
@@ -93,6 +95,20 @@ def resolve_rclcpp_target(
         requested_ref=requested_ref,
         resolved_commit=resolved_commit,
         checkout_path=checkout_path,
+    )
+
+
+def resolve_remote_rclcpp_target(
+    repository_url: str,
+    requested_ref: str,
+) -> ClientLibraryTarget:
+    """Resolve rclcpp provenance without creating a persistent checkout."""
+    return ClientLibraryTarget(
+        name='rclcpp',
+        source='build',
+        repository_url=repository_url,
+        requested_ref=requested_ref,
+        resolved_commit=resolve_remote_commit(repository_url, requested_ref),
     )
 
 
