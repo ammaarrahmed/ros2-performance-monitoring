@@ -49,7 +49,11 @@ def test_mocked_end_to_end_workflow_composes_stages_and_reuses_completed_work(
         lambda *args, **kwargs: _call(
             calls,
             'preflight',
-            argparse.Namespace(architecture='amd64'),
+            argparse.Namespace(
+                architecture='amd64',
+                result_filesystem_free_bytes=20 * 1024 ** 3,
+                docker_filesystem_free_bytes=20 * 1024 ** 3,
+            ),
         ),
     )
     monkeypatch.setattr(
@@ -210,7 +214,11 @@ def test_dry_run_resolves_remote_refs_and_writes_nothing(tmp_path, monkeypatch, 
         lambda *args, **kwargs: _call(
             calls,
             'preflight',
-            argparse.Namespace(architecture='amd64'),
+            argparse.Namespace(
+                architecture='amd64',
+                result_filesystem_free_bytes=5 * 1024 ** 3,
+                docker_filesystem_free_bytes=5 * 1024 ** 3,
+            ),
         ),
     )
     monkeypatch.setattr(
@@ -265,6 +273,7 @@ def test_dry_run_resolves_remote_refs_and_writes_nothing(tmp_path, monkeypatch, 
     ]
     assert not root.exists()
     output = capsys.readouterr().out
+    assert 'real build would fail the 10 GiB free-space' in output
     assert 'Dry-run comparison plan:' in output
     assert 'no repositories, images, containers, or artifacts were created' in output
 
