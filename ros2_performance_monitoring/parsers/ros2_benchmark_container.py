@@ -110,6 +110,9 @@ def latest_run_metadata(results_dir):
     if not results_dir.exists():
         raise FileNotFoundError(f'results directory does not exist: {results_dir}')
     files = sorted(results_dir.glob('metadata_*.json'))
+    stable_metadata = results_dir / 'metadata.json'
+    if stable_metadata.is_file():
+        files.append(stable_metadata)
     if not files:
         raise FileNotFoundError(f'no run metadata found in {results_dir}')
     if len(files) > 1:

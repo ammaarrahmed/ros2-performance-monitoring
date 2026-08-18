@@ -14,13 +14,13 @@
 
 import argparse
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 import platform
 import sys
 
 from .benchmark_image import BenchmarkImageSpec
 from .benchmark_image import VerifiedImage
+from .writers.jsonl import write_json
 
 
 def generation_rundata(
@@ -28,7 +28,9 @@ def generation_rundata(
     results_dir: str,
     image_spec: BenchmarkImageSpec,
     verified_image: VerifiedImage,
-) -> None:
+    metadata_filename: str | None = None,
+    run_id: str | None = None,
+) -> Path:
     run_timestamp = datetime.now(timezone.utc)
     file_timestamp = run_timestamp.strftime('%Y%m%d_%H%M%S')
     iso_format = run_timestamp.isoformat()
@@ -47,6 +49,7 @@ def generation_rundata(
             'ros_distro': args.ros_distro,
             'executor': args.executor,
             'duration': args.duration,
+            'suite': getattr(args, 'suite', ''),
             'client_library': client_target.name,
             'cpuset_cpus': args.cpuset_cpus,
         },
@@ -69,10 +72,15 @@ def generation_rundata(
             'target_key': verified_image.target_key,
         },
     }
+    if run_id is not None:
+        run_data['run_id'] = run_id
 
     output_dir = Path(results_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    metadata_file = output_dir / f'metadata_{file_timestamp}.json'
-    with open(metadata_file, 'w') as metadata_stream:
-        json.dump(run_data, metadata_stream, indent=4)
+    filename = metadata_filename or f'metadata_{file_timestamp}.json'
+    if Path(filename).name != filename:
+        raise ValueError('metadata filename must not contain a directory')
+    metadata_file = output_dir / filename
+    write_json(run_data, metadata_file)
     print(f'Run metadata saved to : {output_dir} / {metadata_file}')
+    return metadata_file

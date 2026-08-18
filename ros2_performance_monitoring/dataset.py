@@ -172,6 +172,15 @@ def manifest_path_for(output_path):
     return output.with_suffix('.manifest.json')
 
 
+def validate_normalized_inputs(input_paths):
+    """Validate normalized JSONL files and return their run IDs."""
+    paths = tuple(Path(path).expanduser().resolve() for path in input_paths)
+    if not paths:
+        raise DatasetError('at least one normalized JSONL input is required')
+    runs, _ = _load_inputs(paths)
+    return tuple(sorted(runs))
+
+
 def _write_dataset_and_manifest(records, output, manifest, manifest_path):
     _remove_completion_marker(manifest_path)
     count = write_jsonl(records, output)
