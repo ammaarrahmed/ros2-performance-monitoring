@@ -43,6 +43,10 @@ PLAN_FILENAME = 'plan.json'
 EXPERIMENT_COMPLETE_FILENAME = 'experiment.complete.json'
 ENVIRONMENT_FILENAME = 'measured_environment.json'
 TARGET_LABELS = ('reference', 'candidate')
+ORCHESTRATION_STATE_FILENAMES = frozenset({
+    'workflow.log',
+    'workflow.status.json',
+})
 
 
 class ExperimentError(RuntimeError):
@@ -165,8 +169,12 @@ def run_experiment(
 ):
     """Execute or safely resume an immutable local experiment bundle."""
     root = Path(experiment_dir).expanduser().resolve()
-    plan = _publish_or_validate_plan(root, requested_plan)
-    _validate_runtime_targets(plan, image_specs, verified_images)
+    plan = prepare_experiment(
+        root,
+        requested_plan,
+        image_specs,
+        verified_images,
+    )
     if _verify_experiment_completion(root, plan):
         return ExperimentResult(
             experiment_id=plan['experiment_id'],
@@ -236,6 +244,19 @@ def run_experiment(
         completed_trials=len(completed),
         reused_trials=reused,
     )
+
+
+def prepare_experiment(
+    experiment_dir,
+    requested_plan,
+    image_specs,
+    verified_images,
+):
+    """Publish or validate a plan and its verified runtime target identities."""
+    root = Path(experiment_dir).expanduser().resolve()
+    plan = _publish_or_validate_plan(root, requested_plan)
+    _validate_runtime_targets(plan, image_specs, verified_images)
+    return plan
 
 
 def load_experiment_evidence(experiment_dir):
@@ -588,7 +609,10 @@ def _publish_or_validate_plan(root, requested):
     plan_path = root / PLAN_FILENAME
     root.mkdir(parents=True, exist_ok=True)
     if not plan_path.exists():
-        unexpected = [path for path in root.iterdir() if path.name != PLAN_FILENAME]
+        unexpected = [
+            path for path in root.iterdir()
+            if path.name not in ORCHESTRATION_STATE_FILENAMES | {PLAN_FILENAME}
+        ]
         if unexpected:
             raise ExperimentError(
                 f'cannot create an experiment in non-empty directory without {PLAN_FILENAME}'
