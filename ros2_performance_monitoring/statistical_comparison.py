@@ -28,6 +28,11 @@ DEFAULT_BOOTSTRAP_REPEATS = 10000
 DEFAULT_SEED = 0
 MINIMUM_MEASURED_TRIALS = 3
 
+EXIT_NO_REGRESSION = 0
+EXIT_REGRESSION = 1
+EXIT_INCONCLUSIVE = 2
+EXIT_INVALID_COMPARISON = 3
+
 NO_REGRESSION = 'No regression'
 POSSIBLE_REGRESSION = 'Possible regression'
 REGRESSION = 'Regression'
@@ -66,6 +71,18 @@ class StatisticalComparisonError(ValueError):
     """Report an invalid analysis configuration or malformed experiment plan."""
 
 
+def comparison_exit_code(report):
+    """Map the report's overall evidence status to the documented CLI outcome."""
+    status = report.get('overall', {}).get('status')
+    if status == NO_REGRESSION:
+        return EXIT_NO_REGRESSION
+    if status == REGRESSION:
+        return EXIT_REGRESSION
+    if status in (POSSIBLE_REGRESSION, INSUFFICIENT_EVIDENCE):
+        return EXIT_INCONCLUSIVE
+    return EXIT_INVALID_COMPARISON
+
+
 def build_comparison_report(
     plan,
     trial_records,
@@ -102,6 +119,12 @@ def build_comparison_report(
             CANNOT_COMPARE,
             'selected reference or candidate is not present in the experiment plan',
         )
+    compatibility_error = _target_compatibility_error(
+        targets[reference],
+        targets[candidate],
+    )
+    if compatibility_error:
+        return _invalid_report(report, CANNOT_COMPARE, compatibility_error)
     report['targets'] = {
         'reference': _target_report(targets[reference]),
         'candidate': _target_report(targets[candidate]),
@@ -157,8 +180,13 @@ def _validate_analysis_options(confidence_level, bootstrap_repeats, seed, minimu
         raise StatisticalComparisonError('bootstrap repeat count must be a positive integer')
     if type(seed) is not int:
         raise StatisticalComparisonError('bootstrap seed must be an integer')
-    if type(minimum_trials) is not int or minimum_trials < 2:
-        raise StatisticalComparisonError('minimum trial count must be at least 2')
+    if (
+        type(minimum_trials) is not int
+        or minimum_trials < MINIMUM_MEASURED_TRIALS
+    ):
+        raise StatisticalComparisonError(
+            f'minimum trial count must be at least {MINIMUM_MEASURED_TRIALS}'
+        )
 
 
 def _report_skeleton(
@@ -208,6 +236,8 @@ def _target_map(plan):
     for target in targets:
         if not isinstance(target, dict) or not isinstance(target.get('label'), str):
             return {}
+        if target['label'] in mapped:
+            return {}
         mapped[target['label']] = target
     return mapped
 
@@ -218,6 +248,26 @@ def _target_report(target):
         'target_key': target.get('target_key'),
         'identity': target.get('identity'),
     }
+
+
+def _target_compatibility_error(reference, candidate):
+    if reference.get('target_key') == candidate.get('target_key'):
+        return 'reference and candidate resolve to the same target identity'
+    reference_identity = reference.get('identity')
+    candidate_identity = candidate.get('identity')
+    if not isinstance(reference_identity, dict) or not isinstance(candidate_identity, dict):
+        return 'selected targets have incomplete identity provenance'
+    reference_common = {
+        key: value for key, value in reference_identity.items()
+        if key != 'client_library'
+    }
+    candidate_common = {
+        key: value for key, value in candidate_identity.items()
+        if key != 'client_library'
+    }
+    if reference_common != candidate_common:
+        return 'selected targets have incompatible benchmark provenance'
+    return None
 
 
 def _paired_trials(plan, reference, candidate):
@@ -463,9 +513,9 @@ def _analyse_metrics(report, metric_pairs):
             'pairs': pairs,
         })
 
-    category_distributions = {category: None for category in CATEGORIES}
-    category_points = {category: None for category in CATEGORIES}
-    category_responsible = {category: None for category in CATEGORIES}
+    category_distributions = dict.fromkeys(CATEGORIES)
+    category_points = dict.fromkeys(CATEGORIES)
+    category_responsible = dict.fromkeys(CATEGORIES)
     overall_distribution = None
     overall_point = None
     overall_responsible = None
@@ -577,18 +627,23 @@ def _analyse_metrics(report, metric_pairs):
     category_statuses = {
         evidence['status'] for evidence in report['categories'].values()
     }
-    if REGRESSION in category_statuses:
+    if lower > 1.0:
         overall_status = REGRESSION
-    elif POSSIBLE_REGRESSION in category_statuses:
+    elif POSSIBLE_REGRESSION in category_statuses or upper >= 1.0:
         overall_status = POSSIBLE_REGRESSION
     else:
         overall_status = NO_REGRESSION
     report['overall'] = {
         'status': overall_status,
         'practical_threshold': {
-            'possible': 1.0,
             'regression': 1.0,
             'unit': 'category_regression_threshold_multiple',
+            'possible_by_category': {
+                category: _clean_float(
+                    thresholds.possible / thresholds.regression
+                )
+                for category, thresholds in CATEGORY_THRESHOLDS.items()
+            },
         },
         'point_estimate': _clean_float(overall_point),
         'confidence_interval': _interval_report(lower, upper),

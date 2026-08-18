@@ -14,6 +14,7 @@
 
 import argparse
 import importlib
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -26,6 +27,11 @@ from ros2_performance_monitoring.config import RunDefaults
 from ros2_performance_monitoring.container_provider import get_default_container_repo
 from ros2_performance_monitoring.dataset import DatasetBuildResult
 from ros2_performance_monitoring.dataset import DatasetError
+from ros2_performance_monitoring.experiment import ExperimentError
+from ros2_performance_monitoring.statistical_comparison import CANNOT_COMPARE
+from ros2_performance_monitoring.statistical_comparison import INSUFFICIENT_EVIDENCE
+from ros2_performance_monitoring.statistical_comparison import NO_REGRESSION
+from ros2_performance_monitoring.statistical_comparison import REGRESSION
 
 pytestmark = pytest.mark.smoke
 
@@ -88,6 +94,7 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         'parse',
         'dataset build',
         'experiment run',
+        'experiment compare',
         'dashboard up',
         'dashboard down',
         'serve-prometheus',
@@ -425,6 +432,107 @@ def test_experiment_requires_source_refs_before_repository_setup(monkeypatch):
     ])
 
     assert cli.main() == 1
+
+
+@pytest.mark.parametrize(
+    ('status', 'exit_code'),
+    (
+        (NO_REGRESSION, 0),
+        (REGRESSION, 1),
+        (INSUFFICIENT_EVIDENCE, 2),
+        (CANNOT_COMPARE, 3),
+    ),
+)
+def test_experiment_compare_writes_report_and_returns_documented_outcome(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    status,
+    exit_code,
+):
+    importlib.reload(cli)
+    experiment_dir = tmp_path / 'experiment'
+    experiment_dir.mkdir()
+    measured_trial = argparse.Namespace(
+        trial_id='candidate-measured-001',
+        records=({'run_id': 'candidate-measured-001'},),
+    )
+    completed = argparse.Namespace(
+        experiment_dir=experiment_dir,
+        plan={'experiment_id': 'experiment-cli-compare'},
+        measured_trials=(measured_trial,),
+    )
+    received = {}
+
+    monkeypatch.setattr(cli, 'load_completed_experiment', lambda path: completed)
+
+    def fake_report(plan, records, **options):
+        received.update({'plan': plan, 'records': records, 'options': options})
+        return {'schema_version': 1, 'overall': {'status': status}}
+
+    monkeypatch.setattr(cli, 'build_comparison_report', fake_report)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'compare',
+        str(experiment_dir),
+        '--reference',
+        'candidate',
+        '--candidate',
+        'reference',
+        '--confidence-level',
+        '0.9',
+        '--bootstrap-repeats',
+        '500',
+        '--seed',
+        '41',
+        '--minimum-trials',
+        '4',
+    ])
+
+    assert cli.main() == exit_code
+
+    output = experiment_dir / 'comparison-report.json'
+    assert json.loads(output.read_text())['overall']['status'] == status
+    assert received == {
+        'plan': completed.plan,
+        'records': {'candidate-measured-001': measured_trial.records},
+        'options': {
+            'reference': 'candidate',
+            'candidate': 'reference',
+            'confidence_level': 0.9,
+            'bootstrap_repeats': 500,
+            'seed': 41,
+            'minimum_trials': 4,
+        },
+    }
+    captured = capsys.readouterr()
+    assert f'Comparison status: {status}' in captured.out
+    assert f'Wrote comparison report to {output}' in captured.out
+
+
+def test_experiment_compare_rejects_unverified_bundle_without_writing_report(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    importlib.reload(cli)
+    experiment_dir = tmp_path / 'experiment'
+
+    def fail_load(_path):
+        raise ExperimentError('experiment is incomplete')
+
+    monkeypatch.setattr(cli, 'load_completed_experiment', fail_load)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'compare',
+        str(experiment_dir),
+    ])
+
+    assert cli.main() == 3
+    assert not (experiment_dir / 'comparison-report.json').exists()
+    assert 'Invalid comparison: experiment is incomplete' in capsys.readouterr().err
 
 
 def test_run_with_default_smoke(monkeypatch):
