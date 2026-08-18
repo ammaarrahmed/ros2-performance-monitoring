@@ -119,7 +119,7 @@ def validate_comparison_report(report, records, dataset_checksum):
     targets = _validate_targets(report['targets'])
     _validate_evidence(report['overall'], 'overall')
     categories = report['categories']
-    if not isinstance(categories, dict) or tuple(categories) != CATEGORIES:
+    if not isinstance(categories, dict) or set(categories) != set(CATEGORIES):
         raise ComparisonReportError('comparison report category coverage is invalid')
     for category, evidence in categories.items():
         _validate_evidence(evidence, f'category {category}')
@@ -247,7 +247,7 @@ def _validate_scenarios(scenarios):
         if not isinstance(scenario, dict) or set(scenario) != {'identity', 'categories'}:
             raise ComparisonReportError('comparison report scenario is malformed')
         identity = scenario['identity']
-        if not isinstance(identity, dict) or tuple(identity) != SCENARIO_FIELDS:
+        if not isinstance(identity, dict) or set(identity) != set(SCENARIO_FIELDS):
             raise ComparisonReportError('comparison report scenario identity is malformed')
         identity_key = tuple(identity[field] for field in SCENARIO_FIELDS)
         if identity_key in identities:
