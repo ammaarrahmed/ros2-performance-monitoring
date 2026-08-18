@@ -20,6 +20,7 @@ This keeps the project focused on:
 - Content-addressed local benchmark images and containers.
 - Immutable experiment plans and repeated-trial bundle orchestration.
 - Repeat-aware local statistical comparison reports.
+- End-to-end local per-commit workflow orchestration and completion evidence.
 
 It avoids taking ownership of:
 
@@ -32,16 +33,39 @@ It avoids taking ownership of:
 The design uses a small adapter boundary:
 
 ```text
-resolved benchmark + rclcpp target
+focused host preflight
+  -> remotely resolved dry-run plan, or persistent benchmark + rclcpp targets
   -> labelled image + in-image target manifest
   -> verified container runner
   -> staged trial (raw artifacts + metadata + normalized JSONL)
   -> checksum-verified trial completion
   -> validated comparison dataset + experiment completion
      -> paired measured-trial bootstrap -> comparison-report.json
+     -> cross-artifact validation -> comparison.complete.json
      -> report validation + Prometheus mapping -> Prometheus -> Grafana
      -> legacy threshold-only comparison -> Prometheus -> Grafana
 ```
+
+The comparison workflow is a thin coordinator over the target resolver and
+builder, immutable experiment runner, dataset builder, statistical comparison
+engine, report validator, and dashboard command. It does not reimplement their
+identity, scheduling, parsing, aggregation, statistical, or export policies.
+Before persistent repository preparation it checks required executables, Docker
+daemon and Buildx availability, native architecture support, disk space,
+CPU-set syntax, and result-directory access. Compose and port checks are added
+only when dashboard startup is requested. Dry-run resolution uses `git
+ls-remote`, so it can print exact commits, image keys, trial order,
+configuration, and output paths without cloning build contexts or publishing an
+experiment.
+
+During a real run, `workflow.status.json` and `workflow.log` retain the current
+stage and operational failure. The immutable plan and local verified-target
+manifests are published before trial execution. Existing image and trial
+verification remains authoritative for resume; only incomplete work is retried.
+After report generation, the workflow validates the experiment identity,
+dataset checksum, report binding, both target keys, and local image manifests.
+`comparison.complete.json` is published last and checksums every final contract
+artifact, leaving local files suitable for later CI upload without conversion.
 
 The target key is a SHA-256 digest over the ROS distribution, architecture,
 benchmark repository commit, client-library source and commit, and relevant

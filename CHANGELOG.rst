@@ -4,6 +4,9 @@ Changelog for package ros2_performance_monitoring
 
 0.0.0 (unreleased)
 ------------------
+* Added one-command per-commit rclcpp comparison orchestration with focused
+  preflight, non-persistent dry runs, safe resume, cross-artifact validation,
+  operational logs, and a checksum-bound completion manifest.
 * Added independently calculated Pub/Sub and Service statistical summaries for
   mixed benchmark reports and topology-matched dashboard evidence.
 * Added dataset-bound statistical comparison export and Grafana evidence views,
