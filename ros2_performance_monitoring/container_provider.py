@@ -18,6 +18,8 @@ import shutil
 import subprocess
 from typing import Optional, Tuple
 
+from .remote_ref import resolve_remote_commit
+
 CONTAINER_REPOS_FILE: Path = Path(__file__).with_name('ros2_benchmark_container.repos')
 
 
@@ -32,6 +34,11 @@ def get_default_container_repo() -> Tuple[Optional[str], Optional[str]]:
             if stripped_line.startswith('version:'):
                 repo_version = stripped_line.split(':', 1)[1].strip()
     return repo_url, repo_version
+
+
+def resolve_container_repo_ref(container_repo_url: str, container_ref: str) -> str:
+    """Resolve benchmark-container provenance without checking out its sources."""
+    return resolve_remote_commit(container_repo_url, container_ref)
 
 
 def update_existing_cache_remote(absolute_path: Path, container_repo_url: str) -> None:

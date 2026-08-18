@@ -111,7 +111,7 @@ def build_experiment_plan(
         raise ExperimentError(f'unsupported trial order: {order!r}')
     if type(seed) is not int:
         raise ExperimentError('scheduling seed must be an integer')
-    _selected_cpus(cpuset_cpus)
+    validate_cpuset_cpus(cpuset_cpus)
 
     targets = []
     for label in TARGET_LABELS:
@@ -783,7 +783,8 @@ def _cpu_governors(cpuset_cpus):
     return governors
 
 
-def _selected_cpus(expression):
+def validate_cpuset_cpus(expression):
+    """Validate a Docker CPU-set expression and return its selected CPUs."""
     if not expression:
         return None
     selected = set()
@@ -799,6 +800,10 @@ def _selected_cpus(expression):
     except ValueError as exc:
         raise ExperimentError(f'invalid CPU-set expression: {expression!r}') from exc
     return selected
+
+
+def _selected_cpus(expression):
+    return validate_cpuset_cpus(expression)
 
 
 def _file_sha256(path):
