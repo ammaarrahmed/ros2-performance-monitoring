@@ -60,6 +60,27 @@ class ExperimentResult:
     reused_trials: int
 
 
+@dataclass(frozen=True)
+class CompletedTrial:
+    """Expose one verified measured trial to repeat-aware analysis."""
+
+    trial_id: str
+    target: str
+    sequence: int
+    planned_order: int
+    records: tuple[dict, ...]
+
+
+@dataclass(frozen=True)
+class CompletedExperiment:
+    """Expose the immutable plan and its verified measured trial records."""
+
+    experiment_dir: Path
+    plan: dict
+    environment: dict
+    measured_trials: tuple[CompletedTrial, ...]
+
+
 def build_experiment_plan(
     image_specs,
     verified_images,
@@ -211,6 +232,91 @@ def run_experiment(
         dataset_path=dataset_path,
         completed_trials=len(completed),
         reused_trials=reused,
+    )
+
+
+def load_completed_experiment(experiment_dir):
+    """Load only checksum-verified measured trials from a completed experiment."""
+    root = Path(experiment_dir).expanduser().resolve()
+    plan_path = root / PLAN_FILENAME
+    try:
+        plan = json.loads(plan_path.read_text(encoding='utf-8'))
+    except FileNotFoundError as exc:
+        raise ExperimentError(f'experiment plan does not exist: {plan_path}') from exc
+    except json.JSONDecodeError as exc:
+        raise ExperimentError(f'invalid experiment plan: {plan_path}') from exc
+    if not _verify_experiment_completion(root, plan):
+        raise ExperimentError(
+            'experiment is incomplete or failed completion verification: '
+            f'{root}'
+        )
+
+    environment_path = root / ENVIRONMENT_FILENAME
+    try:
+        environment = json.loads(environment_path.read_text(encoding='utf-8'))
+    except FileNotFoundError as exc:
+        raise ExperimentError(
+            f'measured environment evidence does not exist: {environment_path}'
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise ExperimentError(
+            f'invalid measured environment evidence: {environment_path}'
+        ) from exc
+    expected_environment_fields = {
+        'architecture',
+        'cpu_model',
+        'kernel',
+        'docker_version',
+        'cpuset_cpus',
+        'cpu_governors',
+    }
+    if set(environment) != expected_environment_fields:
+        raise ExperimentError(
+            f'invalid measured environment evidence: {environment_path}'
+        )
+    if environment['cpuset_cpus'] != plan.get('configuration', {}).get('cpuset_cpus'):
+        raise ExperimentError('measured environment does not match experiment configuration')
+
+    measured_trials = []
+    for trial in plan.get('schedule', {}).get('trials', ()):
+        if trial.get('kind') != 'measured':
+            continue
+        verified = _verified_trial(root, trial)
+        if verified is None:
+            raise ExperimentError(
+                f'measured trial failed completion verification: {trial.get("trial_id")}'
+            )
+        normalized_path = verified['normalized_path']
+        try:
+            records = tuple(
+                json.loads(line)
+                for line in normalized_path.read_text(encoding='utf-8').splitlines()
+                if line.strip()
+            )
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ExperimentError(
+                f'measured trial contains invalid normalized data: {normalized_path}'
+            ) from exc
+        measured_records = tuple(
+            record for record in records
+            if record.get('run_kind', 'measured') == 'measured'
+        )
+        if not measured_records:
+            raise ExperimentError(
+                f'measured trial contains no measured records: {trial["trial_id"]}'
+            )
+        measured_trials.append(CompletedTrial(
+            trial_id=trial['trial_id'],
+            target=trial['target'],
+            sequence=trial['sequence'],
+            planned_order=trial['planned_order'],
+            records=measured_records,
+        ))
+    return CompletedExperiment(
+        experiment_dir=root,
+        plan=plan,
+        environment=environment,
+        measured_trials=tuple(measured_trials),
     )
 
 
