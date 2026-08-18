@@ -60,6 +60,7 @@ def _write_chunks_atomically(chunks, output_path):
         os.fsync(stream.fileno())
         stream.close()
         os.replace(temporary_path, output_path)
+        _fsync_directory(output_path.parent)
     except BaseException:
         if not stream.closed:
             try:
@@ -72,6 +73,14 @@ def _write_chunks_atomically(chunks, output_path):
             pass
         raise
     return count
+
+
+def _fsync_directory(directory):
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _serialize_records(records):
