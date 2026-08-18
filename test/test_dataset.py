@@ -20,6 +20,7 @@ from ros2_performance_monitoring import dataset as dataset_module
 from ros2_performance_monitoring.dataset import build_dataset
 from ros2_performance_monitoring.dataset import DatasetError
 from ros2_performance_monitoring.dataset import manifest_path_for
+from ros2_performance_monitoring.dataset import verify_dataset_bundle
 from ros2_performance_monitoring.exporters.prometheus import load_records
 from ros2_performance_monitoring.exporters.prometheus import records_to_prometheus
 
@@ -46,6 +47,8 @@ def test_combines_runs_deterministically_and_records_input_lineage(tmp_path):
     assert output.read_bytes() == first_bytes
     assert manifest_path_for(output).read_bytes() == first_manifest
     assert manifest['aggregation_method'] == 'none'
+    assert manifest['manifest_version'] == 2
+    assert manifest['dataset_sha256'] == hashlib.sha256(output.read_bytes()).hexdigest()
     assert manifest['aggregates'] == []
     assert [item['path'] for item in manifest['inputs']] == sorted((str(run_a), str(run_b)))
     assert manifest['inputs'][0]['sha256'] == hashlib.sha256(run_a.read_bytes()).hexdigest()
@@ -143,7 +146,7 @@ def test_rejects_conflicting_run_provenance_without_replacing_output(tmp_path):
 
 
 @pytest.mark.parametrize('existing_manifest', (False, True))
-def test_output_failure_restores_previous_manifest(
+def test_output_failure_removes_completion_marker(
     tmp_path,
     monkeypatch,
     existing_manifest,
@@ -157,10 +160,8 @@ def test_output_failure_restores_previous_manifest(
 
     if existing_manifest:
         build_dataset([old_input], output)
-        previous_manifest = manifest_path.read_bytes()
     else:
         output.write_text('existing output\n')
-        previous_manifest = None
     previous_output = output.read_bytes()
 
     def fail_jsonl_write(_records, _output):
@@ -172,10 +173,42 @@ def test_output_failure_restores_previous_manifest(
         build_dataset([new_input], output)
 
     assert output.read_bytes() == previous_output
-    if previous_manifest is None:
-        assert not manifest_path.exists()
-    else:
-        assert manifest_path.read_bytes() == previous_manifest
+    assert not manifest_path.exists()
+
+
+def test_manifest_failure_leaves_new_dataset_without_completion_marker(
+    tmp_path,
+    monkeypatch,
+):
+    input_path = tmp_path / 'input.jsonl'
+    output = tmp_path / 'dataset.jsonl'
+    _write_records(input_path, [_record('run-a', 1.0)])
+
+    def fail_manifest_write(_manifest, _path):
+        raise OSError('simulated manifest write failure')
+
+    monkeypatch.setattr(dataset_module, 'write_json', fail_manifest_write)
+
+    with pytest.raises(OSError, match='simulated manifest write failure'):
+        build_dataset([input_path], output)
+
+    assert output.exists()
+    assert not manifest_path_for(output).exists()
+
+
+def test_bundle_verification_rejects_dataset_changed_after_publication(tmp_path):
+    input_path = tmp_path / 'input.jsonl'
+    output = tmp_path / 'dataset.jsonl'
+    _write_records(input_path, [_record('run-a', 1.0)])
+    build_dataset([input_path], output)
+
+    manifest = verify_dataset_bundle(output)
+    assert manifest['dataset_sha256'] == hashlib.sha256(output.read_bytes()).hexdigest()
+
+    output.write_text('changed after publication\n')
+
+    with pytest.raises(DatasetError, match='checksum does not match'):
+        verify_dataset_bundle(output)
 
 
 def test_rejects_run_id_spread_across_input_files(tmp_path):

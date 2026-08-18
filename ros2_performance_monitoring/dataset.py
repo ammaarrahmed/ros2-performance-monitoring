@@ -26,7 +26,6 @@ from ros2_performance_monitoring.model import MetricRecord
 from ros2_performance_monitoring.model import SUPPORTED_SCHEMA_VERSIONS
 from ros2_performance_monitoring.writers.jsonl import write_json
 from ros2_performance_monitoring.writers.jsonl import write_jsonl
-from ros2_performance_monitoring.writers.jsonl import write_text
 
 
 AGGREGATION_FIELDS = frozenset({
@@ -83,7 +82,6 @@ METRIC_IDENTITY_FIELDS = SCENARIO_IDENTITY_FIELDS + (
     'unit',
     'aggregation',
 )
-_MISSING_MANIFEST = object()
 
 
 class DatasetError(ValueError):
@@ -175,23 +173,46 @@ def manifest_path_for(output_path):
 
 
 def _write_dataset_and_manifest(records, output, manifest, manifest_path):
-    try:
-        previous_manifest = manifest_path.read_text(encoding='utf-8')
-    except FileNotFoundError:
-        previous_manifest = _MISSING_MANIFEST
+    _remove_completion_marker(manifest_path)
+    count = write_jsonl(records, output)
+    completed_manifest = {
+        **manifest,
+        'dataset_sha256': hashlib.sha256(output.read_bytes()).hexdigest(),
+    }
+    write_json(completed_manifest, manifest_path)
+    return count
 
-    write_json(manifest, manifest_path)
+
+def verify_dataset_bundle(output_path):
+    """Return a verified dataset manifest or reject an incomplete bundle."""
+    output = Path(output_path).expanduser().resolve()
+    manifest_path = manifest_path_for(output)
     try:
-        return write_jsonl(records, output)
-    except BaseException:
-        try:
-            if previous_manifest is _MISSING_MANIFEST:
-                manifest_path.unlink()
-            else:
-                write_text(previous_manifest, manifest_path)
-        except BaseException:
-            pass
-        raise
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    except FileNotFoundError as exc:
+        raise DatasetError(f'dataset completion manifest does not exist: {manifest_path}') from exc
+    except json.JSONDecodeError as exc:
+        raise DatasetError(f'invalid dataset completion manifest: {manifest_path}') from exc
+    if manifest.get('manifest_version') != 2:
+        raise DatasetError(
+            f'unsupported dataset manifest version: {manifest.get("manifest_version")!r}'
+        )
+    if manifest.get('dataset') != output.name:
+        raise DatasetError(f'dataset manifest does not describe {output.name}')
+    try:
+        checksum = hashlib.sha256(output.read_bytes()).hexdigest()
+    except FileNotFoundError as exc:
+        raise DatasetError(f'dataset output does not exist: {output}') from exc
+    if manifest.get('dataset_sha256') != checksum:
+        raise DatasetError(f'dataset checksum does not match completion manifest: {output}')
+    return manifest
+
+
+def _remove_completion_marker(manifest_path):
+    try:
+        manifest_path.unlink()
+    except FileNotFoundError:
+        return
 
 
 def _resolve_inputs(input_paths, output, manifest_path):
@@ -523,7 +544,7 @@ def _build_manifest(
 ):
     selected_ids = frozenset(selected_runs)
     return {
-        'manifest_version': 1,
+        'manifest_version': 2,
         'dataset': output.name,
         'aggregation_method': aggregate or 'none',
         'excluded_run_ids': sorted(excluded),
