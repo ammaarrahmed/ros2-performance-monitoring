@@ -8,7 +8,7 @@ initial service visibility for request/response latency, CPU, and RSS metrics.
 
 - Docker is installed and running.
 - Docker Compose plugin is installed.
-- Ports `3000`, `9090`, and `9108` are available.
+- Ports `3000`, `9090`, and `9108` are available when starting the dashboard.
 - At least two per-run `normalized_metrics.jsonl` files exist.
 
 ## Expected Input
@@ -45,6 +45,21 @@ The dashboard does not run benchmarks or parse raw artifacts. It starts from the
 normalized JSONL file. A schema-v3 `comparison-report.json` from `experiment
 compare` may be supplied beside an experiment dataset; otherwise the exporter
 uses the deterministic threshold-only comparison policy described below.
+
+The supported per-commit workflow prints the exact matching dashboard command
+after it creates and validates both files:
+
+```bash
+ros2-performance-monitoring experiment compare \
+  --reference-ref <reference-rclcpp-ref> \
+  --candidate-ref <candidate-rclcpp-ref> \
+  --results-dir <experiment-dir>
+```
+
+Add `--start-dashboard` to start it immediately after comparison. The workflow
+checks Docker Compose and ports `3000`, `9090`, and `9108` only in that mode; a
+comparison that only writes local artifacts does not require free dashboard
+ports. Use `--dashboard-port` to select a different exporter port.
 
 ## Start
 

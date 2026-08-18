@@ -1,8 +1,10 @@
 # Repeat-Aware Statistical Comparison
 
-`experiment compare` produces statistical evidence from a controlled
-experiment. A completed report can be supplied to the exporter and dashboard;
-without one, the dashboard retains its legacy point-estimate policy.
+The end-to-end `experiment compare` workflow produces statistical evidence from
+a controlled experiment. `experiment report` exposes the same report stage for
+an existing experiment bundle. A completed report can be supplied to the
+exporter and dashboard; without one, the dashboard retains its legacy
+point-estimate policy.
 
 ## Run The Comparison
 
@@ -10,7 +12,7 @@ Create a balanced experiment with at least three measured trials per target,
 then compare its two plan labels:
 
 ```bash
-ros2-performance-monitoring experiment compare <experiment-dir>
+ros2-performance-monitoring experiment report <experiment-dir>
 ```
 
 The default output is `<experiment-dir>/comparison-report.json`. Use `--output`
@@ -18,7 +20,7 @@ to write elsewhere. The reference and candidate default to the corresponding
 plan labels; they can be reversed without rerunning the benchmark:
 
 ```bash
-ros2-performance-monitoring experiment compare <experiment-dir> \
+ros2-performance-monitoring experiment report <experiment-dir> \
   --reference candidate \
   --candidate reference
 ```
@@ -201,5 +203,7 @@ missing or failed planned trials instead produce an `Incomplete results` report.
 | `4` | Operational failure while loading, validating, or writing evidence |
 
 These codes let local automation consume the decision without parsing terminal
-text. CI policy, hosted storage, and automatic pull-request gating remain
-outside this feature.
+text. The end-to-end command additionally returns `4` for operational failures
+such as preflight, source resolution, image build, trial execution, dataset
+publication, final validation, or dashboard startup. CI policy, hosted storage,
+and automatic pull-request gating remain outside this feature.

@@ -37,7 +37,7 @@ RMW implementation, communication mode, and payload size.
   `sudo`.
 - Docker Compose and Docker Buildx plugins are installed.
 - Docker has several GB of free disk space for the ROS 2 benchmark image.
-- Ports `3000`, `9090`, and `9108` are free.
+- Ports `3000`, `9090`, and `9108` are free when starting the dashboard.
 
 From the repository root, create a virtual environment and install the command:
 
@@ -166,47 +166,67 @@ results/benchmark/lyrical/cli-srv_multi_process/...
 
 ### Run A Controlled Repeated Comparison
 
-Use an experiment bundle when comparing two exact rclcpp targets. The command
-below creates one warm-up and three measured trials per target, schedules the
-targets in a deterministic balanced order, and builds the comparison dataset
-automatically:
+`experiment compare` is the supported local per-commit workflow. It resolves
+both rclcpp refs, prepares exact verified images, runs or resumes the experiment,
+builds the dataset, generates repeat-aware evidence, validates every identity
+and checksum, and prints the matching dashboard command:
 
 ```bash
-ros2-performance-monitoring experiment run ./experiments/rclcpp-change \
+ros2-performance-monitoring experiment compare \
   --reference-ref <reference-rclcpp-commit> \
   --candidate-ref <candidate-rclcpp-commit> \
+  --ros-distro rolling \
   --suite service-rclcpp-minimal \
-  -t 1 \
+  --duration 1 \
   --warmups 1 \
-  --repeats 3 \
+  --repeats 5 \
   --order balanced \
   --seed 42 \
-  --cpuset-cpus 0-3
+  --cpuset-cpus 0-3 \
+  --results-dir ./experiments/rclcpp-change
 ```
 
-Use full commit SHAs for a plan that can be resumed even after a branch moves.
-An explicitly packaged target is also supported, for example:
+The official `https://github.com/ros2/rclcpp.git` repository is the default.
+Use `--rclcpp-repo-url` to compare refs from a fork. Full commit SHAs are best
+for a workflow that must remain resumable after branches move.
+
+Before fetching persistent source checkouts, the command checks Git, vcstool,
+Docker daemon access, Buildx and native architecture support, result-directory
+access, at least 5 GiB of free result and Docker storage, and CPU-set syntax.
+Docker Compose and ports `3000`, `9090`, and the selected exporter port are
+checked only with `--start-dashboard`.
+
+Inspect the fully resolved commits, image keys, immutable configuration, trial
+order, and output paths without cloning build contexts or writing an experiment:
 
 ```bash
-ros2-performance-monitoring experiment run ./experiments/package-vs-source \
-  --reference-source packaged \
-  --candidate-ref <candidate-rclcpp-commit>
+ros2-performance-monitoring experiment compare \
+  --reference-ref <reference-rclcpp-commit> \
+  --candidate-ref <candidate-rclcpp-commit> \
+  --results-dir ./experiments/rclcpp-change \
+  --dry-run
 ```
 
-The first invocation resolves and verifies both exact images before publishing
-an immutable `plan.json`. Run the same command again to resume. A completed
-trial is reused only when its completion manifest, metadata, normalized JSONL,
-raw artifacts, and recorded checksums still match. Changed target identities,
-ROS distribution, suite, executor, duration, CPU set, benchmark commit, trial
-counts, order, or seed require a new experiment directory.
+The real invocation publishes the immutable `plan.json` only after both refs
+resolve and both target images are verified. Run the identical command again to
+resume. Verified images, completed trials, the dataset, and a matching report
+are reused. A changed target, ROS distribution, suite, executor, duration, CPU
+set, benchmark commit, trial count, order, or scheduling seed is rejected with
+an instruction to use a new result directory.
 
 Warm-ups run through the same benchmark path but are omitted automatically from
-the dataset and median lineage. Failed and interrupted attempts remain under
-their trial directory for diagnosis. A successful bundle has this shape:
+the dataset and median lineage. Failed builds and workflow stages are recorded
+in `workflow.log` and `workflow.status.json`; failed and interrupted trial
+attempts keep their own diagnostic logs and never enter the dataset. A
+successful bundle has this shape:
 
 ```text
 experiment/
+  workflow.log
+  workflow.status.json
   plan.json
+  targets/reference.json
+  targets/candidate.json
   measured_environment.json
   trials/<trial-id>/
     status.json
@@ -215,35 +235,29 @@ experiment/
   dataset/dashboard-data.jsonl
   dataset/dashboard-data.manifest.json
   experiment.complete.json
-  comparison-report.json  # after experiment compare
+  comparison-report.json
+  comparison.complete.json
 ```
 
 `experiment.complete.json` is written only after every planned trial and the
-dataset bundle have passed checksum validation.
+dataset bundle pass checksum validation. `comparison.complete.json` is the
+end-to-end completion marker: it binds the plan, verified target manifests,
+experiment completion, dataset, dataset manifest, report, evidence status, and
+comparison exit outcome by SHA-256.
 
-After the bundle completes, calculate repeat-aware evidence from the measured
-trial pairs:
+The default report analysis uses a paired bootstrap over recorded balanced
+trial blocks, a 95% confidence level, 10,000 resamples, bootstrap seed `0`, and
+a minimum of three measured pairs. Use `--bootstrap-seed` separately from the
+schedule's `--seed`. Warm-ups, failed or incomplete trials, and median aggregate
+records are never statistical samples.
 
-```bash
-ros2-performance-monitoring experiment compare ./experiments/rclcpp-change
-```
-
-This writes a deterministic, versioned
-`./experiments/rclcpp-change/comparison-report.json`. The default analysis uses
-a paired bootstrap over the recorded balanced trial blocks, a 95% confidence
-level, 10,000 resamples, seed `0`, and a minimum of three measured trial pairs.
-Warm-ups, failed or incomplete trials, and median aggregate records are never
-statistical samples. The command rejects incompatible target provenance,
-environment evidence, scenario coverage, metric coverage, and schedules without
-valid balanced pairs before calculating uncertainty.
-It can also inspect an unfinished bundle: checksum-valid measured trials remain
-eligible, while a missing planned pair produces `Incomplete results` rather
-than reducing the requested sample count.
-
-To reverse the comparison direction, reverse the plan labels explicitly:
+The lower-level component commands remain available for diagnosis or custom
+composition. `experiment run` creates or resumes only the experiment and
+dataset; `experiment report` analyses an existing bundle. For example, reverse
+an existing report without rerunning benchmarks:
 
 ```bash
-ros2-performance-monitoring experiment compare ./experiments/rclcpp-change \
+ros2-performance-monitoring experiment report ./experiments/rclcpp-change \
   --reference candidate \
   --candidate reference
 ```
@@ -254,6 +268,9 @@ evidence`, `Incomplete results`, `Cannot compare`, and `N/A`. The command exits
 with `0` for no regression, `1` for a supported regression, `2` for possible or
 insufficient evidence, `3` for an invalid, incomplete, or non-comparable
 comparison, and `4` only when an operational failure prevents the comparison.
+Preflight, resolution, build, trial, parse, dataset, validation, and dashboard
+startup failures are operational failures, so they are never mistaken for a
+performance verdict.
 See [`doc/statistical-comparison.md`](doc/statistical-comparison.md) for the
 method, report contract, evidence rules, and optional analysis controls.
 
@@ -264,8 +281,7 @@ for the selected topology, so a regression in one workload does not change the
 other workload's status. Service throughput and reliability remain `N/A` and
 are excluded from the Service overall result.
 
-To inspect that report in Grafana, pass it beside the experiment's exact
-dataset:
+The final summary prints this exact report-bound dashboard command:
 
 ```bash
 ros2-performance-monitoring dashboard up \
@@ -276,7 +292,8 @@ ros2-performance-monitoring dashboard up \
 Dashboard startup verifies the report schema, experiment and target identities,
 method, scenario coverage, and dataset SHA-256 before starting Docker. A stale
 or unrelated report therefore fails instead of being displayed beside a
-different dataset.
+different dataset. Add `--start-dashboard` to the comparison invocation to run
+that command automatically after successful validation.
 
 ### 3. Inspect Or Reprocess The Artifacts
 
@@ -548,9 +565,11 @@ Run the CLI:
 ros2-performance-monitoring help
 ros2-performance-monitoring run
 ros2-performance-monitoring build-container
-ros2-performance-monitoring experiment run ./experiments/example \
-  --reference-ref <reference-commit> --candidate-ref <candidate-commit>
-ros2-performance-monitoring experiment compare ./experiments/example
+ros2-performance-monitoring experiment compare \
+  --reference-ref <reference-commit> \
+  --candidate-ref <candidate-commit> \
+  --results-dir ./experiments/example
+ros2-performance-monitoring experiment report ./experiments/example
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ros2-performance-monitoring dataset build \
   ./results/run-1.jsonl ./results/run-2.jsonl \
