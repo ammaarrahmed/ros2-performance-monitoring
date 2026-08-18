@@ -18,11 +18,12 @@ This keeps the project focused on:
 - Local Grafana dashboards.
 - Exact local rclcpp target resolution and provenance verification.
 - Content-addressed local benchmark images and containers.
+- Immutable experiment plans and repeated-trial bundle orchestration.
 
 It avoids taking ownership of:
 
 - Ownership or vendoring of benchmark topology implementations.
-- General experiment and repeated-trial orchestration.
+- Statistical verdicts beyond deterministic median aggregation.
 - Long-running hosted infrastructure.
 
 ## Bridge Shape
@@ -33,8 +34,8 @@ The design uses a small adapter boundary:
 resolved benchmark + rclcpp target
   -> labelled image + in-image target manifest
   -> verified container runner
-  -> raw artifacts
-  -> normalized JSONL
+  -> staged trial (raw artifacts + metadata + normalized JSONL)
+  -> checksum-verified trial completion
   -> validated comparison dataset
   -> Prometheus exporter and comparison policy
   -> Prometheus
@@ -54,6 +55,25 @@ rebuilds the benchmark workspace against it. Packaged targets retain the ROS
 installation underlay and are labelled explicitly as packaged. Run metadata is
 created from the verified target rather than from user-provided commit claims.
 
+The experiment layer compares exactly two labelled targets. Its immutable plan
+records both complete target identities, shared run configuration, warm-up and
+measured counts, scheduling policy, seed, and exact planned order. Balanced
+schedules alternate which target runs first within each pair; interleaved
+schedules deterministically shuffle each pair. Trial IDs include the target
+role, trial kind, sequence, and target-key prefix.
+
+Each trial runs in an attempt-specific staging directory. Metadata, raw
+artifacts, and normalized JSONL are validated and checksummed before the attempt
+directory is renamed and the trial completion marker is published. Failed and
+interrupted attempts are retained without a completion marker. Resume only
+reuses trials whose complete file graph still matches those checksums.
+
+Host architecture, CPU model, kernel, Docker version, CPU set, and CPU governor
+state are captured for every trial. The first measured trial establishes the
+measured-environment identity; subsequent measured trials must match it before
+they start. Target image ID and digest, benchmark commit, executor, duration,
+suite, and ROS distribution remain recorded with each trial as evidence.
+
 Artifact sources include:
 
 - `ros2-benchmark-container` result directories.
@@ -68,8 +88,11 @@ Examples of future output sinks:
 The dataset builder is the trust boundary between per-run normalized artifacts
 and dashboard input. It validates schemas, run provenance, benchmark layout,
 and unique metric identities, then writes deterministic JSONL and a checksum
-manifest. Optional median runs retain only low-cardinality aggregation metadata
-in metric rows; source run IDs and checksums remain in the manifest.
+manifest. The old manifest is removed before replacement, the dataset is
+published and synced first, and a manifest containing the dataset checksum is
+published last as the bundle completion marker. Optional median runs retain
+only low-cardinality aggregation metadata in metric rows; source run IDs and
+checksums remain in the manifest.
 
 The current dashboard path starts from a normalized JSONL dataset. It does not
 run benchmarks or parse raw artifacts as part of dashboard startup. The local

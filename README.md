@@ -163,6 +163,62 @@ results/benchmark/lyrical/cli-srv_single_process/...
 results/benchmark/lyrical/cli-srv_multi_process/...
 ```
 
+### Run A Controlled Repeated Comparison
+
+Use an experiment bundle when comparing two exact rclcpp targets. The command
+below creates one warm-up and three measured trials per target, schedules the
+targets in a deterministic balanced order, and builds the comparison dataset
+automatically:
+
+```bash
+ros2-performance-monitoring experiment run ./experiments/rclcpp-change \
+  --reference-ref <reference-rclcpp-commit> \
+  --candidate-ref <candidate-rclcpp-commit> \
+  --suite service-rclcpp-minimal \
+  -t 1 \
+  --warmups 1 \
+  --repeats 3 \
+  --order balanced \
+  --seed 42 \
+  --cpuset-cpus 0-3
+```
+
+Use full commit SHAs for a plan that can be resumed even after a branch moves.
+An explicitly packaged target is also supported, for example:
+
+```bash
+ros2-performance-monitoring experiment run ./experiments/package-vs-source \
+  --reference-source packaged \
+  --candidate-ref <candidate-rclcpp-commit>
+```
+
+The first invocation resolves and verifies both exact images before publishing
+an immutable `plan.json`. Run the same command again to resume. A completed
+trial is reused only when its completion manifest, metadata, normalized JSONL,
+raw artifacts, and recorded checksums still match. Changed target identities,
+ROS distribution, suite, executor, duration, CPU set, benchmark commit, trial
+counts, order, or seed require a new experiment directory.
+
+Warm-ups run through the same benchmark path but are omitted automatically from
+the dataset and median lineage. Failed and interrupted attempts remain under
+their trial directory for diagnosis. A successful bundle has this shape:
+
+```text
+experiment/
+  plan.json
+  measured_environment.json
+  trials/<trial-id>/
+    status.json
+    complete.json
+    attempts/<attempt>/
+  dataset/dashboard-data.jsonl
+  dataset/dashboard-data.manifest.json
+  experiment.complete.json
+```
+
+`experiment.complete.json` is written only after every planned trial and the
+dataset bundle have passed checksum validation.
+
 ### 3. Inspect Or Reprocess The Artifacts
 
 The `run` command automatically creates the normalized JSONL consumed by the
@@ -206,8 +262,9 @@ ros2-performance-monitoring dataset build \
 
 The command validates schemas, metric identities, and run provenance before it
 atomically replaces the output. Input order does not affect the output bytes. A
-`dashboard-data.manifest.json` sidecar records input checksums and source run
-IDs.
+`dashboard-data.manifest.json` sidecar records input checksums, source run IDs,
+and the dataset checksum. The dataset is published first and the manifest is
+published last as its completion marker.
 
 For repeated measurements, keep the measured runs and add a median run for each
 compatible group:
@@ -413,6 +470,8 @@ Run the CLI:
 ros2-performance-monitoring help
 ros2-performance-monitoring run
 ros2-performance-monitoring build-container
+ros2-performance-monitoring experiment run ./experiments/example \
+  --reference-ref <reference-commit> --candidate-ref <candidate-commit>
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ros2-performance-monitoring dataset build \
   ./results/run-1.jsonl ./results/run-2.jsonl \
@@ -704,7 +763,10 @@ ros2-performance-monitoring dataset build \
 
 Rows have stable ordering, so reversing the input arguments produces the same
 JSONL. The adjacent `dashboard-data.manifest.json` records each resolved input
-path, SHA-256 checksum, and included run IDs.
+path, SHA-256 checksum, included run IDs, and the final dataset checksum.
+Publication removes the old completion marker, atomically replaces the dataset,
+and writes the new manifest last, so an interrupted update is never accepted as
+complete.
 
 Use `--aggregate median` for repeated measurements. Runs only share an
 aggregate when their schema, ROS distribution, benchmark and client-library
