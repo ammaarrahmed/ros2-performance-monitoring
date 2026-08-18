@@ -18,6 +18,7 @@ import json
 from ros2_performance_monitoring.benchmark_image import BenchmarkImageSpec
 from ros2_performance_monitoring.benchmark_image import VerifiedImage
 from ros2_performance_monitoring.client_target import ClientLibraryTarget
+from ros2_performance_monitoring.parsers.ros2_benchmark_container import latest_run_metadata
 from ros2_performance_monitoring.run_metadata import generation_rundata
 
 
@@ -109,3 +110,42 @@ def test_packaged_metadata_is_explicit(tmp_path):
         'resolved_commit_hash': 'packaged',
         'source': 'packaged',
     }
+
+
+def test_experiment_metadata_uses_stable_filename_and_trial_id(tmp_path):
+    target = ClientLibraryTarget.packaged('rolling')
+    image_spec = BenchmarkImageSpec(
+        ros_distro='rolling',
+        architecture='amd64',
+        benchmark_repository_url='https://github.com/ros2/ros2-benchmark-container',
+        benchmark_requested_ref='rolling',
+        benchmark_resolved_commit='a' * 40,
+        client_target=target,
+    )
+    verified_image = VerifiedImage(
+        image_name=image_spec.image_name,
+        image_id=f'sha256:{"c" * 64}',
+        image_digest=f'sha256:{"c" * 64}',
+        target_key=image_spec.target_key,
+    )
+    args = argparse.Namespace(
+        ros_distro='rolling',
+        executor='EventsExecutor',
+        duration=1,
+        cpuset_cpus='0',
+        suite='service-rclcpp-minimal',
+    )
+
+    metadata_path = generation_rundata(
+        args,
+        str(tmp_path),
+        image_spec,
+        verified_image,
+        metadata_filename='metadata.json',
+        run_id='candidate-measured-001',
+    )
+
+    assert metadata_path == tmp_path / 'metadata.json'
+    metadata = latest_run_metadata(tmp_path)
+    assert metadata['run_id'] == 'candidate-measured-001'
+    assert metadata['run_configuration']['suite'] == 'service-rclcpp-minimal'
