@@ -40,7 +40,7 @@ from .dataset import build_dataset
 from .dataset import DatasetError
 from .experiment import build_experiment_plan
 from .experiment import ExperimentError
-from .experiment import load_completed_experiment
+from .experiment import load_experiment_evidence
 from .experiment import run_experiment
 from .exporters.prometheus import serve_metrics
 from .parsers.ros2_benchmark_container import latest_run_metadata
@@ -308,7 +308,7 @@ def experiment_run_command(args: argparse.Namespace) -> None:
 def experiment_compare_command(args: argparse.Namespace) -> int:
     """Write repeat-aware evidence for two targets in a completed experiment."""
     try:
-        completed = load_completed_experiment(args.experiment_dir)
+        completed = load_experiment_evidence(args.experiment_dir)
         trial_records = {
             trial.trial_id: trial.records
             for trial in completed.measured_trials

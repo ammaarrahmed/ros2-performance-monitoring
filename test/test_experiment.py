@@ -24,8 +24,10 @@ from ros2_performance_monitoring.client_target import ClientLibraryTarget
 from ros2_performance_monitoring.dataset import verify_dataset_bundle
 from ros2_performance_monitoring.experiment import build_experiment_plan
 from ros2_performance_monitoring.experiment import ExperimentError
-from ros2_performance_monitoring.experiment import load_completed_experiment
+from ros2_performance_monitoring.experiment import load_experiment_evidence
 from ros2_performance_monitoring.experiment import run_experiment
+from ros2_performance_monitoring.statistical_comparison import build_comparison_report
+from ros2_performance_monitoring.statistical_comparison import INCOMPLETE_RESULTS
 from ros2_performance_monitoring.writers.jsonl import write_json
 
 
@@ -121,10 +123,11 @@ def test_completed_experiment_loader_returns_only_verified_measured_trials(tmp_p
         environment_collector=_environment,
     )
 
-    completed = load_completed_experiment(root)
+    completed = load_experiment_evidence(root)
 
     assert completed.plan == plan
     assert completed.environment['cpu_model'] == 'Test CPU'
+    assert completed.experiment_complete is True
     assert [trial.trial_id for trial in completed.measured_trials] == [
         trial['trial_id'] for trial in plan['schedule']['trials']
         if trial['kind'] == 'measured'
@@ -136,7 +139,7 @@ def test_completed_experiment_loader_returns_only_verified_measured_trials(tmp_p
     )
 
 
-def test_completed_experiment_loader_rejects_invalid_completion(tmp_path):
+def test_experiment_loader_uses_valid_trials_when_bundle_completion_is_invalid(tmp_path):
     specs, images = _targets()
     plan = _plan(specs, images, warmups=0, repeats=1)
     root = tmp_path / 'experiment'
@@ -153,8 +156,39 @@ def test_completed_experiment_loader_rejects_invalid_completion(tmp_path):
     completion['plan_sha256'] = '0' * 64
     write_json(completion, completion_path)
 
-    with pytest.raises(ExperimentError, match='failed completion verification'):
-        load_completed_experiment(root)
+    completed = load_experiment_evidence(root)
+
+    assert completed.experiment_complete is False
+    assert len(completed.measured_trials) == 2
+
+
+def test_experiment_loader_excludes_failed_measured_trial(tmp_path):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=0, repeats=1)
+    root = tmp_path / 'experiment'
+
+    def fail(*args):
+        raise RuntimeError('benchmark process failed')
+
+    with pytest.raises(ExperimentError, match='diagnostics kept'):
+        run_experiment(
+            root,
+            plan,
+            specs,
+            images,
+            trial_executor=fail,
+            environment_collector=_environment,
+        )
+
+    experiment = load_experiment_evidence(root)
+    report = build_comparison_report(
+        experiment.plan,
+        {trial.trial_id: trial.records for trial in experiment.measured_trials},
+    )
+
+    assert experiment.experiment_complete is False
+    assert experiment.measured_trials == ()
+    assert report['overall']['status'] == INCOMPLETE_RESULTS
 
 
 def test_resume_reuses_only_checksum_valid_trials(tmp_path):
