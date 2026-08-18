@@ -274,6 +274,7 @@ def _execute_trial(stage, plan, trial, image_spec, verified_image):
         executor=configuration['executor'],
         keep_container=False,
         cpuset_cpus=configuration['cpuset_cpus'],
+        log_path=stage / 'trial.log',
     )
     metadata = latest_run_metadata(stage)
     artifacts = discover_benchmark_artifacts(
