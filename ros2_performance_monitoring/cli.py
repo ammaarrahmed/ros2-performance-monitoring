@@ -39,11 +39,22 @@ from .dashboard import dashboard_up
 from .dataset import build_dataset
 from .dataset import DatasetError
 from .experiment import build_experiment_plan
+from .experiment import ExperimentError
+from .experiment import load_completed_experiment
 from .experiment import run_experiment
 from .exporters.prometheus import serve_metrics
 from .parsers.ros2_benchmark_container import latest_run_metadata
 from .parsers.ros2_benchmark_container import parse_artifact
 from .run_metadata import generation_rundata
+from .statistical_comparison import build_comparison_report
+from .statistical_comparison import comparison_exit_code
+from .statistical_comparison import DEFAULT_BOOTSTRAP_REPEATS
+from .statistical_comparison import DEFAULT_CONFIDENCE_LEVEL
+from .statistical_comparison import DEFAULT_SEED
+from .statistical_comparison import EXIT_INVALID_COMPARISON
+from .statistical_comparison import MINIMUM_MEASURED_TRIALS
+from .statistical_comparison import StatisticalComparisonError
+from .writers.jsonl import write_json
 from .writers.jsonl import write_jsonl
 
 
@@ -294,6 +305,40 @@ def experiment_run_command(args: argparse.Namespace) -> None:
     print(f'Comparison dataset: {result.dataset_path}')
 
 
+def experiment_compare_command(args: argparse.Namespace) -> int:
+    """Write repeat-aware evidence for two targets in a completed experiment."""
+    try:
+        completed = load_completed_experiment(args.experiment_dir)
+        trial_records = {
+            trial.trial_id: trial.records
+            for trial in completed.measured_trials
+        }
+        report = build_comparison_report(
+            completed.plan,
+            trial_records,
+            reference=args.reference,
+            candidate=args.candidate,
+            confidence_level=args.confidence_level,
+            bootstrap_repeats=args.bootstrap_repeats,
+            seed=args.seed,
+            minimum_trials=args.minimum_trials,
+        )
+        output = (
+            Path(args.output).expanduser().resolve()
+            if args.output
+            else completed.experiment_dir / 'comparison-report.json'
+        )
+        write_json(report, output)
+    except (ExperimentError, StatisticalComparisonError, OSError) as exc:
+        print(f'Invalid comparison: {exc}', file=sys.stderr)
+        return EXIT_INVALID_COMPARISON
+
+    status = report['overall']['status']
+    print(f'Comparison status: {status}')
+    print(f'Wrote comparison report to {output}')
+    return comparison_exit_code(report)
+
+
 def _prepare_experiment_client_target(args, label):
     source = getattr(args, f'{label}_source')
     requested_ref = getattr(args, f'{label}_ref')
@@ -325,6 +370,22 @@ def _non_negative_integer(value):
     parsed = int(value)
     if parsed < 0:
         raise argparse.ArgumentTypeError('value must be a non-negative integer')
+    return parsed
+
+
+def _minimum_trial_count(value):
+    parsed = int(value)
+    if parsed < MINIMUM_MEASURED_TRIALS:
+        raise argparse.ArgumentTypeError(
+            f'value must be at least {MINIMUM_MEASURED_TRIALS}'
+        )
+    return parsed
+
+
+def _confidence_level(value):
+    parsed = float(value)
+    if not 0.0 < parsed < 1.0:
+        raise argparse.ArgumentTypeError('value must be between 0 and 1')
     return parsed
 
 
@@ -385,6 +446,11 @@ def main() -> Any:
         help='Create or safely resume an experiment bundle',
     )
     experiment_run_parser.set_defaults(func=experiment_run_command)
+    experiment_compare_parser = experiment_subparsers.add_parser(
+        'compare',
+        help='Write repeat-aware statistical evidence for a completed experiment',
+    )
+    experiment_compare_parser.set_defaults(func=experiment_compare_command)
 
     serve_prometheus_parser = subparsers.add_parser(
         'serve-prometheus',
@@ -578,6 +644,48 @@ def main() -> Any:
             f'--{label}-repo-url',
             help=f'rclcpp repository URL for the {label} source target',
         )
+    experiment_compare_parser.add_argument(
+        'experiment_dir',
+        help='Completed experiment bundle to compare',
+    )
+    experiment_compare_parser.add_argument(
+        '--reference',
+        default='reference',
+        help='Plan target label to treat as the reference (default: reference)',
+    )
+    experiment_compare_parser.add_argument(
+        '--candidate',
+        default='candidate',
+        help='Plan target label to treat as the candidate (default: candidate)',
+    )
+    experiment_compare_parser.add_argument(
+        '--output',
+        help='Report path (default: EXPERIMENT_DIR/comparison-report.json)',
+    )
+    experiment_compare_parser.add_argument(
+        '--confidence-level',
+        type=_confidence_level,
+        default=DEFAULT_CONFIDENCE_LEVEL,
+        help=f'Two-sided confidence level (default: {DEFAULT_CONFIDENCE_LEVEL:g})',
+    )
+    experiment_compare_parser.add_argument(
+        '--bootstrap-repeats',
+        type=_positive_integer,
+        default=DEFAULT_BOOTSTRAP_REPEATS,
+        help=f'Paired bootstrap resamples (default: {DEFAULT_BOOTSTRAP_REPEATS})',
+    )
+    experiment_compare_parser.add_argument(
+        '--seed',
+        type=int,
+        default=DEFAULT_SEED,
+        help=f'Deterministic bootstrap seed (default: {DEFAULT_SEED})',
+    )
+    experiment_compare_parser.add_argument(
+        '--minimum-trials',
+        type=_minimum_trial_count,
+        default=MINIMUM_MEASURED_TRIALS,
+        help=f'Minimum measured trial pairs (default: {MINIMUM_MEASURED_TRIALS})',
+    )
     dashboard_up_parser.add_argument(
         '--input',
         required=True,
@@ -599,6 +707,7 @@ def main() -> Any:
             parse_parser,
             dataset_build_parser,
             experiment_run_parser,
+            experiment_compare_parser,
             dashboard_up_parser,
             dashboard_down_parser,
             serve_prometheus_parser,

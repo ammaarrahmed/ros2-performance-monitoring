@@ -18,6 +18,7 @@ import json
 import pytest
 from ros2_performance_monitoring.statistical_comparison import build_comparison_report
 from ros2_performance_monitoring.statistical_comparison import CANNOT_COMPARE
+from ros2_performance_monitoring.statistical_comparison import comparison_exit_code
 from ros2_performance_monitoring.statistical_comparison import INCOMPLETE_RESULTS
 from ros2_performance_monitoring.statistical_comparison import INSUFFICIENT_EVIDENCE
 from ros2_performance_monitoring.statistical_comparison import METHOD
@@ -37,9 +38,9 @@ def test_identical_stable_repeats_produce_no_regression_with_zero_width_interval
         'lower': 0.0,
         'upper': 0.0,
     }
-    assert set(
+    assert {
         evidence['status'] for evidence in report['categories'].values()
-    ) == {NO_REGRESSION}
+    } == {NO_REGRESSION}
 
 
 @pytest.mark.parametrize(
@@ -220,6 +221,16 @@ def test_changed_scenario_coverage_and_incompatible_provenance_prevent_analysis(
     assert 'provenance is incompatible' in provenance_report['overall']['reason']
 
 
+def test_incompatible_target_identity_prevents_analysis_before_statistics():
+    plan, trials = _experiment(3)
+    plan['targets'][1]['identity']['architecture'] = 'arm64'
+
+    report = _report(plan, trials)
+
+    assert report['overall']['status'] == CANNOT_COMPARE
+    assert 'incompatible benchmark provenance' in report['overall']['reason']
+
+
 def test_reversing_targets_reverses_effect_sign_and_directional_verdict():
     plan, trials = _experiment(5)
     _set_all(trials, 'candidate', 'subscription_latency', 'mean', [103.0] * 5)
@@ -263,6 +274,22 @@ def test_fixed_seed_produces_byte_identical_versioned_reports():
         'point_estimator': 'median of measured trials',
     }
     assert first['scenarios'][0]['categories']['latency']['metrics']
+
+
+@pytest.mark.parametrize(
+    ('status', 'expected'),
+    (
+        (NO_REGRESSION, 0),
+        (REGRESSION, 1),
+        (POSSIBLE_REGRESSION, 2),
+        (INSUFFICIENT_EVIDENCE, 2),
+        (INCOMPLETE_RESULTS, 3),
+        (CANNOT_COMPARE, 3),
+        ('N/A', 3),
+    ),
+)
+def test_report_status_maps_to_stable_exit_outcome(status, expected):
+    assert comparison_exit_code({'overall': {'status': status}}) == expected
 
 
 def _report(plan, trials, **kwargs):
