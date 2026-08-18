@@ -18,7 +18,7 @@ import re
 
 from ros2_performance_monitoring.comparison import CATEGORY_THRESHOLDS
 from ros2_performance_monitoring.comparison import STATUS_CATEGORIES
-from ros2_performance_monitoring.comparison import STATUS_LABELS
+from ros2_performance_monitoring.comparison_report import EVIDENCE_STATUS_VALUES
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -145,14 +145,14 @@ def test_dashboard_queries_share_run_scope():
                 if '$baseline_run' in expression:
                     expected = (
                         'baseline_distro="$baseline_distro"'
-                        if 'ros2_perf_comparison_status' in expression
+                        if 'ros2_perf_comparison_' in expression
                         else 'ros_distro="$baseline_distro"'
                     )
                     assert expected in selectors
                 if '$candidate_run' in expression:
                     expected = (
                         'candidate_distro="$candidate_distro"'
-                        if 'ros2_perf_comparison_status' in expression
+                        if 'ros2_perf_comparison_' in expression
                         else 'ros_distro="$candidate_distro"'
                     )
                     assert expected in selectors
@@ -248,7 +248,13 @@ def test_comparison_dashboards_share_all_kpi_status_panels():
         'resources': 'Resources',
         'reliability': 'Reliability',
     }
-    expected_labels = [STATUS_LABELS[index] for index in STATUS_LABELS]
+    expected_labels = [
+        status
+        for status, _value in sorted(
+            EVIDENCE_STATUS_VALUES.items(),
+            key=lambda item: item[1],
+        )
+    ]
     dashboard_queries = []
 
     for uid in ('ros2-regression-overview', 'rclcpp-pubsub-overview'):
@@ -267,14 +273,60 @@ def test_comparison_dashboards_share_all_kpi_status_panels():
             category = re.search(r'category="([^"]+)"', expression).group(1)
             mapping = panel['fieldConfig']['defaults']['mappings'][0]['options']
             assert panel['title'] == expected_titles[category]
-            assert [mapping[str(index)]['text'] for index in STATUS_LABELS] == (
-                expected_labels
-            )
+            assert [
+                mapping[str(index)]['text']
+                for index in range(len(EVIDENCE_STATUS_VALUES))
+            ] == expected_labels
+            assert mapping['6']['color'] == 'purple'
             assert panel['fieldConfig']['defaults']['noValue'] == 'Status unavailable'
             assert 'statistically significant' not in panel['description'].lower()
             assert expression.endswith(' or on() vector(4)')
             queries[category] = expression
         assert tuple(queries) == STATUS_CATEGORIES
+        dashboard_queries.append(queries)
+
+    assert dashboard_queries[0] == dashboard_queries[1]
+
+
+def test_comparison_dashboards_show_report_method_and_selected_category_evidence():
+    """Test both comparison views expose report estimates and uncertainty."""
+    dashboards = _load_dashboards()
+    expected_panels = {
+        'Analysis method': ('ros2_perf_comparison_analysis', ()),
+        'Measured pairs': ('ros2_perf_comparison_evidence', ('repeat_count',)),
+        'Effect estimate': ('ros2_perf_comparison_evidence', ('point_estimate',)),
+        'Confidence interval': (
+            'ros2_perf_comparison_evidence',
+            ('interval_lower', 'interval_upper'),
+        ),
+        'Practical thresholds': (
+            'ros2_perf_comparison_evidence',
+            ('possible_threshold', 'regression_threshold'),
+        ),
+    }
+    dashboard_queries = []
+
+    for uid in ('ros2-regression-overview', 'rclcpp-pubsub-overview'):
+        dashboard = _dashboard_by_uid(dashboards, uid)
+        variables = {
+            variable['name']: variable
+            for variable in dashboard['templating']['list']
+        }
+        assert variables['evidence_category']['type'] == 'custom'
+        assert variables['evidence_category']['current']['value'] == 'latency'
+
+        queries = {}
+        for title, (family, statistics) in expected_panels.items():
+            panel = next(panel for panel in dashboard['panels'] if panel['title'] == title)
+            expressions = tuple(target['expr'] for target in panel['targets'])
+            assert all(family in expression for expression in expressions)
+            if statistics:
+                assert all('$evidence_category' in expression for expression in expressions)
+                assert tuple(
+                    re.search(r'statistic="([^"]+)"', expression).group(1)
+                    for expression in expressions
+                ) == statistics
+            queries[title] = expressions
         dashboard_queries.append(queries)
 
     assert dashboard_queries[0] == dashboard_queries[1]
