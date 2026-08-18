@@ -42,14 +42,29 @@ named `cli_srv_10b`, `cli_srv_100kb`, `cli_srv_1mb`, and `cli_srv_4mb`, and
 `cli-srv_multi_process` leaves named `10b`, `100kb`, `1mb`, and `4mb`.
 
 The dashboard does not run benchmarks or parse raw artifacts. It starts from the
-normalized JSONL file, and the local exporter evaluates the deterministic
-comparison policy described below.
+normalized JSONL file. A schema-v2 `comparison-report.json` from `experiment
+compare` may be supplied beside an experiment dataset; otherwise the exporter
+uses the deterministic threshold-only comparison policy described below.
 
 ## Start
 
 ```bash
 ros2-performance-monitoring dashboard up --input dashboard-data.jsonl
 ```
+
+For a completed repeated experiment, use the exact dataset bound into its
+report:
+
+```bash
+ros2-performance-monitoring dashboard up \
+  --input <experiment-dir>/dataset/dashboard-data.jsonl \
+  --comparison-report <experiment-dir>/comparison-report.json
+```
+
+Before Docker starts, the command validates the report schema, experiment ID,
+dataset checksum, selected target identities, method, and scenario coverage. A
+malformed, unsupported, stale, or unrelated report stops startup with a clear
+error.
 
 The command starts Prometheus and Grafana with Docker Compose, then keeps the
 Prometheus exporter running in the foreground.
@@ -95,6 +110,10 @@ Run the exporter without Grafana or Prometheus:
 ros2-performance-monitoring serve-prometheus --input dashboard-data.jsonl --port 9108
 ```
 
+Use `--comparison-report <path>` here as well to inspect report-backed metrics.
+The exporter revalidates the report and dataset on each scrape, so replacing the
+dataset without its matching report cannot leave a stale verdict visible.
+
 Then inspect:
 
 ```text
@@ -139,7 +158,17 @@ itself cannot reveal a regression.
 The comparison works both across ROS distributions and between repeated runs of
 the same distribution. The default and manual dashboards use the same five
 status cards and vocabulary: `No regression`, `Possible regression`,
-`Regression`, `Incomplete results`, `Cannot compare`, and `N/A`.
+`Regression`, `Insufficient evidence`, `Incomplete results`, `Cannot compare`,
+and `N/A`. `Insufficient evidence` has its own purple mapping rather than being
+shown as a pass, incomplete result, or invalid comparison.
+
+Both views also show an evidence strip. The category selector switches its
+effect estimate, confidence bounds, and possible/regression thresholds between
+overall, latency, throughput, resources, and reliability. The strip reports the
+measured-pair count and explicitly identifies `Statistical report` or
+`Threshold-only`. Detailed charts continue to query normalized measurements,
+not report summaries, so they remain available for investigating the reported
+responsible scenario.
 
 Before evaluating performance, the policy compares the actual topology,
 process mode, payload, RMW, transport, executor, and node-role keys in both
@@ -173,14 +202,18 @@ improvement in one measurement does not cancel a regression in another.
 | Peak CPU or RSS increase | >= 1% | >= 5% |
 | Reliability increase | >= 0.01 percentage points | >= 0.1 percentage points |
 
-These are deterministic review thresholds, not a statistical-significance or
-noise model. Detailed panels retain improvements and individual measurements so
-the status can be investigated rather than treated as a statistical conclusion.
-For repeat-aware confidence intervals and evidence statuses, run `experiment
-compare` on a completed balanced experiment bundle; see
-[`statistical-comparison.md`](statistical-comparison.md). Its report is a
-separate artifact and is not currently exported to Prometheus or rendered in
-Grafana.
+Without `--comparison-report`, these are deterministic review thresholds, not a
+statistical-significance or noise model. Their Prometheus series carry the
+method `threshold-only-v1`, and the dashboard labels the analysis accordingly.
+Detailed panels retain improvements and individual measurements so the status
+can be investigated rather than treated as a statistical conclusion.
+
+With a validated report, the report statuses are exported unchanged; the
+exporter does not recalculate confidence or evidence. It exports only the
+report-defined reference/candidate pair plus low-cardinality overall, category,
+and per-scenario evidence. See
+[`statistical-comparison.md`](statistical-comparison.md) for the statistical
+method and evidence rules.
 
 Cross-RMW comparisons use IPC-off because it is the common transport represented
 for Fast DDS, Cyclone DDS, and Zenoh. IPC-on effectiveness is restricted to

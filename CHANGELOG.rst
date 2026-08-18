@@ -4,6 +4,8 @@ Changelog for package ros2_performance_monitoring
 
 0.0.0 (unreleased)
 ------------------
+* Added dataset-bound statistical comparison export and Grafana evidence views,
+  with strict report validation and threshold-only fallback labelling.
 * Added deterministic paired-bootstrap regression reports for completed
   experiments, with scan-aware confidence intervals and documented CLI exit
   outcomes.

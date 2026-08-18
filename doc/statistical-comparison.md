@@ -1,7 +1,8 @@
 # Repeat-Aware Statistical Comparison
 
-`experiment compare` produces statistical evidence from a completed controlled
-experiment without changing the dashboard's legacy point-estimate policy.
+`experiment compare` produces statistical evidence from a controlled
+experiment. A completed report can be supplied to the exporter and dashboard;
+without one, the dashboard retains its legacy point-estimate policy.
 
 ## Run The Comparison
 
@@ -121,9 +122,10 @@ category's own possible threshold.
 
 ## Report Contract
 
-`comparison-report.json` has `schema_version: 1` and contains:
+`comparison-report.json` has `schema_version: 2` and contains:
 
-- The experiment ID and complete selected target identities.
+- The experiment ID, exact dataset SHA-256 binding, and complete selected target
+  identities.
 - Method, confidence level, bootstrap seed and repeat count, minimum and actual
   measured-pair counts, pairing policy, and point estimator.
 - Overall and category statuses, thresholds, point estimates, confidence
@@ -135,6 +137,22 @@ category's own possible threshold.
 The report has no generation timestamp so deterministic input and controls
 remain byte stable. Report schema changes require a schema-version increment;
 method changes require a new method identifier.
+
+A report from a completed experiment contains the verified dataset checksum and
+can be exported with:
+
+```bash
+ros2-performance-monitoring dashboard up \
+  --input <experiment-dir>/dataset/dashboard-data.jsonl \
+  --comparison-report <experiment-dir>/comparison-report.json
+```
+
+Reports produced while inspecting an unfinished bundle have no completed
+dataset binding and remain useful as JSON/CLI evidence, but are rejected by the
+exporter. Export validates the checksum, experiment identity, target
+provenance, scenario coverage, method, evidence structure, and selected
+aggregate runs. The report remains the source of truth for statuses; Prometheus
+and Grafana do not reproduce the bootstrap calculation.
 
 ## Exit Outcomes
 
@@ -150,5 +168,5 @@ missing or failed planned trials instead produce an `Incomplete results` report.
 | `3` | Invalid, incomplete, not comparable, or not applicable comparison |
 
 These codes let local automation consume the decision without parsing terminal
-text. CI policy, dashboard rendering, hosted storage, and automatic pull-request
-gating remain outside this feature.
+text. CI policy, hosted storage, and automatic pull-request gating remain
+outside this feature.

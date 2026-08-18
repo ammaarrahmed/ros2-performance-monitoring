@@ -16,6 +16,7 @@ benchmark container run
   -> normalized_metrics.jsonl
   -> dataset build
   -> dashboard-data.jsonl
+  -> optional comparison-report.json
   -> local Prometheus exporter
   -> Prometheus
   -> Grafana
@@ -255,6 +256,20 @@ insufficient evidence, and `3` for an invalid or incomplete comparison. See
 [`doc/statistical-comparison.md`](doc/statistical-comparison.md) for the method,
 report contract, evidence rules, and optional analysis controls.
 
+To inspect that report in Grafana, pass it beside the experiment's exact
+dataset:
+
+```bash
+ros2-performance-monitoring dashboard up \
+  --input ./experiments/rclcpp-change/dataset/dashboard-data.jsonl \
+  --comparison-report ./experiments/rclcpp-change/comparison-report.json
+```
+
+Dashboard startup verifies the report schema, experiment and target identities,
+method, scenario coverage, and dataset SHA-256 before starting Docker. A stale
+or unrelated report therefore fails instead of being displayed beside a
+different dataset.
+
 ### 3. Inspect Or Reprocess The Artifacts
 
 The `run` command automatically creates the normalized JSONL consumed by the
@@ -327,6 +342,19 @@ starting Grafana:
 ros2-performance-monitoring serve-prometheus --input ./results/dashboard-data.jsonl --port 9108
 ```
 
+For a completed repeated experiment, add its report:
+
+```bash
+ros2-performance-monitoring serve-prometheus \
+  --input ./experiments/rclcpp-change/dataset/dashboard-data.jsonl \
+  --comparison-report ./experiments/rclcpp-change/comparison-report.json \
+  --port 9108
+```
+
+When supplied, the validated report is the source of truth for status and only
+its reference/candidate aggregate pair is exported. Without a report, the
+exporter retains the legacy ordered-pair policy and labels it `threshold-only`.
+
 Then open:
 
 ```text
@@ -363,7 +391,10 @@ ROS 2 Performance · Default Regression Views
 Use the mode control to move between the automatic full-matrix checks and the
 manual scenario explorer. Click either run card to open that run's metadata,
 scenario inventory, and complete performance profile. Both comparison views
-show the same five KPI statuses and deterministic thresholds; see
+show the same five KPI statuses. When a report is supplied, the evidence strip
+shows the measured-pair count, selected-category effect estimate, confidence
+interval, and practical thresholds. Without one, the analysis method is visibly
+labelled `Threshold-only`; see
 [`doc/dashboard.md`](doc/dashboard.md#comparison-policy) for the policy and
 missing-data rules.
 
@@ -516,6 +547,9 @@ ros2-performance-monitoring dataset build \
 ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl
 ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
 ```
+
+Pass `--comparison-report <path>` to either exporter command to use a matching
+schema-v2 statistical report instead of the legacy threshold-only statuses.
 
 The `doctor` subcommand is currently a placeholder and does not perform
 environment checks yet.

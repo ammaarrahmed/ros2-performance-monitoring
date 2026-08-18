@@ -39,7 +39,8 @@ resolved benchmark + rclcpp target
   -> checksum-verified trial completion
   -> validated comparison dataset + experiment completion
      -> paired measured-trial bootstrap -> comparison-report.json
-     -> Prometheus exporter and comparison policy -> Prometheus -> Grafana
+     -> report validation + Prometheus mapping -> Prometheus -> Grafana
+     -> legacy threshold-only comparison -> Prometheus -> Grafana
 ```
 
 The target key is a SHA-256 digest over the ROS distribution, architecture,
@@ -74,14 +75,15 @@ measured-environment identity; subsequent measured trials must match it before
 they start. Target image ID and digest, benchmark commit, executor, duration,
 suite, and ROS distribution remain recorded with each trial as evidence.
 
-The statistical comparison boundary reads a completed experiment rather than
+The statistical comparison boundary reads a controlled experiment rather than
 its aggregate dataset. It verifies the experiment and trial completion graphs,
 loads only measured records, reconstructs pairs from balanced schedule blocks,
 and rejects incompatible provenance or coverage. A deterministic paired
 bootstrap resamples whole blocks and retains the complete scenario scan in each
 resample. Category decisions use the worst scenario, while overall evidence
 uses the worst category-normalized scenario. The resulting versioned JSON report
-is separate from Prometheus and Grafana formatting.
+binds completed evidence to the exact dashboard dataset SHA-256 while remaining
+separate from Prometheus and Grafana formatting.
 
 Artifact sources include:
 
@@ -103,9 +105,11 @@ published last as the bundle completion marker. Optional median runs retain
 only low-cardinality aggregation metadata in metric rows; source run IDs and
 checksums remain in the manifest.
 
-The current dashboard path starts from a normalized JSONL dataset. It does not
-run benchmarks or parse raw artifacts as part of dashboard startup. The local
-exporter derives deterministic per-category comparison statuses before exposing
-the dataset to Prometheus. Those point-estimate statuses remain a dashboard
-review aid; repeat-aware statistical evidence is produced separately from the
-verified experiment bundle.
+The dashboard path starts from a normalized JSONL dataset. It does not run
+benchmarks or parse raw artifacts as part of dashboard startup. When a report is
+supplied, the exporter validates its schema, experiment and dataset binding,
+target provenance, method, and scenario coverage, then maps its overall,
+category, and per-scenario evidence directly to low-cardinality metrics. It does
+not recalculate statistical evidence, and it emits status only for the
+report-defined aggregate pair. Without a report, the exporter retains the
+ordered-pair deterministic policy and marks those statuses as threshold-only.
