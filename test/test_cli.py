@@ -97,6 +97,7 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         'dataset build',
         'experiment run',
         'experiment compare',
+        'experiment report',
         'dashboard up',
         'dashboard down',
         'serve-prometheus',
@@ -647,6 +648,157 @@ def test_experiment_compare_rejects_unverified_bundle_without_writing_report(
     assert cli.main() == 3
     assert not (experiment_dir / 'comparison-report.json').exists()
     assert 'Invalid comparison: experiment is incomplete' in capsys.readouterr().err
+
+
+def test_experiment_compare_passes_every_workflow_option(monkeypatch, tmp_path):
+    importlib.reload(cli)
+    received = {}
+
+    def fake_workflow(options):
+        received['options'] = options
+        return argparse.Namespace(
+            dry_run=False,
+            exit_code=2,
+            dataset_path=tmp_path / 'comparison' / 'dataset' / 'dashboard-data.jsonl',
+            report_path=tmp_path / 'comparison' / 'comparison-report.json',
+        )
+
+    monkeypatch.setattr(cli, 'run_comparison_workflow', fake_workflow)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'compare',
+        '--reference-ref',
+        'reference-branch',
+        '--candidate-ref',
+        'candidate-branch',
+        '--rclcpp-repo-url',
+        'https://example.test/rclcpp.git',
+        '--ros-distro',
+        'rolling',
+        '--duration',
+        '2',
+        '--executor',
+        'EventsExecutor',
+        '--suite',
+        'service-rclcpp-minimal',
+        '--cpuset-cpus',
+        '0-1',
+        '--warmups',
+        '2',
+        '--repeats',
+        '5',
+        '--order',
+        'interleaved',
+        '--seed',
+        '17',
+        '--cache-dir',
+        str(tmp_path / 'cache'),
+        '--container-repo-url',
+        'https://example.test/benchmarks.git',
+        '--container-ref',
+        'stable',
+        '--skip-build',
+        '--dry-run',
+        '--confidence-level',
+        '0.9',
+        '--bootstrap-repeats',
+        '500',
+        '--bootstrap-seed',
+        '41',
+        '--minimum-trials',
+        '4',
+        '--dashboard-port',
+        '9200',
+        '--results-dir',
+        str(tmp_path / 'comparison'),
+    ])
+
+    assert cli.main() == 2
+    assert received['options'] == cli.ComparisonWorkflowOptions(
+        results_dir=str(tmp_path / 'comparison'),
+        reference_ref='reference-branch',
+        candidate_ref='candidate-branch',
+        ros_distro='rolling',
+        suite='service-rclcpp-minimal',
+        executor='EventsExecutor',
+        duration=2,
+        cpuset_cpus='0-1',
+        warmups=2,
+        repeats=5,
+        order='interleaved',
+        schedule_seed=17,
+        cache_dir=str(tmp_path / 'cache'),
+        rclcpp_repository_url='https://example.test/rclcpp.git',
+        container_repository_url='https://example.test/benchmarks.git',
+        container_ref='stable',
+        skip_build=True,
+        dry_run=True,
+        confidence_level=0.9,
+        bootstrap_repeats=500,
+        bootstrap_seed=41,
+        minimum_trials=4,
+        start_dashboard=False,
+        dashboard_port=9200,
+    )
+
+
+def test_experiment_compare_returns_separate_operational_outcome(
+    monkeypatch,
+    capsys,
+):
+    importlib.reload(cli)
+    monkeypatch.setattr(
+        cli,
+        'run_comparison_workflow',
+        lambda options: (_ for _ in ()).throw(
+            cli.ComparisonWorkflowError('Docker daemon is not accessible')
+        ),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'compare',
+        '--reference-ref',
+        'reference',
+        '--candidate-ref',
+        'candidate',
+        '--results-dir',
+        'comparison',
+    ])
+
+    assert cli.main() == 4
+    assert 'Docker daemon is not accessible' in capsys.readouterr().err
+
+
+def test_experiment_report_keeps_report_stage_available(monkeypatch, tmp_path):
+    importlib.reload(cli)
+    experiment_dir = tmp_path / 'experiment'
+    experiment_dir.mkdir()
+    completed = argparse.Namespace(
+        experiment_dir=experiment_dir,
+        plan={'experiment_id': 'experiment-report'},
+        measured_trials=(),
+        dataset_sha256='d' * 64,
+    )
+    monkeypatch.setattr(cli, 'load_experiment_evidence', lambda path: completed)
+    monkeypatch.setattr(
+        cli,
+        'build_comparison_report',
+        lambda *args, **kwargs: {
+            'schema_version': 2,
+            'overall': {'status': NO_REGRESSION},
+        },
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'report',
+        str(experiment_dir),
+    ])
+
+    assert cli.main() == 0
+    assert (experiment_dir / 'comparison-report.json').is_file()
 
 
 def test_run_with_default_smoke(monkeypatch):
