@@ -46,7 +46,7 @@ def test_preflight_checks_requirements_without_dashboard_ports(tmp_path, monkeyp
     assert commands == [
         ['docker', 'info', '--format', '{{.DockerRootDir}}'],
         ['docker', 'buildx', 'version'],
-        ['docker', 'buildx', 'inspect', '--bootstrap'],
+        ['docker', 'buildx', 'inspect'],
     ]
 
 

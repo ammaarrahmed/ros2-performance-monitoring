@@ -433,7 +433,6 @@ def experiment_compare_command(args: argparse.Namespace) -> int:
         bootstrap_seed=args.bootstrap_seed,
         minimum_trials=args.minimum_trials,
         start_dashboard=args.start_dashboard,
-        dashboard_port=args.dashboard_port,
     )
     try:
         result = run_comparison_workflow(options)
@@ -441,7 +440,6 @@ def experiment_compare_command(args: argparse.Namespace) -> int:
             try:
                 dashboard_up(
                     result.dataset_path,
-                    port=args.dashboard_port,
                     comparison_report_path=result.report_path,
                 )
             except KeyboardInterrupt:
@@ -837,10 +835,6 @@ def main() -> Any:
     experiment_compare_parser.add_argument(
         '--start-dashboard', action='store_true',
         help='Start the matching local dashboard after successful comparison',
-    )
-    experiment_compare_parser.add_argument(
-        '--dashboard-port', type=_positive_integer, default=9108,
-        help='Prometheus exporter port used with --start-dashboard (default: 9108)',
     )
     experiment_compare_parser.add_argument(
         '--reference',

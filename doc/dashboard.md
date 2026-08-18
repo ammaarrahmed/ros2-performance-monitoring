@@ -59,7 +59,7 @@ ros2-performance-monitoring experiment compare \
 Add `--start-dashboard` to start it immediately after comparison. The workflow
 checks Docker Compose and ports `3000`, `9090`, and `9108` only in that mode; a
 comparison that only writes local artifacts does not require free dashboard
-ports. Use `--dashboard-port` to select a different exporter port.
+ports.
 
 ## Start
 

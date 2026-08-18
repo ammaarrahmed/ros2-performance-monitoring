@@ -28,6 +28,7 @@ from .benchmark_image import verify_benchmark_image
 from .client_target import DEFAULT_RCLCPP_REPOSITORY
 from .client_target import resolve_rclcpp_target
 from .client_target import resolve_remote_rclcpp_target
+from .comparison import CATEGORIES
 from .comparison_report import validate_comparison_report
 from .container_provider import get_default_container_repo
 from .container_provider import resolve_container_repo_ref
@@ -40,11 +41,16 @@ from .experiment import prepare_experiment
 from .experiment import run_experiment
 from .preflight import run_comparison_preflight
 from .statistical_comparison import build_comparison_report
+from .statistical_comparison import CANNOT_COMPARE
 from .statistical_comparison import comparison_exit_code
 from .statistical_comparison import DEFAULT_BOOTSTRAP_REPEATS
 from .statistical_comparison import DEFAULT_CONFIDENCE_LEVEL
 from .statistical_comparison import DEFAULT_SEED
+from .statistical_comparison import EXIT_INVALID_COMPARISON
+from .statistical_comparison import INCOMPLETE_RESULTS
 from .statistical_comparison import MINIMUM_MEASURED_TRIALS
+from .statistical_comparison import NOT_APPLICABLE
+from .statistical_comparison import REPORT_SCHEMA_VERSION
 from .writers.jsonl import write_json
 
 
@@ -54,6 +60,11 @@ WORKFLOW_COMPLETE_FILENAME = 'comparison.complete.json'
 REPORT_FILENAME = 'comparison-report.json'
 OPERATIONAL_ERROR_EXIT = 4
 TARGET_LABELS = ('reference', 'candidate')
+INVALID_COMPARISON_STATUSES = frozenset({
+    CANNOT_COMPARE,
+    INCOMPLETE_RESULTS,
+    NOT_APPLICABLE,
+})
 
 
 class ComparisonWorkflowError(RuntimeError):
@@ -87,7 +98,6 @@ class ComparisonWorkflowOptions:
     bootstrap_seed: int = DEFAULT_SEED
     minimum_trials: int = MINIMUM_MEASURED_TRIALS
     start_dashboard: bool = False
-    dashboard_port: int = 9108
 
 
 @dataclass(frozen=True)
@@ -120,7 +130,6 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             root,
             options.cpuset_cpus,
             dashboard_requested=options.start_dashboard,
-            dashboard_port=options.dashboard_port,
         )
     except Exception as exc:
         raise ComparisonWorkflowError(f'preflight failed: {exc}') from exc
@@ -205,6 +214,7 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             records,
             dataset_manifest['dataset_sha256'],
             options,
+            completed.plan,
         )
         if report is None:
             trial_records = {
@@ -244,8 +254,8 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             report_path,
             report,
         )
-        _write_if_changed(root / WORKFLOW_COMPLETE_FILENAME, completion)
         _record_stage(root, 'complete', started_at, outcome='completed')
+        _write_if_changed(root / WORKFLOW_COMPLETE_FILENAME, completion)
     except Exception as exc:
         _record_failure(root, stage, started_at, exc)
         if isinstance(exc, ComparisonWorkflowError):
@@ -422,10 +432,14 @@ def _write_target_manifests(root, plan, image_specs):
         _write_if_changed(target_root / f'{label}.json', manifest)
 
 
-def _load_reusable_report(path, records, checksum, options):
+def _load_reusable_report(path, records, checksum, options, plan):
     try:
         report = json.loads(path.read_text(encoding='utf-8'))
-        validate_comparison_report(report, records, checksum)
+        _validate_report_identity(report, plan, checksum)
+        if comparison_exit_code(report) != EXIT_INVALID_COMPARISON:
+            validate_comparison_report(report, records, checksum)
+        else:
+            _validate_invalid_report_structure(report)
     except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, ValueError):
         return None
     analysis = report.get('analysis', {})
@@ -456,13 +470,9 @@ def _validate_outputs(
         raise ComparisonWorkflowError('completed experiment dataset path is inconsistent')
     if completed.dataset_sha256 != dataset_manifest.get('dataset_sha256'):
         raise ComparisonWorkflowError('experiment and dataset checksums do not agree')
-    if report.get('experiment_id') != plan.get('experiment_id'):
-        raise ComparisonWorkflowError('comparison report experiment identity does not agree')
-    if report.get('dataset', {}).get('sha256') != completed.dataset_sha256:
-        raise ComparisonWorkflowError('comparison report dataset checksum does not agree')
+    _validate_report_identity(report, plan, completed.dataset_sha256)
 
     planned_targets = {target['label']: target for target in plan['targets']}
-    reported_targets = report.get('targets', {})
     for label in TARGET_LABELS:
         target_path = root / 'targets' / f'{label}.json'
         try:
@@ -480,11 +490,78 @@ def _validate_outputs(
             raise ComparisonWorkflowError(
                 f'verified {label} target manifest does not agree with the experiment plan'
             )
-        if reported_targets.get(label, {}).get('target_key') != planned['target_key']:
+    if comparison_exit_code(report) != EXIT_INVALID_COMPARISON:
+        validate_comparison_report(report, records, dataset_manifest['dataset_sha256'])
+    else:
+        _validate_invalid_report_structure(report)
+
+
+def _validate_report_identity(report, plan, dataset_sha256):
+    if report.get('experiment_id') != plan.get('experiment_id'):
+        raise ComparisonWorkflowError('comparison report experiment identity does not agree')
+    if report.get('dataset', {}).get('sha256') != dataset_sha256:
+        raise ComparisonWorkflowError('comparison report dataset checksum does not agree')
+    planned_targets = {target['label']: target for target in plan['targets']}
+    reported_targets = report.get('targets', {})
+    for label in TARGET_LABELS:
+        if reported_targets.get(label, {}).get('target_key') != (
+            planned_targets[label]['target_key']
+        ):
             raise ComparisonWorkflowError(
                 f'comparison report {label} target does not agree with the experiment plan'
             )
-    validate_comparison_report(report, records, dataset_manifest['dataset_sha256'])
+
+
+def _validate_invalid_report_structure(report):
+    required = {
+        'schema_version',
+        'experiment_id',
+        'dataset',
+        'targets',
+        'analysis',
+        'overall',
+        'categories',
+        'scenarios',
+    }
+    if not isinstance(report, dict) or set(report) != required:
+        raise ComparisonWorkflowError('invalid comparison report structure')
+    if report.get('schema_version') != REPORT_SCHEMA_VERSION:
+        raise ComparisonWorkflowError('invalid comparison report schema version')
+    dataset = report.get('dataset')
+    if not isinstance(dataset, dict) or set(dataset) != {'sha256', 'experiment_id'}:
+        raise ComparisonWorkflowError('invalid comparison report dataset binding')
+    if dataset.get('experiment_id') != report.get('experiment_id'):
+        raise ComparisonWorkflowError('invalid comparison report experiment binding')
+    targets = report.get('targets')
+    if not isinstance(targets, dict) or set(targets) != set(TARGET_LABELS):
+        raise ComparisonWorkflowError('invalid comparison report targets')
+    for label in TARGET_LABELS:
+        target = targets[label]
+        if (
+            not isinstance(target, dict)
+            or set(target) != {'label', 'target_key', 'identity'}
+            or target.get('label') != label
+        ):
+            raise ComparisonWorkflowError('invalid comparison report targets')
+    if not isinstance(report.get('analysis'), dict):
+        raise ComparisonWorkflowError('invalid comparison report analysis settings')
+    overall = report.get('overall')
+    if (
+        not isinstance(overall, dict)
+        or overall.get('status') not in INVALID_COMPARISON_STATUSES
+    ):
+        raise ComparisonWorkflowError('invalid comparison report evidence status')
+    categories = report.get('categories')
+    if not isinstance(categories, dict) or set(categories) != set(CATEGORIES):
+        raise ComparisonWorkflowError('invalid comparison report category coverage')
+    if any(
+        not isinstance(evidence, dict)
+        or evidence.get('status') not in INVALID_COMPARISON_STATUSES
+        for evidence in categories.values()
+    ):
+        raise ComparisonWorkflowError('invalid comparison report category evidence')
+    if not isinstance(report.get('scenarios'), list):
+        raise ComparisonWorkflowError('invalid comparison report scenario coverage')
 
 
 def _completion_manifest(
