@@ -20,9 +20,14 @@ from pathlib import Path
 
 from ros2_performance_monitoring.comparison import comparison_results
 from ros2_performance_monitoring.comparison import run_display_name
+from ros2_performance_monitoring.comparison import STATUS_LABELS
+from ros2_performance_monitoring.comparison_report import EVIDENCE_STATUS_VALUES
+from ros2_performance_monitoring.comparison_report import load_comparison_report
 from ros2_performance_monitoring.model import client_library_version
 from ros2_performance_monitoring.model import normalize_client_library_source
 from ros2_performance_monitoring.model import normalize_platform
+from ros2_performance_monitoring.statistical_comparison import METHOD
+from ros2_performance_monitoring.statistical_comparison import SCENARIO_FIELDS
 
 
 # Maps stable Prometheus label names to normalized JSONL record fields.
@@ -44,6 +49,8 @@ PROMETHEUS_LABEL_FIELDS = (
     ('process_mode', 'process_mode'),
     ('node_role', 'node_role'),
 )
+
+THRESHOLD_ONLY_METHOD = 'threshold-only-v1'
 
 METRIC_FAMILIES = {
     'ros2_perf_latency_us': {
@@ -79,7 +86,23 @@ METRIC_FAMILIES = {
         'type': 'gauge',
     },
     'ros2_perf_comparison_status': {
-        'help': 'Deterministic ROS 2 performance comparison status by KPI category.',
+        'help': 'ROS 2 performance comparison status by KPI category.',
+        'type': 'gauge',
+    },
+    'ros2_perf_comparison_analysis': {
+        'help': 'ROS 2 performance comparison analysis mode (0 threshold-only, 1 report).',
+        'type': 'gauge',
+    },
+    'ros2_perf_comparison_evidence': {
+        'help': 'ROS 2 performance statistical evidence values by KPI category.',
+        'type': 'gauge',
+    },
+    'ros2_perf_comparison_scenario_status': {
+        'help': 'ROS 2 performance statistical status by scenario and KPI category.',
+        'type': 'gauge',
+    },
+    'ros2_perf_comparison_scenario_evidence': {
+        'help': 'ROS 2 performance statistical evidence by scenario and KPI category.',
         'type': 'gauge',
     },
 }
@@ -95,7 +118,7 @@ def load_records(input_path):
     return records
 
 
-def records_to_prometheus(records):
+def records_to_prometheus(records, comparison_report=None):
     lines = []
     for name, metadata in METRIC_FAMILIES.items():
         lines.append(f'# HELP {name} {metadata["help"]}')
@@ -119,22 +142,204 @@ def records_to_prometheus(records):
         resource_labels = dict(labels)
         lines.append(_sample('ros2_perf_resource_samples_total', resource_labels, count))
 
-    for result in comparison_results(records):
-        labels = {
-            'baseline_run': result.baseline_run,
-            'candidate_run': result.candidate_run,
-            'baseline_distro': result.baseline_distro,
-            'candidate_distro': result.candidate_distro,
-            'client_library': result.client_library,
-            'client_source': result.client_source,
-            'platform': result.platform,
-            'topology': result.topology,
-            'category': result.category,
-        }
-        lines.append(_sample('ros2_perf_comparison_status', labels, result.status))
+    if comparison_report is None:
+        lines.extend(_legacy_comparison_samples(records))
+    else:
+        lines.extend(_report_comparison_samples(records, comparison_report))
 
     lines.append('')
     return '\n'.join(lines)
+
+
+def load_export_data(input_path, comparison_report_path=None):
+    """Load normalized records and an optional report validated against their bytes."""
+    path = Path(input_path).expanduser().resolve()
+    records = load_records(path)
+    report = None
+    if comparison_report_path is not None:
+        report = load_comparison_report(comparison_report_path, path, records)
+    return records, report
+
+
+def _legacy_comparison_samples(records):
+    lines = []
+    exported_analysis = set()
+    for result in comparison_results(records):
+        labels = _comparison_labels(result)
+        labels.update({
+            'category': result.category,
+            'method': THRESHOLD_ONLY_METHOD,
+            'evidence_state': STATUS_LABELS[result.status],
+        })
+        lines.append(_sample('ros2_perf_comparison_status', labels, result.status))
+        analysis_labels = _comparison_labels(result)
+        analysis_key = tuple(sorted(analysis_labels.items()))
+        if analysis_key not in exported_analysis:
+            analysis_labels['method'] = THRESHOLD_ONLY_METHOD
+            lines.append(_sample('ros2_perf_comparison_analysis', analysis_labels, 0))
+            exported_analysis.add(analysis_key)
+    return lines
+
+
+def _comparison_labels(result):
+    return {
+        'baseline_run': result.baseline_run,
+        'candidate_run': result.candidate_run,
+        'baseline_distro': result.baseline_distro,
+        'candidate_distro': result.candidate_distro,
+        'client_library': result.client_library,
+        'client_source': result.client_source,
+        'platform': result.platform,
+        'topology': result.topology,
+    }
+
+
+def _report_comparison_samples(records, validated):
+    report = validated.report
+    reference = _record_for_run(records, validated.reference_run)
+    candidate = _record_for_run(records, validated.candidate_run)
+    topologies = sorted({
+        scenario['identity']['topology'] for scenario in report['scenarios']
+    })
+    scope = {
+        'baseline_run': validated.reference_run,
+        'candidate_run': validated.candidate_run,
+        'baseline_distro': reference.get('ros_distro', 'unknown'),
+        'candidate_distro': candidate.get('ros_distro', 'unknown'),
+        'client_library': reference.get('client_library', 'unknown'),
+        'client_source': normalize_client_library_source(
+            reference.get('client_library_source'),
+            reference.get('client_library_ref'),
+            reference.get('client_library_commit'),
+        ),
+        'platform': normalize_platform(reference.get('platform')),
+        'topology': topologies[0] if len(topologies) == 1 else 'all',
+    }
+    analysis = report['analysis']
+    analysis_labels = {
+        **scope,
+        'experiment_id': report['experiment_id'],
+        'method': METHOD,
+        'confidence_level': _format_number(analysis['confidence_level']),
+        'repeat_count': str(analysis['measured_trial_pairs']),
+    }
+    lines = [_sample('ros2_perf_comparison_analysis', analysis_labels, 1)]
+    evidence_items = [('overall', report['overall']), *report['categories'].items()]
+    for category, evidence in evidence_items:
+        labels = _report_evidence_labels(scope, report, category, evidence)
+        lines.append(_sample(
+            'ros2_perf_comparison_status',
+            labels,
+            EVIDENCE_STATUS_VALUES[evidence['status']],
+        ))
+        lines.extend(_evidence_samples(scope, report, category, evidence))
+
+    for scenario in report['scenarios']:
+        scenario_labels = {
+            **scope,
+            **_scenario_labels(scenario['identity']),
+        }
+        for category, evidence in scenario['categories'].items():
+            labels = _report_evidence_labels(
+                scenario_labels,
+                report,
+                category,
+                evidence,
+            )
+            lines.append(_sample(
+                'ros2_perf_comparison_scenario_status',
+                labels,
+                EVIDENCE_STATUS_VALUES[evidence['status']],
+            ))
+            lines.extend(_evidence_samples(
+                scenario_labels,
+                report,
+                category,
+                evidence,
+                scenario=True,
+            ))
+    return lines
+
+
+def _report_evidence_labels(scope, report, category, evidence):
+    labels = {
+        **scope,
+        'category': category,
+        'experiment_id': report['experiment_id'],
+        'method': report['analysis']['method'],
+        'evidence_state': evidence['status'],
+    }
+    responsible = evidence.get('responsible_scenario')
+    for field in SCENARIO_FIELDS:
+        labels[f'responsible_{_scenario_label_name(field)}'] = (
+            responsible.get(field, '') if isinstance(responsible, dict) else ''
+        )
+    metric = evidence.get('responsible_metric')
+    labels['responsible_metric'] = (
+        metric.get('metric_name', '') if isinstance(metric, dict) else ''
+    )
+    labels['responsible_aggregation'] = (
+        metric.get('aggregation', '') if isinstance(metric, dict) else ''
+    )
+    return labels
+
+
+def _evidence_samples(scope, report, category, evidence, scenario=False):
+    values = {
+        'confidence_level': report['analysis']['confidence_level'],
+        'repeat_count': report['analysis']['measured_trial_pairs'],
+        'point_estimate': evidence.get('point_estimate'),
+    }
+    interval = evidence.get('confidence_interval')
+    if isinstance(interval, dict):
+        values['interval_lower'] = interval['lower']
+        values['interval_upper'] = interval['upper']
+    threshold = evidence.get('practical_threshold')
+    unit = threshold.get('unit', '') if isinstance(threshold, dict) else ''
+    if isinstance(threshold, dict):
+        if type(threshold.get('possible')) in (int, float):
+            values['possible_threshold'] = threshold['possible']
+        if type(threshold.get('regression')) in (int, float):
+            values['regression_threshold'] = threshold['regression']
+
+    family = (
+        'ros2_perf_comparison_scenario_evidence'
+        if scenario else 'ros2_perf_comparison_evidence'
+    )
+    lines = []
+    for statistic, value in values.items():
+        if value is None:
+            continue
+        labels = {
+            **scope,
+            'category': category,
+            'experiment_id': report['experiment_id'],
+            'method': report['analysis']['method'],
+            'evidence_state': evidence['status'],
+            'statistic': statistic,
+            'unit': unit,
+        }
+        lines.append(_sample(family, labels, value))
+    return lines
+
+
+def _scenario_labels(identity):
+    return {
+        _scenario_label_name(field): identity[field]
+        for field in SCENARIO_FIELDS
+    }
+
+
+def _scenario_label_name(field):
+    return {
+        'payload_size': 'payload_bytes',
+        'rmw_implementation': 'rmw',
+        'communication_mode': 'comm',
+    }.get(field, field)
+
+
+def _record_for_run(records, run_id):
+    return next(record for record in records if record.get('run_id') == run_id)
 
 
 def _record_sample(record):
@@ -238,12 +443,18 @@ def _format_number(value):
     return repr(value)
 
 
-def serve_metrics(input_path, port=9108, host='0.0.0.0'):
+def serve_metrics(
+    input_path,
+    port=9108,
+    host='0.0.0.0',
+    comparison_report_path=None,
+):
     path = Path(input_path).expanduser().resolve()
     if not path.exists():
         raise FileNotFoundError(f'normalized metrics file does not exist: {path}')
     if not path.is_file():
         raise ValueError(f'normalized metrics path is not a file: {path}')
+    load_export_data(path, comparison_report_path)
 
     class MetricsHandler(BaseHTTPRequestHandler):
 
@@ -254,7 +465,8 @@ def serve_metrics(input_path, port=9108, host='0.0.0.0'):
                 return
 
             try:
-                body = records_to_prometheus(load_records(path)).encode()
+                records, report = load_export_data(path, comparison_report_path)
+                body = records_to_prometheus(records, report).encode()
                 self.send_response(200)
             except (OSError, ValueError, json.JSONDecodeError) as exc:
                 body = str(exc).encode()
