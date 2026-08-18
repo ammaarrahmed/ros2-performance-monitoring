@@ -87,6 +87,7 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         'build-container',
         'parse',
         'dataset build',
+        'experiment run',
         'dashboard up',
         'dashboard down',
         'serve-prometheus',
@@ -101,6 +102,7 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         ['unknown'],
         ['dashboard', 'unknown'],
         ['dataset', 'unknown'],
+        ['experiment', 'unknown'],
     ),
 )
 def test_unknown_command_suggests_help(monkeypatch, capsys, arguments):
@@ -256,6 +258,173 @@ def test_dataset_build_command_reports_validation_errors(monkeypatch, capsys):
         cli.main()
 
     assert 'Wrote' not in capsys.readouterr().out
+
+
+def test_experiment_run_prepares_exact_targets_and_plan(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    importlib.reload(cli)
+    received = {'resolved': [], 'built': []}
+
+    def fake_resolve(repository_url, requested_ref, cache_dir):
+        received['resolved'].append((repository_url, requested_ref, cache_dir))
+        return ClientLibraryTarget(
+            name='rclcpp',
+            source='build',
+            repository_url=repository_url,
+            requested_ref=requested_ref,
+            resolved_commit=requested_ref,
+            checkout_path=Path(f'/cache/{requested_ref}'),
+        )
+
+    def fake_build(image_spec, cache_dir):
+        received['built'].append((image_spec, cache_dir))
+        return _verified_image(image_spec)
+
+    def fake_run_experiment(experiment_dir, plan, image_specs, verified_images):
+        received.update({
+            'experiment_dir': experiment_dir,
+            'plan': plan,
+            'image_specs': image_specs,
+            'verified_images': verified_images,
+        })
+        return argparse.Namespace(
+            experiment_id='experiment-cli',
+            completed_trials=8,
+            reused_trials=2,
+            dataset_path=Path(experiment_dir) / 'dataset' / 'dashboard-data.jsonl',
+        )
+
+    monkeypatch.setattr(cli, 'resolve_rclcpp_target', fake_resolve)
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
+    )
+    monkeypatch.setattr(
+        cli, 'setup_container_repo', lambda **kwargs: DEFAULT_CONTAINER_COMMIT
+    )
+    monkeypatch.setattr(cli, 'detect_architecture', lambda: 'amd64')
+    monkeypatch.setattr(cli, 'benchmark_image_exists', lambda _spec: False)
+    monkeypatch.setattr(cli, 'build_benchmark_image', fake_build)
+    monkeypatch.setattr(cli, 'run_experiment', fake_run_experiment)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'run',
+        str(tmp_path / 'experiment'),
+        '--reference-ref',
+        'b' * 40,
+        '--candidate-ref',
+        'c' * 40,
+        '--duration',
+        '1',
+        '--suite',
+        'service-rclcpp-minimal',
+        '--executor',
+        'EventsExecutor',
+        '--cpuset-cpus',
+        '0-1',
+        '--warmups',
+        '1',
+        '--repeats',
+        '3',
+        '--seed',
+        '17',
+    ])
+
+    assert cli.main() is None
+
+    assert [item[1] for item in received['resolved']] == ['b' * 40, 'c' * 40]
+    assert len(received['built']) == 2
+    assert received['plan']['configuration'] == {
+        'ros_distro': RunDefaults().ros_distro,
+        'suite': 'service-rclcpp-minimal',
+        'executor': 'EventsExecutor',
+        'duration': 1,
+        'cpuset_cpus': '0-1',
+    }
+    assert received['plan']['schedule']['warmup_count'] == 1
+    assert received['plan']['schedule']['measured_repeat_count'] == 3
+    assert received['plan']['schedule']['seed'] == 17
+    assert len(received['plan']['schedule']['trials']) == 8
+    assert set(received['image_specs']) == {'reference', 'candidate'}
+    assert received['experiment_dir'] == str(tmp_path / 'experiment')
+    output = capsys.readouterr().out
+    assert 'Experiment experiment-cli is complete: 8 trials (2 reused)' in output
+
+
+def test_experiment_accepts_explicit_packaged_reference(monkeypatch):
+    importlib.reload(cli)
+    resolved = []
+
+    def fake_resolve(repository_url, requested_ref, cache_dir):
+        resolved.append(requested_ref)
+        return ClientLibraryTarget(
+            name='rclcpp',
+            source='build',
+            repository_url=repository_url,
+            requested_ref=requested_ref,
+            resolved_commit='c' * 40,
+            checkout_path=Path('/cache/candidate'),
+        )
+
+    monkeypatch.setattr(cli, 'resolve_rclcpp_target', fake_resolve)
+    monkeypatch.setattr(
+        cli,
+        'get_default_container_repo',
+        lambda: (DEFAULT_CONTAINER_REPO_URL, DEFAULT_CONTAINER_REF),
+    )
+    monkeypatch.setattr(
+        cli, 'setup_container_repo', lambda **kwargs: DEFAULT_CONTAINER_COMMIT
+    )
+    monkeypatch.setattr(cli, 'detect_architecture', lambda: 'amd64')
+    monkeypatch.setattr(cli, 'benchmark_image_exists', lambda _spec: True)
+    monkeypatch.setattr(cli, 'verify_benchmark_image', _verified_image)
+    monkeypatch.setattr(
+        cli,
+        'run_experiment',
+        lambda experiment_dir, plan, image_specs, verified_images: argparse.Namespace(
+            experiment_id='experiment-packaged',
+            completed_trials=8,
+            reused_trials=8,
+            dataset_path=Path(experiment_dir) / 'dataset.jsonl',
+        ),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'run',
+        'experiment',
+        '--reference-source',
+        'packaged',
+        '--candidate-ref',
+        'candidate',
+    ])
+
+    assert cli.main() is None
+    assert resolved == ['candidate']
+
+
+def test_experiment_requires_source_refs_before_repository_setup(monkeypatch):
+    importlib.reload(cli)
+    monkeypatch.setattr(
+        cli,
+        'setup_container_repo',
+        lambda **kwargs: pytest.fail('benchmark repository setup must not start'),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'run',
+        'experiment',
+        '--candidate-ref',
+        'candidate',
+    ])
+
+    assert cli.main() == 1
 
 
 def test_run_with_default_smoke(monkeypatch):

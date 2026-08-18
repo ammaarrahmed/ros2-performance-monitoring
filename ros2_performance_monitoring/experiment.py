@@ -87,6 +87,7 @@ def build_experiment_plan(
         raise ExperimentError(f'unsupported trial order: {order!r}')
     if type(seed) is not int:
         raise ExperimentError('scheduling seed must be an integer')
+    _selected_cpus(cpuset_cpus)
 
     targets = []
     for label in TARGET_LABELS:

@@ -38,6 +38,8 @@ from .dashboard import dashboard_down
 from .dashboard import dashboard_up
 from .dataset import build_dataset
 from .dataset import DatasetError
+from .experiment import build_experiment_plan
+from .experiment import run_experiment
 from .exporters.prometheus import serve_metrics
 from .parsers.ros2_benchmark_container import latest_run_metadata
 from .parsers.ros2_benchmark_container import parse_artifact
@@ -54,6 +56,7 @@ class CommandArgumentParser(argparse.ArgumentParser):
                 'argument command:' in message
                 or 'argument dashboard_command:' in message
                 or 'argument dataset_command:' in message
+                or 'argument experiment_command:' in message
             )
         )
         if unknown_command:
@@ -221,6 +224,110 @@ def dataset_build_command(args: argparse.Namespace) -> None:
     print(f'Wrote dataset manifest to {result.manifest_path}')
 
 
+def experiment_run_command(args: argparse.Namespace) -> None:
+    """Prepare two exact targets and execute or resume an experiment bundle."""
+    client_targets = {
+        label: _prepare_experiment_client_target(args, label)
+        for label in ('reference', 'candidate')
+    }
+    default_repo_url, default_ref = get_default_container_repo()
+    container_repo_url = args.container_repo_url or default_repo_url
+    container_ref = args.container_ref or default_ref
+    benchmark_commit = setup_container_repo(
+        container_repo_url=container_repo_url,
+        container_ref=container_ref,
+        cache_dir=args.cache_dir,
+    )
+    architecture = detect_architecture()
+    image_specs = {
+        label: BenchmarkImageSpec(
+            ros_distro=args.ros_distro,
+            architecture=architecture,
+            benchmark_repository_url=container_repo_url,
+            benchmark_requested_ref=container_ref,
+            benchmark_resolved_commit=benchmark_commit,
+            client_target=client_targets[label],
+        )
+        for label in ('reference', 'candidate')
+    }
+    if image_specs['reference'].target_key == image_specs['candidate'].target_key:
+        raise RuntimeError('reference and candidate targets must be different')
+
+    verified_images = {}
+    for label in ('reference', 'candidate'):
+        image_spec = image_specs[label]
+        if benchmark_image_exists(image_spec):
+            verified_image = verify_benchmark_image(image_spec)
+            print(f'Using verified {label} image: {image_spec.image_name}')
+        elif args.skip_build:
+            raise RuntimeError(
+                f'Cannot skip build: exact {label} target image '
+                f'{image_spec.image_name} does not exist.'
+            )
+        else:
+            verified_image = build_benchmark_image(image_spec, args.cache_dir)
+            print(f'Built verified {label} image: {image_spec.image_name}')
+        verified_images[label] = verified_image
+
+    plan = build_experiment_plan(
+        image_specs,
+        verified_images,
+        suite=args.suite,
+        executor=args.executor,
+        duration=args.duration,
+        cpuset_cpus=args.cpuset_cpus,
+        warmup_count=args.warmups,
+        measured_repeat_count=args.repeats,
+        order=args.order,
+        seed=args.seed,
+    )
+    result = run_experiment(
+        args.experiment_dir,
+        plan,
+        image_specs,
+        verified_images,
+    )
+    print(
+        f'Experiment {result.experiment_id} is complete: '
+        f'{result.completed_trials} trials ({result.reused_trials} reused)'
+    )
+    print(f'Comparison dataset: {result.dataset_path}')
+
+
+def _prepare_experiment_client_target(args, label):
+    source = getattr(args, f'{label}_source')
+    requested_ref = getattr(args, f'{label}_ref')
+    repository_url = getattr(args, f'{label}_repo_url')
+    if source == 'packaged':
+        if requested_ref or repository_url:
+            raise RuntimeError(
+                f'--{label}-ref and --{label}-repo-url require '
+                f'--{label}-source build'
+            )
+        return ClientLibraryTarget.packaged(args.ros_distro)
+    if not requested_ref:
+        raise RuntimeError(f'--{label}-ref is required with --{label}-source build')
+    return resolve_rclcpp_target(
+        repository_url=repository_url or DEFAULT_RCLCPP_REPOSITORY,
+        requested_ref=requested_ref,
+        cache_dir=args.cache_dir,
+    )
+
+
+def _positive_integer(value):
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError('value must be a positive integer')
+    return parsed
+
+
+def _non_negative_integer(value):
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError('value must be a non-negative integer')
+    return parsed
+
+
 def main() -> Any:
     defaults = RunDefaults()
     parser = CommandArgumentParser(prog='ros2-performance-monitoring')
@@ -264,6 +371,20 @@ def main() -> Any:
         help='Combine normalized runs into one comparison dataset',
     )
     dataset_build_parser.set_defaults(func=dataset_build_command)
+
+    experiment_parser = subparsers.add_parser(
+        'experiment',
+        help='Run controlled repeated comparisons',
+    )
+    experiment_subparsers = experiment_parser.add_subparsers(
+        dest='experiment_command',
+        required=True,
+    )
+    experiment_run_parser = experiment_subparsers.add_parser(
+        'run',
+        help='Create or safely resume an experiment bundle',
+    )
+    experiment_run_parser.set_defaults(func=experiment_run_command)
 
     serve_prometheus_parser = subparsers.add_parser(
         'serve-prometheus',
@@ -392,6 +513,71 @@ def main() -> Any:
         default=[],
         help='Run ID to omit; may be repeated',
     )
+    experiment_run_parser.add_argument(
+        'experiment_dir',
+        help='Experiment bundle directory to create or resume',
+    )
+    experiment_run_parser.add_argument(
+        '-t', '--duration', type=_positive_integer, default=defaults.duration,
+        help='Duration in seconds for every trial scenario',
+    )
+    experiment_run_parser.add_argument(
+        '-d', '--ros-distro', choices=SUPPORTED_ROS_DISTROS, default=defaults.ros_distro,
+        help='ROS distribution shared by both targets',
+    )
+    experiment_run_parser.add_argument(
+        '-x', '--executor', default=defaults.executor,
+        help='Executor shared by every trial',
+    )
+    experiment_run_parser.add_argument(
+        '--suite', default=defaults.default_benchmark,
+        help='Benchmark suite shared by every trial',
+    )
+    experiment_run_parser.add_argument(
+        '--cpuset-cpus',
+        help='Restrict every trial to a Docker CPU-set expression',
+    )
+    experiment_run_parser.add_argument(
+        '--warmups', type=_non_negative_integer, default=1,
+        help='Warm-up trials per target (default: 1)',
+    )
+    experiment_run_parser.add_argument(
+        '--repeats', type=_positive_integer, default=3,
+        help='Measured trials per target (default: 3)',
+    )
+    experiment_run_parser.add_argument(
+        '--order', choices=('balanced', 'interleaved'), default='balanced',
+        help='Target scheduling policy (default: balanced)',
+    )
+    experiment_run_parser.add_argument(
+        '--seed', type=int, default=0,
+        help='Deterministic scheduling seed (default: 0)',
+    )
+    experiment_run_parser.add_argument(
+        '--cache-dir', default=defaults.cache_dir,
+        help='Cache directory for benchmark and target repositories',
+    )
+    experiment_run_parser.add_argument('--container-repo-url')
+    experiment_run_parser.add_argument('--container-ref')
+    experiment_run_parser.add_argument(
+        '--skip-build', action='store_true',
+        help='Require both exact verified target images to exist locally',
+    )
+    for label in ('reference', 'candidate'):
+        experiment_run_parser.add_argument(
+            f'--{label}-source',
+            choices=('build', 'packaged'),
+            default='build',
+            help=f'Use a source-built or packaged rclcpp {label} target',
+        )
+        experiment_run_parser.add_argument(
+            f'--{label}-ref',
+            help=f'rclcpp branch, tag, or commit for the {label} source target',
+        )
+        experiment_run_parser.add_argument(
+            f'--{label}-repo-url',
+            help=f'rclcpp repository URL for the {label} source target',
+        )
     dashboard_up_parser.add_argument(
         '--input',
         required=True,
@@ -412,6 +598,7 @@ def main() -> Any:
             build_container_parser,
             parse_parser,
             dataset_build_parser,
+            experiment_run_parser,
             dashboard_up_parser,
             dashboard_down_parser,
             serve_prometheus_parser,
