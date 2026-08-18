@@ -15,6 +15,7 @@
 import re
 import shutil
 import subprocess
+import tempfile
 
 
 _FULL_COMMIT_PATTERN = re.compile(r'[0-9a-fA-F]{40}')
@@ -32,8 +33,7 @@ def resolve_remote_commit(repository_url: str, requested_ref: str) -> str:
         raise RuntimeError('Git executable was not found on PATH')
 
     if _FULL_COMMIT_PATTERN.fullmatch(requested_ref):
-        _check_remote_access(repository_url)
-        return requested_ref.lower()
+        return _verify_remote_commit(repository_url, requested_ref.lower())
 
     if requested_ref == 'HEAD':
         references = _ls_remote(repository_url, ('HEAD',))
@@ -68,13 +68,35 @@ def resolve_remote_commit(repository_url: str, requested_ref: str) -> str:
     return _commit_for_ref(references, matches[0])
 
 
-def _check_remote_access(repository_url: str) -> None:
-    subprocess.run(
-        ['git', 'ls-remote', '--exit-code', repository_url, 'HEAD'],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+def _verify_remote_commit(repository_url: str, commit: str) -> str:
+    with tempfile.TemporaryDirectory(prefix='ros2-performance-remote-ref-') as temporary:
+        subprocess.run(
+            ['git', 'init', '--bare', temporary],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            [
+                'git', '-C', temporary, 'fetch', '--depth=1',
+                '--filter=blob:none', '--no-tags', repository_url, commit,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        result = subprocess.run(
+            ['git', '-C', temporary, 'rev-parse', '--verify', 'FETCH_HEAD^{commit}'],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    resolved = result.stdout.strip()
+    if resolved != commit:
+        raise RuntimeError(
+            f'remote commit resolved to {resolved!r}, expected {commit!r}'
+        )
+    return resolved
 
 
 def _ls_remote(repository_url: str, patterns: tuple[str, ...]) -> dict[str, str]:
