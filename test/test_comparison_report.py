@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from copy import deepcopy
+import json
 
 import pytest
 
@@ -31,6 +32,7 @@ DATASET_CHECKSUM = 'd' * 64
 
 def test_valid_report_resolves_only_its_reference_and_candidate_aggregate_runs():
     report, records = _fixture()
+    report = json.loads(json.dumps(report, sort_keys=True))
     records.append(_record('unrelated', 'e' * 40))
 
     validated = validate_comparison_report(report, records, DATASET_CHECKSUM)
