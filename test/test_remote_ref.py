@@ -96,3 +96,32 @@ def test_propagates_remote_access_failure(monkeypatch):
         remote_ref.resolve_remote_commit(REPOSITORY, 'rolling')
 
     assert exc_info.value.returncode == 128
+
+
+def test_full_commit_is_verified_with_a_filtered_temporary_fetch(monkeypatch):
+    calls = []
+    commit = 'a' * 40
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        output = f'{commit}\n' if 'rev-parse' in command else ''
+        return argparse.Namespace(returncode=0, stdout=output, stderr='', args=command)
+
+    monkeypatch.setattr(remote_ref.shutil, 'which', lambda _executable: '/usr/bin/git')
+    monkeypatch.setattr(remote_ref.subprocess, 'run', fake_run)
+
+    assert remote_ref.resolve_remote_commit(REPOSITORY, commit) == commit
+    temporary = calls[0][0][-1]
+    assert calls[0][0] == ['git', 'init', '--bare', temporary]
+    assert calls[1][0] == [
+        'git', '-C', temporary, 'fetch', '--depth=1', '--filter=blob:none',
+        '--no-tags', REPOSITORY, commit,
+    ]
+    assert calls[2][0] == [
+        'git', '-C', temporary, 'rev-parse', '--verify', 'FETCH_HEAD^{commit}',
+    ]
+    assert all(kwargs == {
+        'check': True,
+        'capture_output': True,
+        'text': True,
+    } for _, kwargs in calls)
