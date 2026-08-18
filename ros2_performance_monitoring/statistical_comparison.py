@@ -15,13 +15,14 @@
 from collections import defaultdict
 import math
 import random
+import re
 from statistics import median
 
 from ros2_performance_monitoring.comparison import CATEGORIES
 from ros2_performance_monitoring.comparison import CATEGORY_THRESHOLDS
 
 
-REPORT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 2
 METHOD = 'paired-bootstrap-worst-scenario-v1'
 DEFAULT_CONFIDENCE_LEVEL = 0.95
 DEFAULT_BOOTSTRAP_REPEATS = 10000
@@ -93,6 +94,7 @@ def build_comparison_report(
     bootstrap_repeats=DEFAULT_BOOTSTRAP_REPEATS,
     seed=DEFAULT_SEED,
     minimum_trials=MINIMUM_MEASURED_TRIALS,
+    dataset_sha256=None,
 ):
     """Compare measured experiment trials with a deterministic paired bootstrap."""
     _validate_analysis_options(
@@ -101,6 +103,12 @@ def build_comparison_report(
         seed,
         minimum_trials,
     )
+    if dataset_sha256 is not None and not re.fullmatch(
+        r'[0-9a-f]{64}', dataset_sha256
+    ):
+        raise StatisticalComparisonError(
+            'dataset checksum must be a lowercase SHA-256 digest'
+        )
     report = _report_skeleton(
         plan,
         reference,
@@ -109,6 +117,7 @@ def build_comparison_report(
         bootstrap_repeats,
         seed,
         minimum_trials,
+        dataset_sha256,
     )
     targets = _target_map(plan)
     if reference == candidate:
@@ -197,12 +206,18 @@ def _report_skeleton(
     bootstrap_repeats,
     seed,
     minimum_trials,
+    dataset_sha256,
 ):
     if not isinstance(plan, dict):
         raise StatisticalComparisonError('experiment plan must be a JSON object')
+    experiment_id = str(plan.get('experiment_id') or '')
     return {
         'schema_version': REPORT_SCHEMA_VERSION,
-        'experiment_id': str(plan.get('experiment_id') or ''),
+        'experiment_id': experiment_id,
+        'dataset': {
+            'sha256': dataset_sha256,
+            'experiment_id': experiment_id,
+        },
         'targets': {
             'reference': {'label': reference},
             'candidate': {'label': candidate},

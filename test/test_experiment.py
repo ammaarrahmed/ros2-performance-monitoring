@@ -128,6 +128,10 @@ def test_completed_experiment_loader_returns_only_verified_measured_trials(tmp_p
     assert completed.plan == plan
     assert completed.environment['cpu_model'] == 'Test CPU'
     assert completed.experiment_complete is True
+    assert completed.dataset_path == root / 'dataset' / 'dashboard-data.jsonl'
+    assert completed.dataset_sha256 == verify_dataset_bundle(
+        completed.dataset_path
+    )['dataset_sha256']
     assert [trial.trial_id for trial in completed.measured_trials] == [
         trial['trial_id'] for trial in plan['schedule']['trials']
         if trial['kind'] == 'measured'
@@ -159,6 +163,8 @@ def test_experiment_loader_uses_valid_trials_when_bundle_completion_is_invalid(t
     completed = load_experiment_evidence(root)
 
     assert completed.experiment_complete is False
+    assert completed.dataset_path is None
+    assert completed.dataset_sha256 is None
     assert len(completed.measured_trials) == 2
 
 

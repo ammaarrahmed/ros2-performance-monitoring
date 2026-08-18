@@ -322,6 +322,7 @@ def experiment_compare_command(args: argparse.Namespace) -> int:
             bootstrap_repeats=args.bootstrap_repeats,
             seed=args.seed,
             minimum_trials=args.minimum_trials,
+            dataset_sha256=completed.dataset_sha256,
         )
         output = (
             Path(args.output).expanduser().resolve()
