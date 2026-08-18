@@ -235,6 +235,9 @@ Warm-ups, failed or incomplete trials, and median aggregate records are never
 statistical samples. The command rejects incompatible target provenance,
 environment evidence, scenario coverage, metric coverage, and schedules without
 valid balanced pairs before calculating uncertainty.
+It can also inspect an unfinished bundle: checksum-valid measured trials remain
+eligible, while a missing planned pair produces `Incomplete results` rather
+than reducing the requested sample count.
 
 To reverse the comparison direction, reverse the plan labels explicitly:
 

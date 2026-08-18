@@ -73,12 +73,13 @@ class CompletedTrial:
 
 @dataclass(frozen=True)
 class CompletedExperiment:
-    """Expose the immutable plan and its verified measured trial records."""
+    """Expose an immutable plan and all currently verified measured trials."""
 
     experiment_dir: Path
     plan: dict
-    environment: dict
+    environment: dict | None
     measured_trials: tuple[CompletedTrial, ...]
+    experiment_complete: bool
 
 
 def build_experiment_plan(
@@ -235,8 +236,8 @@ def run_experiment(
     )
 
 
-def load_completed_experiment(experiment_dir):
-    """Load only checksum-verified measured trials from a completed experiment."""
+def load_experiment_evidence(experiment_dir):
+    """Load checksum-verified measured trials without accepting failed attempts."""
     root = Path(experiment_dir).expanduser().resolve()
     plan_path = root / PLAN_FILENAME
     try:
@@ -245,19 +246,13 @@ def load_completed_experiment(experiment_dir):
         raise ExperimentError(f'experiment plan does not exist: {plan_path}') from exc
     except json.JSONDecodeError as exc:
         raise ExperimentError(f'invalid experiment plan: {plan_path}') from exc
-    if not _verify_experiment_completion(root, plan):
-        raise ExperimentError(
-            'experiment is incomplete or failed completion verification: '
-            f'{root}'
-        )
+    experiment_complete = _verify_experiment_completion(root, plan)
 
     environment_path = root / ENVIRONMENT_FILENAME
     try:
         environment = json.loads(environment_path.read_text(encoding='utf-8'))
-    except FileNotFoundError as exc:
-        raise ExperimentError(
-            f'measured environment evidence does not exist: {environment_path}'
-        ) from exc
+    except FileNotFoundError:
+        environment = None
     except json.JSONDecodeError as exc:
         raise ExperimentError(
             f'invalid measured environment evidence: {environment_path}'
@@ -270,11 +265,13 @@ def load_completed_experiment(experiment_dir):
         'cpuset_cpus',
         'cpu_governors',
     }
-    if set(environment) != expected_environment_fields:
+    if environment is not None and set(environment) != expected_environment_fields:
         raise ExperimentError(
             f'invalid measured environment evidence: {environment_path}'
         )
-    if environment['cpuset_cpus'] != plan.get('configuration', {}).get('cpuset_cpus'):
+    if environment is not None and environment['cpuset_cpus'] != (
+        plan.get('configuration', {}).get('cpuset_cpus')
+    ):
         raise ExperimentError('measured environment does not match experiment configuration')
 
     measured_trials = []
@@ -283,9 +280,7 @@ def load_completed_experiment(experiment_dir):
             continue
         verified = _verified_trial(root, trial)
         if verified is None:
-            raise ExperimentError(
-                f'measured trial failed completion verification: {trial.get("trial_id")}'
-            )
+            continue
         normalized_path = verified['normalized_path']
         try:
             records = tuple(
@@ -312,11 +307,16 @@ def load_completed_experiment(experiment_dir):
             planned_order=trial['planned_order'],
             records=measured_records,
         ))
+    if measured_trials and environment is None:
+        raise ExperimentError(
+            f'measured environment evidence does not exist: {environment_path}'
+        )
     return CompletedExperiment(
         experiment_dir=root,
         plan=plan,
         environment=environment,
         measured_trials=tuple(measured_trials),
+        experiment_complete=experiment_complete,
     )
 
 

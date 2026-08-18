@@ -461,10 +461,11 @@ def test_experiment_compare_writes_report_and_returns_documented_outcome(
         experiment_dir=experiment_dir,
         plan={'experiment_id': 'experiment-cli-compare'},
         measured_trials=(measured_trial,),
+        experiment_complete=True,
     )
     received = {}
 
-    monkeypatch.setattr(cli, 'load_completed_experiment', lambda path: completed)
+    monkeypatch.setattr(cli, 'load_experiment_evidence', lambda path: completed)
 
     def fake_report(plan, records, **options):
         received.update({'plan': plan, 'records': records, 'options': options})
@@ -522,7 +523,7 @@ def test_experiment_compare_rejects_unverified_bundle_without_writing_report(
     def fail_load(_path):
         raise ExperimentError('experiment is incomplete')
 
-    monkeypatch.setattr(cli, 'load_completed_experiment', fail_load)
+    monkeypatch.setattr(cli, 'load_experiment_evidence', fail_load)
     monkeypatch.setattr(sys, 'argv', [
         'ros2-performance-monitoring',
         'experiment',

@@ -35,10 +35,12 @@ input and identical controls produce byte-for-byte identical JSON.
 
 ## Eligible Evidence
 
-The comparison loader first verifies `experiment.complete.json`, the immutable
-plan checksum, the dataset completion manifest, every trial completion marker,
-and every recorded trial file checksum. It then loads only records that are all
-of the following:
+The comparison loader reads the immutable plan, checks the measured-environment
+identity, and verifies every available trial completion marker and recorded file
+checksum. When `experiment.complete.json` is present it is also verified, but
+the report does not require the whole bundle to be complete: a failed planned
+trial must remain visible as `Incomplete results`. The loader uses only records
+that are all of the following:
 
 - Planned as `measured` rather than `warmup`.
 - Present in a completed, checksum-valid trial attempt.
@@ -136,9 +138,9 @@ method changes require a new method identifier.
 
 ## Exit Outcomes
 
-The command always writes a valid report before returning one of these outcomes.
-An experiment that fails completion verification is rejected without writing a
-report.
+The command writes a valid report before returning one of these outcomes. A
+malformed plan or environment record is rejected without writing a report;
+missing or failed planned trials instead produce an `Incomplete results` report.
 
 | Exit code | Outcome |
 | ---: | --- |
