@@ -64,8 +64,13 @@ manifests are published before trial execution. Existing image and trial
 verification remains authoritative for resume; only incomplete work is retried.
 After report generation, the workflow validates the experiment identity,
 dataset checksum, report binding, both target keys, and local image manifests.
-`comparison.complete.json` is published last and checksums every final contract
-artifact, leaving local files suitable for later CI upload without conversion.
+The version 2 `comparison.complete.json` is published last and checksums every
+final contract artifact, leaving local files suitable for later CI upload
+without conversion. Report reuse requires every stable completion field to
+match the current plan, targets, experiment, dataset, report, status, and exit
+outcome. Missing, damaged, or version 1 derived report chains are regenerated
+deterministically from verified experiment evidence; the invalid marker is
+removed before recovery begins.
 
 The target key is a SHA-256 digest over the ROS distribution, architecture,
 benchmark repository commit, client-library source and commit, and relevant
@@ -96,8 +101,14 @@ reuses trials whose complete file graph still matches those checksums.
 Host architecture, CPU model, kernel, Docker version, CPU set, and CPU governor
 state are captured for every trial. The first measured trial establishes the
 measured-environment identity; subsequent measured trials must match it before
-they start. Target image ID and digest, benchmark commit, executor, duration,
-suite, and ROS distribution remain recorded with each trial as evidence.
+they start. Experiment completion version 2 binds the top-level measured
+identity by path and checksum, and loading or resuming the bundle compares it
+with the checksum-bound environment evidence of every measured trial. Warm-up
+evidence remains outside that identity contract. Version 1 experiment
+completion is regenerated only after the full version 2 environment and
+artifact checks pass. Target image ID and digest, benchmark commit, executor,
+duration, suite, and ROS distribution remain recorded with each trial as
+evidence.
 
 The statistical comparison boundary reads a controlled experiment rather than
 its aggregate dataset. It verifies the experiment and trial completion graphs,

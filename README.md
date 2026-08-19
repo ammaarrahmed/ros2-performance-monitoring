@@ -214,9 +214,10 @@ ros2-performance-monitoring experiment compare \
 The real invocation publishes the immutable `plan.json` only after both refs
 resolve and both target images are verified. Run the identical command again to
 resume. Verified images, completed trials, the dataset, and a matching report
-are reused. A changed target, ROS distribution, suite, executor, duration, CPU
-set, benchmark commit, trial count, order, or scheduling seed is rejected with
-an instruction to use a new result directory.
+are reused only when their complete checksum chain remains valid. A changed
+target, ROS distribution, suite, executor, duration, CPU set, benchmark commit,
+trial count, order, or scheduling seed is rejected with an instruction to use a
+new result directory.
 
 Warm-ups run through the same benchmark path but are omitted automatically from
 the dataset and median lineage. Failed builds and workflow stages are recorded
@@ -243,11 +244,24 @@ experiment/
   comparison.complete.json
 ```
 
-`experiment.complete.json` is written only after every planned trial and the
-dataset bundle pass checksum validation. `comparison.complete.json` is the
-end-to-end completion marker: it binds the plan, verified target manifests,
-experiment completion, dataset, dataset manifest, report, evidence status, and
-comparison exit outcome by SHA-256.
+The version 2 `experiment.complete.json` is written only after every planned
+trial and the dataset bundle pass checksum validation. It binds the
+`measured_environment.json` path and SHA-256 in addition to the plan, trial
+completion files, dataset, and dataset manifest. Every checksum-valid measured
+trial environment must match that top-level host identity; warm-up environment
+evidence is retained but cannot establish or weaken the measured identity.
+
+The version 2 `comparison.complete.json` is the end-to-end completion marker. It
+binds the plan, verified target manifests, experiment completion, dataset,
+dataset manifest, report, evidence status, and comparison exit outcome by
+SHA-256. Resume validates every stable marker field before reusing the report.
+If a derived report or its marker is missing, damaged, version 1, or disagrees
+with those verified inputs, the workflow removes the invalid marker and
+deterministically regenerates the report and version 2 marker from the verified
+experiment evidence. Version 1 experiment markers are likewise regenerated
+from checksum-valid trials, measured environments, and datasets without
+rerunning valid trials. A failure during recovery leaves no final comparison
+completion marker.
 
 The default report analysis uses a paired bootstrap over recorded balanced
 trial blocks, a 95% confidence level, 10,000 resamples, bootstrap seed `0`, and
