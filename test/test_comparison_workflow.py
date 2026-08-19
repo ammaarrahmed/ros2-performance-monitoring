@@ -116,7 +116,7 @@ def test_mocked_end_to_end_workflow_composes_stages_and_reuses_completed_work(
     def fake_run(experiment_dir, plan, image_specs, images):
         calls.append('run-experiment')
         dataset_path = root / 'dataset' / 'dashboard-data.jsonl'
-        dataset_path.parent.mkdir(parents=True)
+        dataset_path.parent.mkdir(parents=True, exist_ok=True)
         dataset_path.write_text('{"run_id":"aggregate-reference"}\n')
         (root / 'dataset' / 'dashboard-data.manifest.json').write_text('{}\n')
         (root / 'experiment.complete.json').write_text('{}\n')
@@ -222,6 +222,59 @@ def test_mocked_end_to_end_workflow_composes_stages_and_reuses_completed_work(
     assert 'Comparison workflow complete:' in output
     assert '6 completed, 0 failed, 6 reused' in output
     assert 'ros2-performance-monitoring dashboard up' in output
+
+    report_path = root / workflow.REPORT_FILENAME
+    completion_path = root / workflow.WORKFLOW_COMPLETE_FILENAME
+    original_report = report_path.read_text()
+    original_completion = completion_path.read_text()
+    calls.clear()
+
+    resumed = workflow.run_comparison_workflow(options)
+
+    assert resumed.reused_trials == 6
+    assert 'build-report' not in calls
+    assert calls.count('validate-report') == 2
+    assert report_path.read_text() == original_report
+    assert completion_path.read_text() == original_completion
+
+    legacy_completion = json.loads(completion_path.read_text())
+    legacy_completion['schema_version'] = 1
+    workflow.write_json(legacy_completion, completion_path)
+    calls.clear()
+
+    migrated = workflow.run_comparison_workflow(options)
+
+    assert migrated.reused_trials == 6
+    assert calls.count('build-report') == 1
+    assert json.loads(completion_path.read_text())['schema_version'] == 2
+
+    report_path.write_text(original_report + '\n')
+    calls.clear()
+
+    recovered = workflow.run_comparison_workflow(options)
+
+    assert recovered.reused_trials == 6
+    assert calls.count('build-report') == 1
+    assert report_path.read_text() == original_report
+    assert json.loads(completion_path.read_text())['schema_version'] == 2
+
+    report_path.write_text(original_report + '\n')
+    original_write_json = workflow.write_json
+
+    def fail_final_completion(item, path):
+        if Path(path).name == workflow.WORKFLOW_COMPLETE_FILENAME:
+            raise OSError('simulated final completion failure')
+        return original_write_json(item, path)
+
+    monkeypatch.setattr(workflow, 'write_json', fail_final_completion)
+
+    with pytest.raises(
+        workflow.ComparisonWorkflowError,
+        match='simulated final completion failure',
+    ):
+        workflow.run_comparison_workflow(options)
+
+    assert not completion_path.exists()
 
 
 def test_dry_run_resolves_remote_refs_and_writes_nothing(tmp_path, monkeypatch, capsys):
@@ -372,6 +425,77 @@ def test_completion_manifest_uses_checksums_of_every_final_artifact(tmp_path):
         b'reference'
     ).hexdigest()
     assert completion['report_sha256'] == hashlib.sha256(b'report').hexdigest()
+    assert completion['schema_version'] == 2
+
+
+@pytest.mark.parametrize(
+    'field',
+    (
+        'schema_version',
+        'experiment_id',
+        'plan_sha256',
+        'target_manifest_sha256',
+        'experiment_completion_sha256',
+        'dataset',
+        'dataset_sha256',
+        'dataset_manifest_sha256',
+        'report',
+        'report_sha256',
+        'overall_status',
+        'comparison_exit_code',
+    ),
+)
+def test_workflow_completion_rejects_every_changed_stable_field(tmp_path, field):
+    plan = {'experiment_id': 'experiment-test'}
+    report = {'overall': {'status': 'No regression'}}
+    dataset_path, dataset_manifest, report_path = _write_completion_bundle(
+        tmp_path,
+        plan,
+        report,
+    )
+    completion_path = tmp_path / workflow.WORKFLOW_COMPLETE_FILENAME
+    completion = json.loads(completion_path.read_text())
+    if field == 'target_manifest_sha256':
+        completion[field]['reference'] = '0' * 64
+    elif field == 'comparison_exit_code':
+        completion[field] = 3
+    elif field == 'schema_version':
+        completion[field] = 1
+    else:
+        completion[field] = f'changed-{field}'
+    workflow.write_json(completion, completion_path)
+
+    assert not workflow._verify_workflow_completion(
+        tmp_path,
+        plan,
+        dataset_path,
+        dataset_manifest,
+        report_path,
+        report,
+    )
+
+
+def test_workflow_completion_allows_only_timestamp_change(tmp_path):
+    plan = {'experiment_id': 'experiment-test'}
+    report = {'overall': {'status': 'No regression'}}
+    dataset_path, dataset_manifest, report_path = _write_completion_bundle(
+        tmp_path,
+        plan,
+        report,
+    )
+    completion_path = tmp_path / workflow.WORKFLOW_COMPLETE_FILENAME
+    completion = json.loads(completion_path.read_text())
+    completion['completed_at'] = '2026-08-19T00:00:00+00:00'
+    workflow.write_json(completion, completion_path)
+
+    assert workflow._verify_workflow_completion(
+        tmp_path,
+        plan,
+        dataset_path,
+        dataset_manifest,
+        report_path,
+        report,
+    )
 
 
 def test_reuses_documented_invalid_comparison_without_dashboard_validation(
@@ -419,7 +543,11 @@ def test_reuses_documented_invalid_comparison_without_dashboard_validation(
         'scenarios': [],
     }
     report_path = tmp_path / workflow.REPORT_FILENAME
-    report_path.write_text(json.dumps(report))
+    dataset_path, dataset_manifest, report_path = _write_completion_bundle(
+        tmp_path,
+        plan,
+        report,
+    )
     monkeypatch.setattr(
         workflow,
         'validate_comparison_report',
@@ -427,12 +555,26 @@ def test_reuses_documented_invalid_comparison_without_dashboard_validation(
     )
 
     assert workflow._load_reusable_report(
+        tmp_path,
         report_path,
         [],
-        DATASET_SHA,
+        dataset_path,
+        dataset_manifest,
         options,
         plan,
     ) == report
+
+    report_path.write_text(report_path.read_text() + '\n')
+
+    assert workflow._load_reusable_report(
+        tmp_path,
+        report_path,
+        [],
+        dataset_path,
+        dataset_manifest,
+        options,
+        plan,
+    ) is None
 
 
 def _options(root, dry_run=False, order='balanced'):
@@ -480,3 +622,29 @@ def _image(spec):
 def _call(calls, name, result):
     calls.append(name)
     return result
+
+
+def _write_completion_bundle(root, plan, report):
+    root = Path(root)
+    (root / 'targets').mkdir(parents=True, exist_ok=True)
+    dataset_path = root / 'dataset' / 'dashboard-data.jsonl'
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+    (root / 'plan.json').write_text(json.dumps(plan))
+    (root / 'targets' / 'reference.json').write_text('reference\n')
+    (root / 'targets' / 'candidate.json').write_text('candidate\n')
+    (root / 'experiment.complete.json').write_text('experiment\n')
+    dataset_path.write_text('dataset\n')
+    (root / 'dataset' / 'dashboard-data.manifest.json').write_text('manifest\n')
+    report_path = root / workflow.REPORT_FILENAME
+    workflow.write_json(report, report_path)
+    dataset_manifest = {'dataset_sha256': DATASET_SHA}
+    completion = workflow._completion_manifest(
+        root,
+        plan,
+        dataset_path,
+        dataset_manifest,
+        report_path,
+        report,
+    )
+    workflow.write_json(completion, root / workflow.WORKFLOW_COMPLETE_FILENAME)
+    return dataset_path, dataset_manifest, report_path
