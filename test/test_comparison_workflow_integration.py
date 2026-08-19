@@ -98,7 +98,15 @@ def test_two_source_targets_produce_a_complete_validated_bundle(tmp_path):
         for filename, checksum in completion['files'].items():
             assert _sha256(attempt / filename) == checksum
 
+    experiment_completion = _read_json(root / 'experiment.complete.json')
+    assert experiment_completion['schema_version'] == 2
+    assert experiment_completion['measured_environment'] == 'measured_environment.json'
+    assert experiment_completion['measured_environment_sha256'] == _sha256(
+        root / 'measured_environment.json'
+    )
+
     completion = _read_json(root / 'comparison.complete.json')
+    assert completion['schema_version'] == 2
     assert completion['plan_sha256'] == _sha256(root / 'plan.json')
     assert completion['target_manifest_sha256'] == {
         label: _sha256(root / 'targets' / f'{label}.json')

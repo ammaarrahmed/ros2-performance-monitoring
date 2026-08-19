@@ -59,6 +59,7 @@ WORKFLOW_STATUS_FILENAME = 'workflow.status.json'
 WORKFLOW_LOG_FILENAME = 'workflow.log'
 WORKFLOW_COMPLETE_FILENAME = 'comparison.complete.json'
 REPORT_FILENAME = 'comparison-report.json'
+WORKFLOW_COMPLETION_SCHEMA_VERSION = 2
 OPERATIONAL_ERROR_EXIT = 4
 TARGET_LABELS = ('reference', 'candidate')
 INVALID_COMPARISON_STATUSES = frozenset({
@@ -227,13 +228,21 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
         dataset_manifest = verify_dataset_bundle(dataset_path)
         records = _load_dataset_records(dataset_path)
         report = _load_reusable_report(
+            root,
             report_path,
             records,
-            dataset_manifest['dataset_sha256'],
+            dataset_path,
+            dataset_manifest,
             options,
             completed.plan,
         )
         if report is None:
+            if report_path.exists() or (root / WORKFLOW_COMPLETE_FILENAME).exists():
+                print(
+                    'Existing comparison report completion chain is invalid; '
+                    'regenerating it from verified experiment evidence.'
+                )
+            _remove_file(root / WORKFLOW_COMPLETE_FILENAME)
             trial_records = {
                 trial.trial_id: trial.records
                 for trial in completed.measured_trials
@@ -449,7 +458,16 @@ def _write_target_manifests(root, plan, image_specs):
         _write_if_changed(target_root / f'{label}.json', manifest)
 
 
-def _load_reusable_report(path, records, checksum, options, plan):
+def _load_reusable_report(
+    root,
+    path,
+    records,
+    dataset_path,
+    dataset_manifest,
+    options,
+    plan,
+):
+    checksum = dataset_manifest['dataset_sha256']
     try:
         report = json.loads(path.read_text(encoding='utf-8'))
         _validate_report_identity(report, plan, checksum)
@@ -457,7 +475,13 @@ def _load_reusable_report(path, records, checksum, options, plan):
             validate_comparison_report(report, records, checksum)
         else:
             _validate_invalid_report_structure(report)
-    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError, ValueError):
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        ValueError,
+        ComparisonWorkflowError,
+    ):
         return None
     analysis = report.get('analysis', {})
     expected = {
@@ -467,6 +491,15 @@ def _load_reusable_report(path, records, checksum, options, plan):
         'minimum_measured_trials': options.minimum_trials,
     }
     if any(analysis.get(key) != value for key, value in expected.items()):
+        return None
+    if not _verify_workflow_completion(
+        root,
+        plan,
+        dataset_path,
+        dataset_manifest,
+        path,
+        report,
+    ):
         return None
     return report
 
@@ -590,7 +623,7 @@ def _completion_manifest(
     report,
 ):
     completion = {
-        'schema_version': 1,
+        'schema_version': WORKFLOW_COMPLETION_SCHEMA_VERSION,
         'experiment_id': plan['experiment_id'],
         'completed_at': _utc_now(),
         'plan_sha256': _file_sha256(root / 'plan.json'),
@@ -614,9 +647,51 @@ def _completion_manifest(
     except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
         return completion
     stable_fields = set(completion) - {'completed_at'}
-    if all(existing.get(field) == completion[field] for field in stable_fields):
+    if isinstance(existing, dict) and all(
+        existing.get(field) == completion[field] for field in stable_fields
+    ):
         completion['completed_at'] = existing.get('completed_at', completion['completed_at'])
     return completion
+
+
+def _verify_workflow_completion(
+    root,
+    plan,
+    dataset_path,
+    dataset_manifest,
+    report_path,
+    report,
+):
+    completion_path = root / WORKFLOW_COMPLETE_FILENAME
+    try:
+        completion = json.loads(completion_path.read_text(encoding='utf-8'))
+        expected = _completion_manifest(
+            root,
+            plan,
+            dataset_path,
+            dataset_manifest,
+            report_path,
+            report,
+        )
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        OSError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ):
+        return False
+    expected_fields = set(expected)
+    if (
+        not isinstance(completion, dict)
+        or set(completion) != expected_fields
+        or completion.get('schema_version') != WORKFLOW_COMPLETION_SCHEMA_VERSION
+    ):
+        return False
+    stable_fields = expected_fields - {'completed_at'}
+    return all(completion.get(field) == expected[field] for field in stable_fields)
 
 
 def _write_if_changed(path, value):
@@ -627,6 +702,13 @@ def _write_if_changed(path, value):
         existing = None
     if existing != value:
         write_json(value, path)
+
+
+def _remove_file(path):
+    try:
+        Path(path).unlink()
+    except FileNotFoundError:
+        pass
 
 
 def _load_dataset_records(path):
