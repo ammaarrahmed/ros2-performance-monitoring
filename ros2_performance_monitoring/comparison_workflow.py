@@ -124,6 +124,10 @@ class ComparisonWorkflowResult:
 
 def run_comparison_workflow(options: ComparisonWorkflowOptions):
     """Resolve, prepare, execute, analyse, and validate one comparison."""
+    if options.order != 'balanced':
+        raise ComparisonWorkflowError(
+            'end-to-end comparison requires balanced scheduling'
+        )
     root = Path(options.results_dir).expanduser().resolve()
     stage = 'preflight'
     try:

@@ -689,7 +689,7 @@ def test_experiment_compare_passes_every_workflow_option(monkeypatch, tmp_path):
         '--repeats',
         '5',
         '--order',
-        'interleaved',
+        'balanced',
         '--seed',
         '17',
         '--cache-dir',
@@ -724,7 +724,7 @@ def test_experiment_compare_passes_every_workflow_option(monkeypatch, tmp_path):
         cpuset_cpus='0-1',
         warmups=2,
         repeats=5,
-        order='interleaved',
+        order='balanced',
         schedule_seed=17,
         cache_dir=str(tmp_path / 'cache'),
         rclcpp_repository_url='https://example.test/rclcpp.git',
@@ -738,6 +738,38 @@ def test_experiment_compare_passes_every_workflow_option(monkeypatch, tmp_path):
         minimum_trials=4,
         start_dashboard=False,
     )
+
+
+def test_experiment_compare_rejects_interleaved_schedule(
+    monkeypatch,
+    tmp_path,
+    capsys,
+):
+    importlib.reload(cli)
+    monkeypatch.setattr(
+        cli,
+        'run_comparison_workflow',
+        lambda _options: pytest.fail('workflow must not start'),
+    )
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'compare',
+        '--reference-ref',
+        'reference-branch',
+        '--candidate-ref',
+        'candidate-branch',
+        '--order',
+        'interleaved',
+        '--results-dir',
+        str(tmp_path / 'comparison'),
+    ])
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 2
+    assert "invalid choice: 'interleaved'" in capsys.readouterr().err
 
 
 def test_experiment_compare_returns_separate_operational_outcome(

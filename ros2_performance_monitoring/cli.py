@@ -815,8 +815,8 @@ def main() -> Any:
         help='Measured trials per target (default: 3)',
     )
     experiment_compare_parser.add_argument(
-        '--order', choices=('balanced', 'interleaved'), default='balanced',
-        help='Target scheduling policy (default: balanced)',
+        '--order', choices=('balanced',), default='balanced',
+        help='Comparison scheduling policy (balanced only; default: balanced)',
     )
     experiment_compare_parser.add_argument(
         '--cache-dir', default=defaults.cache_dir,
