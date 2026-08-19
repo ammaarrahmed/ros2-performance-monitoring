@@ -16,7 +16,6 @@ from copy import deepcopy
 import json
 
 import pytest
-
 from ros2_performance_monitoring.comparison import CATEGORIES
 from ros2_performance_monitoring.comparison import CATEGORY_THRESHOLDS
 from ros2_performance_monitoring.comparison_report import ComparisonReportError
