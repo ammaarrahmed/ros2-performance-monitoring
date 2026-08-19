@@ -34,6 +34,26 @@ CANDIDATE_COMMIT = 'c' * 40
 DATASET_SHA = 'd' * 64
 
 
+def test_workflow_rejects_interleaved_schedule_before_preflight(
+    tmp_path,
+    monkeypatch,
+):
+    root = tmp_path / 'comparison'
+    monkeypatch.setattr(
+        workflow,
+        'run_comparison_preflight',
+        lambda *args, **kwargs: pytest.fail('preflight must not start'),
+    )
+
+    with pytest.raises(
+        workflow.ComparisonWorkflowError,
+        match='requires balanced scheduling',
+    ):
+        workflow.run_comparison_workflow(_options(root, order='interleaved'))
+
+    assert not root.exists()
+
+
 def test_mocked_end_to_end_workflow_composes_stages_and_reuses_completed_work(
     tmp_path,
     monkeypatch,
@@ -415,7 +435,7 @@ def test_reuses_documented_invalid_comparison_without_dashboard_validation(
     ) == report
 
 
-def _options(root, dry_run=False):
+def _options(root, dry_run=False, order='balanced'):
     defaults = RunDefaults()
     return workflow.ComparisonWorkflowOptions(
         results_dir=str(root),
@@ -428,7 +448,7 @@ def _options(root, dry_run=False):
         cpuset_cpus='0-1',
         warmups=0,
         repeats=3,
-        order='balanced',
+        order=order,
         schedule_seed=7,
         cache_dir=str(root.parent / 'cache'),
         rclcpp_repository_url=RCLCPP_REPOSITORY,

@@ -171,6 +171,10 @@ both rclcpp refs, prepares exact verified images, runs or resumes the experiment
 builds the dataset, generates repeat-aware evidence, validates every identity
 and checksum, and prints the matching dashboard command:
 
+The end-to-end command accepts balanced scheduling only because its statistical
+report is built from paired balanced trial blocks. The lower-level `experiment
+run` command continues to support interleaved scheduling for custom workflows.
+
 ```bash
 ros2-performance-monitoring experiment compare \
   --reference-ref <reference-rclcpp-commit> \
