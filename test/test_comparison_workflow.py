@@ -387,7 +387,7 @@ def test_reuses_documented_invalid_comparison_without_dashboard_validation(
         ],
     }
     report = {
-        'schema_version': 2,
+        'schema_version': workflow.REPORT_SCHEMA_VERSION,
         'experiment_id': plan['experiment_id'],
         'dataset': {
             'sha256': DATASET_SHA,

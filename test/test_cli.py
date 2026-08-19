@@ -809,13 +809,15 @@ def test_experiment_report_keeps_report_stage_available(monkeypatch, tmp_path):
         plan={'experiment_id': 'experiment-report'},
         measured_trials=(),
         dataset_sha256='d' * 64,
+        experiment_complete=False,
     )
     monkeypatch.setattr(cli, 'load_experiment_evidence', lambda path: completed)
+    monkeypatch.setattr(cli, 'validate_comparison_report', lambda report: None)
     monkeypatch.setattr(
         cli,
         'build_comparison_report',
         lambda *args, **kwargs: {
-            'schema_version': 2,
+            'schema_version': REPORT_SCHEMA_VERSION,
             'overall': {'status': NO_REGRESSION},
         },
     )
