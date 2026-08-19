@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 
@@ -141,6 +142,112 @@ def test_completed_experiment_loader_returns_only_verified_measured_trials(tmp_p
         for trial in completed.measured_trials
         for record in trial.records
     )
+    completion = json.loads((root / 'experiment.complete.json').read_text())
+    environment_path = root / completion['measured_environment']
+    assert completion['schema_version'] == 2
+    assert environment_path == root / 'measured_environment.json'
+    assert completion['measured_environment_sha256'] == _sha256(environment_path)
+
+
+@pytest.mark.parametrize('change', ('missing', 'changed'))
+def test_completed_experiment_rejects_missing_or_changed_environment(tmp_path, change):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=0, repeats=1)
+    root = tmp_path / 'experiment'
+    run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=_successful_trial,
+        environment_collector=_environment,
+    )
+    environment_path = root / 'measured_environment.json'
+    if change == 'missing':
+        environment_path.unlink()
+    else:
+        environment = json.loads(environment_path.read_text())
+        environment['kernel'] = 'changed-kernel'
+        write_json(environment, environment_path)
+
+    with pytest.raises(ExperimentError, match='measured.*environment'):
+        load_experiment_evidence(root)
+
+
+def test_completed_experiment_rejects_checksummed_trial_environment_mismatch(tmp_path):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=0, repeats=1)
+    root = tmp_path / 'experiment'
+    run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=_successful_trial,
+        environment_collector=_environment,
+    )
+    measured_trial = plan['schedule']['trials'][0]
+    _change_checksummed_trial_environment(root, measured_trial, kernel='other-kernel')
+
+    with pytest.raises(ExperimentError, match='disagrees.*kernel'):
+        load_experiment_evidence(root)
+
+
+def test_warmup_environment_does_not_change_measured_environment_contract(tmp_path):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=1, repeats=1)
+    root = tmp_path / 'experiment'
+    run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=_successful_trial,
+        environment_collector=_environment,
+    )
+    warmup = next(
+        trial for trial in plan['schedule']['trials'] if trial['kind'] == 'warmup'
+    )
+    _change_checksummed_trial_environment(root, warmup, kernel='warmup-only-kernel')
+
+    completed = load_experiment_evidence(root)
+
+    assert completed.experiment_complete is True
+    assert completed.environment['kernel'] == 'test-kernel'
+
+
+def test_resume_regenerates_version_one_completion_without_rerunning_trials(tmp_path):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=0, repeats=1)
+    root = tmp_path / 'experiment'
+    run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=_successful_trial,
+        environment_collector=_environment,
+    )
+    completion_path = root / 'experiment.complete.json'
+    completion = json.loads(completion_path.read_text())
+    completion['schema_version'] = 1
+    completion.pop('measured_environment')
+    completion.pop('measured_environment_sha256')
+    write_json(completion, completion_path)
+
+    result = run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=lambda *args: pytest.fail('verified trials must be reused'),
+        environment_collector=lambda *args: pytest.fail('environment must not be recollected'),
+    )
+
+    regenerated = json.loads(completion_path.read_text())
+    assert result.reused_trials == len(plan['schedule']['trials'])
+    assert regenerated['schema_version'] == 2
+    assert regenerated['measured_environment'] == 'measured_environment.json'
 
 
 def test_experiment_loader_uses_valid_trials_when_bundle_completion_is_invalid(tmp_path):
@@ -502,3 +609,34 @@ def _environment(plan, trial, image_spec, verified_image):
 
 def _read_jsonl(path):
     return [json.loads(line) for line in path.read_text().splitlines() if line]
+
+
+def _change_checksummed_trial_environment(root, trial, **changes):
+    trial_root = root / 'trials' / trial['trial_id']
+    trial_completion_path = trial_root / 'complete.json'
+    trial_completion = json.loads(trial_completion_path.read_text())
+    attempt = trial_root / trial_completion['attempt_path']
+    environment_path = attempt / 'environment.json'
+    environment = json.loads(environment_path.read_text())
+    environment['host'].update(changes)
+    write_json(environment, environment_path)
+
+    attempt_completion_path = attempt / 'attempt.complete.json'
+    attempt_completion = json.loads(attempt_completion_path.read_text())
+    environment_sha256 = _sha256(environment_path)
+    attempt_completion['files']['environment.json'] = environment_sha256
+    write_json(attempt_completion, attempt_completion_path)
+    trial_completion['files']['environment.json'] = environment_sha256
+    trial_completion['attempt_complete_sha256'] = _sha256(attempt_completion_path)
+    write_json(trial_completion, trial_completion_path)
+
+    experiment_completion_path = root / 'experiment.complete.json'
+    experiment_completion = json.loads(experiment_completion_path.read_text())
+    experiment_completion['trial_completion_sha256'][trial['trial_id']] = _sha256(
+        trial_completion_path
+    )
+    write_json(experiment_completion, experiment_completion_path)
+
+
+def _sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
