@@ -16,6 +16,7 @@ from copy import deepcopy
 import json
 
 import pytest
+from ros2_performance_monitoring.comparison_report import validate_comparison_report
 from ros2_performance_monitoring.statistical_comparison import build_comparison_report
 from ros2_performance_monitoring.statistical_comparison import CANNOT_COMPARE
 from ros2_performance_monitoring.statistical_comparison import comparison_exit_code
@@ -41,6 +42,7 @@ def test_identical_stable_repeats_produce_no_regression_with_zero_width_interval
     assert {
         evidence['status'] for evidence in report['categories'].values()
     } == {NO_REGRESSION}
+    validate_comparison_report(report)
 
 
 @pytest.mark.parametrize(
@@ -74,6 +76,7 @@ def test_consistent_adverse_effects_use_each_kpi_direction_and_unit(
     expected_unit = 'percentage_points' if category == 'reliability' else 'percent'
     assert evidence['practical_threshold']['unit'] == expected_unit
     assert report['overall']['status'] == REGRESSION
+    validate_comparison_report(report)
 
 
 def test_effect_above_threshold_with_high_variance_is_only_possible():
@@ -93,16 +96,27 @@ def test_effect_above_threshold_with_high_variance_is_only_possible():
     assert evidence['confidence_interval']['lower'] == 0.0
     assert evidence['status'] == POSSIBLE_REGRESSION
     assert report['overall']['status'] == POSSIBLE_REGRESSION
+    validate_comparison_report(report)
 
 
-def test_too_few_measured_pairs_produce_insufficient_evidence_without_bootstrap():
-    plan, trials = _experiment(2)
+@pytest.mark.parametrize('measured_pairs', (1, 2))
+def test_too_few_measured_pairs_produce_insufficient_evidence_without_bootstrap(
+    measured_pairs,
+):
+    plan, trials = _experiment(measured_pairs)
 
     report = _report(plan, trials)
 
-    assert report['analysis']['measured_trial_pairs'] == 2
+    assert report['analysis']['measured_trial_pairs'] == measured_pairs
     assert report['overall']['status'] == INSUFFICIENT_EVIDENCE
     assert report['overall']['confidence_interval'] is None
+    assert report['scenarios']
+    assert all(
+        evidence['status'] == INSUFFICIENT_EVIDENCE
+        for scenario in report['scenarios']
+        for evidence in scenario['categories'].values()
+    )
+    validate_comparison_report(report)
 
 
 def test_warmups_failed_trials_and_aggregate_records_are_not_samples():
@@ -148,6 +162,7 @@ def test_missing_pairing_information_is_reported_explicitly():
 
     assert report['overall']['status'] == CANNOT_COMPARE
     assert 'both targets' in report['overall']['reason']
+    validate_comparison_report(report)
 
 
 def test_missing_completed_trial_is_incomplete_not_a_smaller_sample():
@@ -162,6 +177,7 @@ def test_missing_completed_trial_is_incomplete_not_a_smaller_sample():
 
     assert report['overall']['status'] == INCOMPLETE_RESULTS
     assert 'not complete' in report['overall']['reason']
+    validate_comparison_report(report)
 
 
 def test_improvement_in_one_metric_cannot_cancel_another_metric_regression():
