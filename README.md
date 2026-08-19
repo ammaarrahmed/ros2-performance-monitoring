@@ -252,9 +252,10 @@ The report keeps practical thresholds separate from confidence intervals and
 uses `No regression`, `Possible regression`, `Regression`, `Insufficient
 evidence`, `Incomplete results`, `Cannot compare`, and `N/A`. The command exits
 with `0` for no regression, `1` for a supported regression, `2` for possible or
-insufficient evidence, and `3` for an invalid or incomplete comparison. See
-[`doc/statistical-comparison.md`](doc/statistical-comparison.md) for the method,
-report contract, evidence rules, and optional analysis controls.
+insufficient evidence, `3` for an invalid, incomplete, or non-comparable
+comparison, and `4` only when an operational failure prevents the comparison.
+See [`doc/statistical-comparison.md`](doc/statistical-comparison.md) for the
+method, report contract, evidence rules, and optional analysis controls.
 
 To inspect that report in Grafana, pass it beside the experiment's exact
 dataset:
