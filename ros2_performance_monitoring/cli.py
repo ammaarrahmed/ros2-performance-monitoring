@@ -31,6 +31,8 @@ from .benchmark_runner import benchmark_runner
 from .client_target import ClientLibraryTarget
 from .client_target import DEFAULT_RCLCPP_REPOSITORY
 from .client_target import resolve_rclcpp_target
+from .comparison_report import ComparisonReportError
+from .comparison_report import validate_comparison_report
 from .config import RunDefaults
 from .config import SUPPORTED_ROS_DISTROS
 from .container_provider import get_default_container_repo, setup_container_repo
@@ -42,6 +44,7 @@ from .experiment import build_experiment_plan
 from .experiment import ExperimentError
 from .experiment import load_experiment_evidence
 from .experiment import run_experiment
+from .exporters.prometheus import load_records
 from .exporters.prometheus import serve_metrics
 from .parsers.ros2_benchmark_container import latest_run_metadata
 from .parsers.ros2_benchmark_container import parse_artifact
@@ -52,6 +55,7 @@ from .statistical_comparison import DEFAULT_BOOTSTRAP_REPEATS
 from .statistical_comparison import DEFAULT_CONFIDENCE_LEVEL
 from .statistical_comparison import DEFAULT_SEED
 from .statistical_comparison import EXIT_INVALID_COMPARISON
+from .statistical_comparison import EXIT_OPERATIONAL_FAILURE
 from .statistical_comparison import MINIMUM_MEASURED_TRIALS
 from .statistical_comparison import StatisticalComparisonError
 from .writers.jsonl import write_json
@@ -328,15 +332,27 @@ def experiment_compare_command(args: argparse.Namespace) -> int:
             minimum_trials=args.minimum_trials,
             dataset_sha256=completed.dataset_sha256,
         )
+        if completed.experiment_complete:
+            records = load_records(completed.dataset_path)
+            validate_comparison_report(
+                report,
+                records,
+                completed.dataset_sha256,
+            )
+        else:
+            validate_comparison_report(report)
         output = (
             Path(args.output).expanduser().resolve()
             if args.output
             else completed.experiment_dir / 'comparison-report.json'
         )
         write_json(report, output)
-    except (ExperimentError, StatisticalComparisonError, OSError) as exc:
+    except (ComparisonReportError, ExperimentError, StatisticalComparisonError) as exc:
         print(f'Invalid comparison: {exc}', file=sys.stderr)
         return EXIT_INVALID_COMPARISON
+    except OSError as exc:
+        print(f'Comparison failed: {exc}', file=sys.stderr)
+        return EXIT_OPERATIONAL_FAILURE
 
     status = report['overall']['status']
     print(f'Comparison status: {status}')

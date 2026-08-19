@@ -23,6 +23,7 @@ import pytest
 from ros2_performance_monitoring.benchmark_image import VerifiedImage
 import ros2_performance_monitoring.cli as cli
 from ros2_performance_monitoring.client_target import ClientLibraryTarget
+from ros2_performance_monitoring.comparison_report import ComparisonReportError
 from ros2_performance_monitoring.config import RunDefaults
 from ros2_performance_monitoring.container_provider import get_default_container_repo
 from ros2_performance_monitoring.dataset import DatasetBuildResult
@@ -504,6 +505,7 @@ def test_experiment_compare_writes_report_and_returns_documented_outcome(
         plan={'experiment_id': 'experiment-cli-compare'},
         measured_trials=(measured_trial,),
         experiment_complete=True,
+        dataset_path=experiment_dir / 'dataset' / 'dashboard-data.jsonl',
         dataset_sha256='d' * 64,
     )
     received = {}
@@ -515,6 +517,17 @@ def test_experiment_compare_writes_report_and_returns_documented_outcome(
         return {'schema_version': 1, 'overall': {'status': status}}
 
     monkeypatch.setattr(cli, 'build_comparison_report', fake_report)
+    dataset_records = ({'run_id': 'reference-median'},)
+    monkeypatch.setattr(cli, 'load_records', lambda path: dataset_records)
+
+    def fake_validate(report, records=None, dataset_checksum=None):
+        received['validation'] = {
+            'report': report,
+            'records': records,
+            'dataset_checksum': dataset_checksum,
+        }
+
+    monkeypatch.setattr(cli, 'validate_comparison_report', fake_validate)
     monkeypatch.setattr(sys, 'argv', [
         'ros2-performance-monitoring',
         'experiment',
@@ -550,10 +563,62 @@ def test_experiment_compare_writes_report_and_returns_documented_outcome(
             'minimum_trials': 4,
             'dataset_sha256': 'd' * 64,
         },
+        'validation': {
+            'report': {'schema_version': 1, 'overall': {'status': status}},
+            'records': dataset_records,
+            'dataset_checksum': 'd' * 64,
+        },
     }
     captured = capsys.readouterr()
     assert f'Comparison status: {status}' in captured.out
     assert f'Wrote comparison report to {output}' in captured.out
+
+
+@pytest.mark.parametrize(
+    ('error', 'exit_code', 'message'),
+    (
+        (ComparisonReportError('invalid generated report'), 3, 'Invalid comparison'),
+        (OSError('dataset read failed'), 4, 'Comparison failed'),
+    ),
+)
+def test_experiment_compare_distinguishes_invalid_and_operational_failures(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    error,
+    exit_code,
+    message,
+):
+    importlib.reload(cli)
+    experiment_dir = tmp_path / 'experiment'
+    experiment_dir.mkdir()
+    completed = argparse.Namespace(
+        experiment_dir=experiment_dir,
+        plan={'experiment_id': 'experiment-cli-compare'},
+        measured_trials=(),
+        experiment_complete=True,
+        dataset_path=experiment_dir / 'dataset' / 'dashboard-data.jsonl',
+        dataset_sha256='d' * 64,
+    )
+    report = {'schema_version': 2, 'overall': {'status': INSUFFICIENT_EVIDENCE}}
+    monkeypatch.setattr(cli, 'load_experiment_evidence', lambda path: completed)
+    monkeypatch.setattr(cli, 'build_comparison_report', lambda *args, **kwargs: report)
+    monkeypatch.setattr(cli, 'load_records', lambda path: ())
+
+    def fail_validation(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(cli, 'validate_comparison_report', fail_validation)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'compare',
+        str(experiment_dir),
+    ])
+
+    assert cli.main() == exit_code
+    assert not (experiment_dir / 'comparison-report.json').exists()
+    assert message in capsys.readouterr().err
 
 
 def test_experiment_compare_rejects_unverified_bundle_without_writing_report(
