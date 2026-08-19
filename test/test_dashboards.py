@@ -332,6 +332,38 @@ def test_comparison_dashboards_show_report_method_and_selected_category_evidence
     assert dashboard_queries[0] == dashboard_queries[1]
 
 
+def test_report_summary_queries_select_evidence_for_the_active_topology():
+    """Test mixed-suite report panels never substitute the report-wide scope."""
+    dashboards = _load_dashboards()
+    summary_families = {
+        'ros2_perf_comparison_status',
+        'ros2_perf_comparison_analysis',
+        'ros2_perf_comparison_evidence',
+    }
+
+    for uid in ('ros2-regression-overview', 'rclcpp-pubsub-overview'):
+        dashboard = _dashboard_by_uid(dashboards, uid)
+        for title in (
+            'Overall status',
+            'Analysis method',
+            'Measured pairs',
+            'Effect estimate',
+            'Confidence interval',
+        ):
+            panel = next(panel for panel in dashboard['panels'] if panel['title'] == title)
+            assert 'selected topology' in panel['description'].lower().replace('-', ' ')
+        expressions = [
+            target['expr']
+            for panel in dashboard['panels']
+            for target in panel.get('targets', [])
+            if any(family in target['expr'] for family in summary_families)
+        ]
+        assert expressions
+        for expression in expressions:
+            assert 'topology="$topology"' in expression
+            assert 'topology="all"' not in expression
+
+
 def test_status_descriptions_and_detail_panels_use_policy_thresholds():
     """Test rendered threshold values cannot drift from the shared policy."""
     dashboards = _load_dashboards()

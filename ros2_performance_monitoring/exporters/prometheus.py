@@ -198,10 +198,7 @@ def _report_comparison_samples(records, validated):
     report = validated.report
     reference = _record_for_run(records, validated.reference_run)
     candidate = _record_for_run(records, validated.candidate_run)
-    topologies = sorted({
-        scenario['identity']['topology'] for scenario in report['scenarios']
-    })
-    scope = {
+    base_scope = {
         'baseline_run': validated.reference_run,
         'candidate_run': validated.candidate_run,
         'baseline_distro': reference.get('ros_distro', 'unknown'),
@@ -213,30 +210,43 @@ def _report_comparison_samples(records, validated):
             reference.get('client_library_commit'),
         ),
         'platform': normalize_platform(reference.get('platform')),
-        'topology': topologies[0] if len(topologies) == 1 else 'all',
     }
     analysis = report['analysis']
-    analysis_labels = {
-        **scope,
-        'experiment_id': report['experiment_id'],
-        'method': METHOD,
-        'confidence_level': _format_number(analysis['confidence_level']),
-        'repeat_count': str(analysis['measured_trial_pairs']),
-    }
-    lines = [_sample('ros2_perf_comparison_analysis', analysis_labels, 1)]
-    evidence_items = [('overall', report['overall']), *report['categories'].items()]
-    for category, evidence in evidence_items:
-        labels = _report_evidence_labels(scope, report, category, evidence)
-        lines.append(_sample(
-            'ros2_perf_comparison_status',
-            labels,
-            EVIDENCE_STATUS_VALUES[evidence['status']],
-        ))
-        lines.extend(_evidence_samples(scope, report, category, evidence))
+    summaries = []
+    if len(report['topologies']) != 1:
+        summaries.append(('all', {
+            'overall': report['overall'],
+            'categories': report['categories'],
+        }))
+    summaries.extend(sorted(report['topologies'].items()))
+
+    lines = []
+    for topology, summary in summaries:
+        scope = {**base_scope, 'topology': topology}
+        analysis_labels = {
+            **scope,
+            'experiment_id': report['experiment_id'],
+            'method': METHOD,
+            'confidence_level': _format_number(analysis['confidence_level']),
+            'repeat_count': str(analysis['measured_trial_pairs']),
+        }
+        lines.append(_sample('ros2_perf_comparison_analysis', analysis_labels, 1))
+        evidence_items = [
+            ('overall', summary['overall']),
+            *summary['categories'].items(),
+        ]
+        for category, evidence in evidence_items:
+            labels = _report_evidence_labels(scope, report, category, evidence)
+            lines.append(_sample(
+                'ros2_perf_comparison_status',
+                labels,
+                EVIDENCE_STATUS_VALUES[evidence['status']],
+            ))
+            lines.extend(_evidence_samples(scope, report, category, evidence))
 
     for scenario in report['scenarios']:
         scenario_labels = {
-            **scope,
+            **base_scope,
             **_scenario_labels(scenario['identity']),
         }
         for category, evidence in scenario['categories'].items():
