@@ -18,11 +18,18 @@ import json
 import pytest
 
 from ros2_performance_monitoring.comparison import CATEGORIES
+from ros2_performance_monitoring.comparison import CATEGORY_THRESHOLDS
 from ros2_performance_monitoring.comparison_report import ComparisonReportError
 from ros2_performance_monitoring.comparison_report import validate_comparison_report
+from ros2_performance_monitoring.exporters.prometheus import records_to_prometheus
+from ros2_performance_monitoring.statistical_comparison import CANNOT_COMPARE
+from ros2_performance_monitoring.statistical_comparison import INCOMPLETE_RESULTS
+from ros2_performance_monitoring.statistical_comparison import INSUFFICIENT_EVIDENCE
 from ros2_performance_monitoring.statistical_comparison import METHOD
 from ros2_performance_monitoring.statistical_comparison import NO_REGRESSION
 from ros2_performance_monitoring.statistical_comparison import NOT_APPLICABLE
+from ros2_performance_monitoring.statistical_comparison import POSSIBLE_REGRESSION
+from ros2_performance_monitoring.statistical_comparison import REGRESSION
 from ros2_performance_monitoring.statistical_comparison import REPORT_SCHEMA_VERSION
 from ros2_performance_monitoring.statistical_comparison import SCENARIO_FIELDS
 
@@ -67,6 +74,8 @@ def test_report_validation_rejects_stale_or_incompatible_identity(field, message
         report['schema_version'] = REPORT_SCHEMA_VERSION + 1
     elif field == 'scenario':
         report['scenarios'][0]['identity']['payload_size'] = 100
+        report['categories']['latency']['responsible_scenario']['payload_size'] = 100
+        report['overall']['responsible_scenario']['payload_size'] = 100
     elif field == 'method':
         report['analysis']['method'] = 'different-method'
 
@@ -79,6 +88,182 @@ def test_report_validation_rejects_malformed_evidence():
     report['categories']['latency']['confidence_interval']['upper'] = 'wide'
 
     with pytest.raises(ComparisonReportError, match='interval is invalid'):
+        validate_comparison_report(report, records, DATASET_CHECKSUM)
+
+
+@pytest.mark.parametrize(
+    ('status', 'point', 'lower', 'upper', 'overall_lower', 'overall_upper'),
+    (
+        (NO_REGRESSION, 0.0, 0.0, 0.0, 0.0, 0.0),
+        (POSSIBLE_REGRESSION, 1.0, 0.0, 1.0, 0.0, 0.5),
+        (REGRESSION, 3.0, 2.1, 4.0, 1.05, 2.0),
+    ),
+)
+def test_each_statistical_verdict_validates_and_exports(
+    status,
+    point,
+    lower,
+    upper,
+    overall_lower,
+    overall_upper,
+):
+    report, records = _fixture()
+    category = report['categories']['latency']
+    scenario = report['scenarios'][0]['categories']['latency']
+    metric = scenario['metrics'][0]
+    for evidence in (category, scenario, metric):
+        evidence['status'] = status
+        evidence['point_estimate'] = point
+        evidence['confidence_interval'] = {'lower': lower, 'upper': upper}
+    report['overall'].update({
+        'status': status,
+        'point_estimate': point / CATEGORY_THRESHOLDS['latency'].regression,
+        'confidence_interval': {
+            'lower': overall_lower,
+            'upper': overall_upper,
+        },
+    })
+
+    validated = validate_comparison_report(report, records, DATASET_CHECKSUM)
+    output = records_to_prometheus(records, validated)
+
+    assert f'evidence_state="{status}"' in output
+
+
+@pytest.mark.parametrize('measured_pairs', (1, 2))
+def test_insufficient_evidence_validates_and_exports_available_coverage(measured_pairs):
+    report, records = _fixture()
+    reason = f'{measured_pairs} measured pairs are below the required minimum'
+    report['analysis']['measured_trial_pairs'] = measured_pairs
+    report['overall'] = _empty_evidence(
+        INSUFFICIENT_EVIDENCE,
+        threshold=None,
+        reason=reason,
+    )
+    report['categories'] = {
+        category: _empty_evidence(
+            INSUFFICIENT_EVIDENCE if category == 'latency' else NOT_APPLICABLE,
+            threshold=_threshold(category),
+            reason=reason if category == 'latency' else None,
+        )
+        for category in CATEGORIES
+    }
+    report['scenarios'][0]['categories']['latency'] = {
+        'status': INSUFFICIENT_EVIDENCE,
+        'practical_threshold': _threshold('latency'),
+        'point_estimate': None,
+        'confidence_interval': None,
+        'responsible_metric': None,
+        'metrics': [],
+        'reason': reason,
+    }
+    for record in records:
+        record['repeat_count'] = measured_pairs
+        if measured_pairs == 1:
+            record['run_kind'] = 'measured'
+            record.pop('aggregation_method')
+
+    validated = validate_comparison_report(report, records, DATASET_CHECKSUM)
+    output = records_to_prometheus(records, validated)
+
+    assert 'evidence_state="Insufficient evidence"' in output
+    assert 'ros2_perf_comparison_scenario_status{' in output
+
+
+@pytest.mark.parametrize('status', (INCOMPLETE_RESULTS, CANNOT_COMPARE))
+def test_invalid_outcomes_require_reasons_and_export_without_estimates(status):
+    report, records = _fixture()
+    reason = 'comparison evidence is incomplete'
+    report['overall'] = _empty_evidence(status, threshold=None, reason=reason)
+    report['categories'] = {
+        category: _empty_evidence(
+            status,
+            threshold=_threshold(category),
+            reason=reason,
+        )
+        for category in CATEGORIES
+    }
+    report['scenarios'] = []
+
+    validated = validate_comparison_report(report, records, DATASET_CHECKSUM)
+    output = records_to_prometheus(records, validated)
+
+    assert f'evidence_state="{status}"' in output
+    assert 'statistic="point_estimate"' not in output
+    assert 'statistic="interval_lower"' not in output
+
+    report['overall']['reason'] = ''
+    with pytest.raises(ComparisonReportError, match='reason is missing'):
+        validate_comparison_report(report, records, DATASET_CHECKSUM)
+
+
+@pytest.mark.parametrize(
+    ('field', 'value'),
+    (
+        ('possible', float('nan')),
+        ('possible', 3.0),
+        ('regression', float('inf')),
+        ('regression', 3.0),
+        ('unit', 'milliseconds'),
+    ),
+)
+def test_report_validation_rejects_invalid_or_non_policy_thresholds(field, value):
+    report, records = _fixture()
+    report['categories']['latency']['practical_threshold'][field] = value
+
+    with pytest.raises(ComparisonReportError, match='practical threshold is invalid'):
+        validate_comparison_report(report, records, DATASET_CHECKSUM)
+
+
+def test_report_validation_rejects_missing_threshold_fields():
+    report, records = _fixture()
+    del report['categories']['latency']['practical_threshold']['possible']
+
+    with pytest.raises(ComparisonReportError, match='practical threshold is invalid'):
+        validate_comparison_report(report, records, DATASET_CHECKSUM)
+
+
+def test_report_validation_rejects_responsible_scenario_not_in_coverage():
+    report, records = _fixture()
+    report['categories']['latency']['responsible_scenario']['payload_size'] = 100
+
+    with pytest.raises(ComparisonReportError, match='responsible evidence is inconsistent'):
+        validate_comparison_report(report, records, DATASET_CHECKSUM)
+
+
+def test_report_validation_rejects_responsible_metric_from_wrong_category():
+    report, records = _fixture()
+    report['scenarios'][0]['categories']['latency']['responsible_metric'] = {
+        'metric_name': 'resource_cpu',
+        'aggregation': 'max',
+        'source_unit': 'percent',
+    }
+
+    with pytest.raises(ComparisonReportError, match='responsible metric is inconsistent'):
+        validate_comparison_report(report, records, DATASET_CHECKSUM)
+
+
+def test_decisive_report_requires_minimum_pairs_and_scenario_coverage():
+    report, records = _fixture()
+    report['analysis']['measured_trial_pairs'] = 2
+
+    with pytest.raises(ComparisonReportError, match='too few measured trial pairs'):
+        validate_comparison_report(report, records, DATASET_CHECKSUM)
+
+    report, records = _fixture()
+    report['scenarios'] = []
+    with pytest.raises(ComparisonReportError, match='no scenario coverage'):
+        validate_comparison_report(report, records, DATASET_CHECKSUM)
+
+
+def test_not_applicable_category_must_be_absent_from_scenario_coverage():
+    report, records = _fixture()
+    report['categories']['latency'] = _empty_evidence(
+        NOT_APPLICABLE,
+        threshold=_threshold('latency'),
+    )
+
+    with pytest.raises(ComparisonReportError, match='category latency status is inconsistent'):
         validate_comparison_report(report, records, DATASET_CHECKSUM)
 
 
@@ -117,16 +302,21 @@ def _fixture():
             'pairing': 'recorded balanced execution blocks',
             'point_estimator': 'median of measured trials',
         },
-        'overall': _evidence(),
+        'overall': _overall_evidence(scenario),
         'categories': {
-            category: _evidence(
-                status=NO_REGRESSION if category == 'latency' else NOT_APPLICABLE
+            category: (
+                _category_evidence(scenario)
+                if category == 'latency'
+                else _empty_evidence(
+                    NOT_APPLICABLE,
+                    threshold=_threshold(category),
+                )
             )
             for category in CATEGORIES
         },
         'scenarios': [{
             'identity': scenario,
-            'categories': {'latency': _evidence()},
+            'categories': {'latency': _scenario_evidence()},
         }],
     }
     records = [
@@ -161,21 +351,84 @@ def _target(label, commit):
     }
 
 
-def _evidence(status=NO_REGRESSION):
+def _overall_evidence(scenario):
+    return {
+        'status': NO_REGRESSION,
+        'practical_threshold': {
+            'regression': 1.0,
+            'unit': 'category_regression_threshold_multiple',
+            'possible_by_category': {
+                category: round(values.possible / values.regression, 12)
+                for category, values in CATEGORY_THRESHOLDS.items()
+            },
+        },
+        'point_estimate': 0.0,
+        'confidence_interval': {'lower': 0.0, 'upper': 0.0},
+        'responsible_category': 'latency',
+        'responsible_scenario': deepcopy(scenario),
+        'responsible_metric': _metric_reference(),
+    }
+
+
+def _category_evidence(scenario):
+    return {
+        'status': NO_REGRESSION,
+        'practical_threshold': _threshold('latency'),
+        'point_estimate': 0.0,
+        'confidence_interval': {'lower': 0.0, 'upper': 0.0},
+        'responsible_scenario': deepcopy(scenario),
+        'responsible_metric': _metric_reference(),
+    }
+
+
+def _scenario_evidence():
+    return {
+        'status': NO_REGRESSION,
+        'practical_threshold': _threshold('latency'),
+        'point_estimate': 0.0,
+        'confidence_interval': {'lower': 0.0, 'upper': 0.0},
+        'responsible_metric': _metric_reference(),
+        'metrics': [{
+            **_metric_reference(),
+            'adverse_direction': 'increase',
+            'effect_unit': 'percent',
+            'practical_threshold': _threshold('latency'),
+            'point_estimate': 0.0,
+            'confidence_interval': {'lower': 0.0, 'upper': 0.0},
+            'status': NO_REGRESSION,
+        }],
+    }
+
+
+def _empty_evidence(status, *, threshold, reason=None):
     evidence = {
         'status': status,
-        'practical_threshold': {'possible': 0.5, 'regression': 2.0, 'unit': 'percent'},
+        'practical_threshold': threshold,
         'point_estimate': None,
         'confidence_interval': None,
         'responsible_scenario': None,
         'responsible_metric': None,
     }
-    if status == NO_REGRESSION:
-        evidence.update({
-            'point_estimate': 0.0,
-            'confidence_interval': {'lower': 0.0, 'upper': 0.0},
-        })
-    return deepcopy(evidence)
+    if reason is not None:
+        evidence['reason'] = reason
+    return evidence
+
+
+def _threshold(category):
+    values = CATEGORY_THRESHOLDS[category]
+    return {
+        'possible': values.possible,
+        'regression': values.regression,
+        'unit': 'percentage_points' if category == 'reliability' else 'percent',
+    }
+
+
+def _metric_reference():
+    return {
+        'metric_name': 'subscription_latency',
+        'aggregation': 'mean',
+        'source_unit': 'us',
+    }
 
 
 def _record(run_id, commit):

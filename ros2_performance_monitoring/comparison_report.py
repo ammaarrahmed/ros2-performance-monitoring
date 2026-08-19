@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import defaultdict
 from dataclasses import dataclass
 import hashlib
 import json
@@ -20,12 +21,15 @@ from pathlib import Path
 import re
 
 from ros2_performance_monitoring.comparison import CATEGORIES
+from ros2_performance_monitoring.comparison import CATEGORY_THRESHOLDS
 from ros2_performance_monitoring.model import normalize_client_library_source
 from ros2_performance_monitoring.model import normalize_platform
 from ros2_performance_monitoring.statistical_comparison import CANNOT_COMPARE
 from ros2_performance_monitoring.statistical_comparison import INCOMPLETE_RESULTS
 from ros2_performance_monitoring.statistical_comparison import INSUFFICIENT_EVIDENCE
 from ros2_performance_monitoring.statistical_comparison import METHOD
+from ros2_performance_monitoring.statistical_comparison import metric_policy
+from ros2_performance_monitoring.statistical_comparison import MINIMUM_MEASURED_TRIALS
 from ros2_performance_monitoring.statistical_comparison import NO_REGRESSION
 from ros2_performance_monitoring.statistical_comparison import NOT_APPLICABLE
 from ros2_performance_monitoring.statistical_comparison import POSSIBLE_REGRESSION
@@ -43,6 +47,9 @@ EVIDENCE_STATUS_VALUES = {
     NOT_APPLICABLE: 5,
     INSUFFICIENT_EVIDENCE: 6,
 }
+
+DECISIVE_STATUSES = {NO_REGRESSION, POSSIBLE_REGRESSION, REGRESSION}
+INVALID_STATUSES = {INCOMPLETE_RESULTS, CANNOT_COMPARE}
 
 
 class ComparisonReportError(ValueError):
@@ -78,8 +85,8 @@ def load_comparison_report(report_path, dataset_path, records):
     return validate_comparison_report(report, records, checksum)
 
 
-def validate_comparison_report(report, records, dataset_checksum):
-    """Validate report structure, dataset binding, targets, and scenario coverage."""
+def validate_comparison_report(report, records=None, dataset_checksum=None):
+    """Validate report semantics and, when supplied, its exact dataset binding."""
     if not isinstance(report, dict):
         raise ComparisonReportError('comparison report must be a JSON object')
     version = report.get('schema_version')
@@ -109,22 +116,53 @@ def validate_comparison_report(report, records, dataset_checksum):
         raise ComparisonReportError('comparison report dataset binding is malformed')
     if dataset.get('experiment_id') != experiment_id:
         raise ComparisonReportError('comparison report experiment identity is inconsistent')
-    checksum = dataset.get('sha256')
-    if not isinstance(checksum, str) or not re.fullmatch(r'[0-9a-f]{64}', checksum):
-        raise ComparisonReportError('comparison report dataset checksum is malformed')
-    if checksum != dataset_checksum:
-        raise ComparisonReportError('comparison report dataset checksum does not match input')
-
     analysis = _validate_analysis(report['analysis'])
-    targets = _validate_targets(report['targets'])
-    _validate_evidence(report['overall'], 'overall')
+    overall = _validate_overall_evidence(report['overall'])
+    outcome = overall['status']
+    targets = _validate_targets(
+        report['targets'],
+        require_complete=outcome not in INVALID_STATUSES,
+    )
     categories = report['categories']
     if not isinstance(categories, dict) or set(categories) != set(CATEGORIES):
         raise ComparisonReportError('comparison report category coverage is invalid')
     for category, evidence in categories.items():
-        _validate_evidence(evidence, f'category {category}')
+        _validate_category_evidence(evidence, category)
 
-    scenario_identities = _validate_scenarios(report['scenarios'])
+    scenarios = _validate_scenarios(report['scenarios'])
+    _validate_outcome(
+        overall,
+        categories,
+        scenarios,
+        analysis,
+    )
+
+    if (records is None) != (dataset_checksum is None):
+        raise ComparisonReportError(
+            'comparison report dataset records and checksum must be supplied together'
+        )
+    if records is None:
+        checksum = dataset.get('sha256')
+        if checksum is not None and not _valid_checksum(checksum):
+            raise ComparisonReportError('comparison report dataset checksum is malformed')
+        return ValidatedComparisonReport(
+            report=report,
+            reference_run='',
+            candidate_run='',
+        )
+
+    checksum = dataset.get('sha256')
+    if not _valid_checksum(checksum):
+        raise ComparisonReportError('comparison report dataset checksum is malformed')
+    if checksum != dataset_checksum:
+        raise ComparisonReportError('comparison report dataset checksum does not match input')
+    if not all(_complete_target(target) for target in targets.values()):
+        raise ComparisonReportError(
+            'comparison report targets cannot be resolved against the dataset'
+        )
+    if targets['reference']['target_key'] == targets['candidate']['target_key']:
+        raise ComparisonReportError('comparison report targets must be different')
+
     run_groups = _run_groups(records)
     selected_runs = {
         role: _select_target_run(
@@ -138,15 +176,13 @@ def validate_comparison_report(report, records, dataset_checksum):
     if selected_runs['reference'] == selected_runs['candidate']:
         raise ComparisonReportError('comparison report targets resolve to the same dataset run')
 
-    for role, run_id in selected_runs.items():
-        coverage = {
-            tuple(record.get(field, '') for field in SCENARIO_FIELDS)
-            for record in run_groups[run_id]
-        }
-        if coverage != scenario_identities:
-            raise ComparisonReportError(
-                f'comparison report scenario coverage does not match {role} target'
-            )
+    if outcome in DECISIVE_STATUSES | {INSUFFICIENT_EVIDENCE}:
+        _validate_bound_coverage(
+            scenarios,
+            run_groups,
+            selected_runs,
+            decisive=outcome in DECISIVE_STATUSES,
+        )
     return ValidatedComparisonReport(
         report=report,
         reference_run=selected_runs['reference'],
@@ -184,18 +220,24 @@ def _validate_analysis(analysis):
         raise ComparisonReportError('comparison report repeat settings are invalid')
     if (
         analysis['bootstrap_repeats'] < 1
-        or analysis['minimum_measured_trials'] < 1
-        or analysis['measured_trial_pairs'] < 1
+        or analysis['minimum_measured_trials'] < MINIMUM_MEASURED_TRIALS
+        or analysis['measured_trial_pairs'] < 0
     ):
         raise ComparisonReportError('comparison report repeat settings are invalid')
     return analysis
 
 
-def _validate_targets(targets):
+def _validate_targets(targets, require_complete):
     if not isinstance(targets, dict) or set(targets) != {'reference', 'candidate'}:
         raise ComparisonReportError('comparison report targets are malformed')
     for role, target in targets.items():
-        if not isinstance(target, dict) or set(target) != {'label', 'target_key', 'identity'}:
+        if not isinstance(target, dict):
+            raise ComparisonReportError(f'comparison report {role} target is malformed')
+        if set(target) == {'label'} and not require_complete:
+            if not isinstance(target['label'], str) or not target['label']:
+                raise ComparisonReportError(f'comparison report {role} target label is missing')
+            continue
+        if set(target) != {'label', 'target_key', 'identity'}:
             raise ComparisonReportError(f'comparison report {role} target is malformed')
         if not isinstance(target['label'], str) or not target['label']:
             raise ComparisonReportError(f'comparison report {role} target label is missing')
@@ -213,54 +255,545 @@ def _validate_targets(targets):
             raise ComparisonReportError(
                 f'comparison report {role} target identity is malformed'
             )
-    if targets['reference']['target_key'] == targets['candidate']['target_key']:
+    if (
+        require_complete
+        and targets['reference']['target_key'] == targets['candidate']['target_key']
+    ):
         raise ComparisonReportError('comparison report targets must be different')
     return targets
 
 
-def _validate_evidence(evidence, context):
+def _validate_overall_evidence(evidence):
+    context = 'overall'
     if not isinstance(evidence, dict):
         raise ComparisonReportError(f'comparison report {context} evidence is malformed')
-    if evidence.get('status') not in EVIDENCE_STATUS_VALUES:
+    status = evidence.get('status')
+    if status not in EVIDENCE_STATUS_VALUES or status == NOT_APPLICABLE:
         raise ComparisonReportError(f'comparison report {context} status is unsupported')
-    for key in ('point_estimate', 'confidence_interval'):
-        if key not in evidence:
-            raise ComparisonReportError(f'comparison report {context} evidence is malformed')
-    point = evidence['point_estimate']
-    if point is not None and not _finite_number(point):
-        raise ComparisonReportError(f'comparison report {context} point estimate is invalid')
-    interval = evidence['confidence_interval']
-    if interval is not None:
-        if not isinstance(interval, dict) or set(interval) != {'lower', 'upper'}:
-            raise ComparisonReportError(f'comparison report {context} interval is malformed')
-        lower = interval['lower']
-        upper = interval['upper']
-        if not _finite_number(lower) or not _finite_number(upper) or lower > upper:
-            raise ComparisonReportError(f'comparison report {context} interval is invalid')
+    common = {
+        'status',
+        'practical_threshold',
+        'point_estimate',
+        'confidence_interval',
+        'responsible_scenario',
+        'responsible_metric',
+    }
+    if status in DECISIVE_STATUSES:
+        expected = common | {'responsible_category'}
+        if set(evidence) != expected:
+            raise ComparisonReportError('comparison report overall evidence is malformed')
+        _validate_overall_threshold(evidence['practical_threshold'])
+        _validate_estimate(evidence, context)
+        if evidence['responsible_category'] not in CATEGORIES:
+            raise ComparisonReportError(
+                'comparison report overall responsible category is invalid'
+            )
+        _validate_scenario_reference(evidence['responsible_scenario'], context)
+        _validate_metric_reference(evidence['responsible_metric'], context)
+    else:
+        if set(evidence) != common | {'reason'}:
+            raise ComparisonReportError('comparison report overall evidence is malformed')
+        _validate_reason(evidence, context)
+        _validate_empty_evidence(evidence, context)
+        if evidence['practical_threshold'] is not None:
+            raise ComparisonReportError(
+                'comparison report overall threshold is invalid for its status'
+            )
+    return evidence
+
+
+def _validate_category_evidence(evidence, category):
+    context = f'category {category}'
+    if not isinstance(evidence, dict):
+        raise ComparisonReportError(f'comparison report {context} evidence is malformed')
+    status = evidence.get('status')
+    if status not in EVIDENCE_STATUS_VALUES:
+        raise ComparisonReportError(f'comparison report {context} status is unsupported')
+    common = {
+        'status',
+        'practical_threshold',
+        'point_estimate',
+        'confidence_interval',
+        'responsible_scenario',
+        'responsible_metric',
+    }
+    expected = common | ({'reason'} if status in INVALID_STATUSES | {
+        INSUFFICIENT_EVIDENCE,
+    } else set())
+    if set(evidence) != expected:
+        raise ComparisonReportError(f'comparison report {context} evidence is malformed')
+    _validate_category_threshold(evidence['practical_threshold'], category, context)
+    if status in DECISIVE_STATUSES:
+        _validate_estimate(evidence, context)
+        _validate_scenario_reference(evidence['responsible_scenario'], context)
+        _validate_metric_reference(evidence['responsible_metric'], context)
+    else:
+        if status in INVALID_STATUSES | {INSUFFICIENT_EVIDENCE}:
+            _validate_reason(evidence, context)
+        _validate_empty_evidence(evidence, context)
 
 
 def _validate_scenarios(scenarios):
     if not isinstance(scenarios, list):
         raise ComparisonReportError('comparison report scenarios are malformed')
-    identities = set()
+    validated = {}
     for scenario in scenarios:
         if not isinstance(scenario, dict) or set(scenario) != {'identity', 'categories'}:
             raise ComparisonReportError('comparison report scenario is malformed')
         identity = scenario['identity']
-        if not isinstance(identity, dict) or set(identity) != set(SCENARIO_FIELDS):
-            raise ComparisonReportError('comparison report scenario identity is malformed')
-        identity_key = tuple(identity[field] for field in SCENARIO_FIELDS)
-        if identity_key in identities:
+        _validate_scenario_reference(identity, 'scenario')
+        identity_key = _scenario_key(identity)
+        if identity_key in validated:
             raise ComparisonReportError('comparison report contains duplicate scenarios')
-        identities.add(identity_key)
         categories = scenario['categories']
-        if not isinstance(categories, dict) or not set(categories) <= set(CATEGORIES):
+        if (
+            not isinstance(categories, dict)
+            or not categories
+            or not set(categories) <= set(CATEGORIES)
+        ):
             raise ComparisonReportError('comparison report scenario categories are malformed')
         for category, evidence in categories.items():
-            _validate_evidence(evidence, f'scenario {category}')
-    if not identities:
-        raise ComparisonReportError('comparison report contains no scenario coverage')
-    return identities
+            _validate_scenario_evidence(evidence, category)
+        validated[identity_key] = scenario
+    return validated
+
+
+def _validate_scenario_evidence(evidence, category):
+    context = f'scenario {category}'
+    if not isinstance(evidence, dict):
+        raise ComparisonReportError(f'comparison report {context} evidence is malformed')
+    status = evidence.get('status')
+    common = {
+        'status',
+        'practical_threshold',
+        'point_estimate',
+        'confidence_interval',
+        'responsible_metric',
+        'metrics',
+    }
+    if status in DECISIVE_STATUSES:
+        expected = common
+    elif status == INSUFFICIENT_EVIDENCE:
+        expected = common | {'reason'}
+    else:
+        raise ComparisonReportError(f'comparison report {context} status is unsupported')
+    if set(evidence) != expected:
+        raise ComparisonReportError(f'comparison report {context} evidence is malformed')
+    _validate_category_threshold(evidence['practical_threshold'], category, context)
+    metrics = evidence['metrics']
+    if status == INSUFFICIENT_EVIDENCE:
+        _validate_reason(evidence, context)
+        _validate_empty_evidence(evidence, context, responsible_fields=('responsible_metric',))
+        if metrics != []:
+            raise ComparisonReportError(
+                f'comparison report {context} exposes metrics without sufficient evidence'
+            )
+        return
+    _validate_estimate(evidence, context)
+    _validate_metric_reference(evidence['responsible_metric'], context)
+    if not isinstance(metrics, list) or not metrics:
+        raise ComparisonReportError(f'comparison report {context} metrics are malformed')
+    identities = set()
+    for metric in metrics:
+        identity = _validate_metric_evidence(metric, category)
+        if identity in identities:
+            raise ComparisonReportError(
+                f'comparison report {context} contains duplicate metrics'
+            )
+        identities.add(identity)
+
+
+def _validate_metric_evidence(evidence, category):
+    context = f'scenario {category} metric'
+    fields = {
+        'metric_name',
+        'aggregation',
+        'source_unit',
+        'adverse_direction',
+        'effect_unit',
+        'practical_threshold',
+        'point_estimate',
+        'confidence_interval',
+        'status',
+    }
+    if not isinstance(evidence, dict) or set(evidence) != fields:
+        raise ComparisonReportError(f'comparison report {context} is malformed')
+    policy = metric_policy(evidence['metric_name'], evidence['aggregation'])
+    if policy is None or policy != (
+        category,
+        evidence['adverse_direction'],
+        evidence['effect_unit'],
+    ):
+        raise ComparisonReportError(
+            f'comparison report {context} does not belong to its category'
+        )
+    if not isinstance(evidence['source_unit'], str) or not evidence['source_unit']:
+        raise ComparisonReportError(f'comparison report {context} source unit is invalid')
+    if evidence['status'] not in DECISIVE_STATUSES:
+        raise ComparisonReportError(f'comparison report {context} status is unsupported')
+    _validate_category_threshold(evidence['practical_threshold'], category, context)
+    _validate_estimate(evidence, context)
+    _validate_threshold_status(evidence, category, context)
+    return _metric_key(evidence)
+
+
+def _validate_outcome(overall, categories, scenarios, analysis):
+    status = overall['status']
+    measured = analysis['measured_trial_pairs']
+    minimum = analysis['minimum_measured_trials']
+    if status in DECISIVE_STATUSES:
+        if measured < minimum:
+            raise ComparisonReportError(
+                'decisive comparison report has too few measured trial pairs'
+            )
+        if not scenarios:
+            raise ComparisonReportError(
+                'decisive comparison report contains no scenario coverage'
+            )
+        _validate_decisive_consistency(overall, categories, scenarios)
+        return
+    if status == INSUFFICIENT_EVIDENCE:
+        if measured < 1 or measured >= minimum:
+            raise ComparisonReportError(
+                'insufficient-evidence report measured-pair count is inconsistent'
+            )
+        if not scenarios:
+            raise ComparisonReportError(
+                'insufficient-evidence report contains no scenario coverage'
+            )
+        _validate_insufficient_consistency(categories, scenarios)
+        return
+    if status in INVALID_STATUSES:
+        if scenarios:
+            raise ComparisonReportError(
+                'invalid comparison report must not expose scenario evidence'
+            )
+        for category, evidence in categories.items():
+            if evidence['status'] != status:
+                raise ComparisonReportError(
+                    f'comparison report category {category} status is inconsistent'
+                )
+        return
+    raise ComparisonReportError('comparison report overall status is unsupported')
+
+
+def _validate_decisive_consistency(overall, categories, scenarios):
+    category_scenarios = defaultdict(list)
+    for scenario in scenarios.values():
+        for category, evidence in scenario['categories'].items():
+            if evidence['status'] not in DECISIVE_STATUSES:
+                raise ComparisonReportError(
+                    f'comparison report scenario {category} status is inconsistent'
+                )
+            metrics = evidence['metrics']
+            worst = max(metric['point_estimate'] for metric in metrics)
+            if not _same_number(evidence['point_estimate'], worst):
+                raise ComparisonReportError(
+                    f'comparison report scenario {category} point estimate is inconsistent'
+                )
+            responsible = _find_metric(metrics, evidence['responsible_metric'])
+            if responsible is None or not _same_number(
+                responsible['point_estimate'],
+                worst,
+            ):
+                raise ComparisonReportError(
+                    f'comparison report scenario {category} responsible metric is inconsistent'
+                )
+            _validate_threshold_status(evidence, category, f'scenario {category}')
+            category_scenarios[category].append((scenario, evidence))
+
+    for category, evidence in categories.items():
+        contributing = category_scenarios.get(category, ())
+        if not contributing:
+            if evidence['status'] != NOT_APPLICABLE:
+                raise ComparisonReportError(
+                    f'comparison report category {category} must be N/A'
+                )
+            continue
+        if evidence['status'] not in DECISIVE_STATUSES:
+            raise ComparisonReportError(
+                f'comparison report category {category} status is inconsistent'
+            )
+        worst = max(item['point_estimate'] for _scenario, item in contributing)
+        if not _same_number(evidence['point_estimate'], worst):
+            raise ComparisonReportError(
+                f'comparison report category {category} point estimate is inconsistent'
+            )
+        identity = _scenario_key(evidence['responsible_scenario'])
+        scenario = scenarios.get(identity)
+        scenario_evidence = (
+            scenario['categories'].get(category) if scenario is not None else None
+        )
+        if (
+            scenario_evidence is None
+            or not _same_number(scenario_evidence['point_estimate'], worst)
+            or evidence['responsible_metric'] != scenario_evidence['responsible_metric']
+        ):
+            raise ComparisonReportError(
+                f'comparison report category {category} responsible evidence is inconsistent'
+            )
+        _validate_threshold_status(evidence, category, f'category {category}')
+
+    responsible_category = overall['responsible_category']
+    responsible = categories[responsible_category]
+    if responsible['status'] == NOT_APPLICABLE:
+        raise ComparisonReportError(
+            'comparison report overall responsible category is not applicable'
+        )
+    normalized_points = {
+        category: evidence['point_estimate'] / CATEGORY_THRESHOLDS[category].regression
+        for category, evidence in categories.items()
+        if evidence['status'] != NOT_APPLICABLE
+    }
+    worst = max(normalized_points.values())
+    if not _same_number(overall['point_estimate'], worst):
+        raise ComparisonReportError(
+            'comparison report overall point estimate is inconsistent'
+        )
+    if (
+        not _same_number(normalized_points[responsible_category], worst)
+        or overall['responsible_scenario'] != responsible['responsible_scenario']
+        or overall['responsible_metric'] != responsible['responsible_metric']
+    ):
+        raise ComparisonReportError(
+            'comparison report overall responsible evidence is inconsistent'
+        )
+    lower = overall['confidence_interval']['lower']
+    upper = overall['confidence_interval']['upper']
+    if lower > 1.0:
+        expected = REGRESSION
+    elif (
+        upper >= 1.0
+        or any(evidence['status'] != NO_REGRESSION for evidence in categories.values()
+               if evidence['status'] != NOT_APPLICABLE)
+    ):
+        expected = POSSIBLE_REGRESSION
+    else:
+        expected = NO_REGRESSION
+    if overall['status'] != expected:
+        raise ComparisonReportError('comparison report overall status is inconsistent')
+
+
+def _validate_insufficient_consistency(categories, scenarios):
+    applicable = {
+        category
+        for scenario in scenarios.values()
+        for category in scenario['categories']
+    }
+    for scenario in scenarios.values():
+        for category, evidence in scenario['categories'].items():
+            if evidence['status'] != INSUFFICIENT_EVIDENCE:
+                raise ComparisonReportError(
+                    f'comparison report scenario {category} status is inconsistent'
+                )
+    for category, evidence in categories.items():
+        expected = (
+            INSUFFICIENT_EVIDENCE if category in applicable else NOT_APPLICABLE
+        )
+        if evidence['status'] != expected:
+            raise ComparisonReportError(
+                f'comparison report category {category} status is inconsistent'
+            )
+
+
+def _validate_bound_coverage(scenarios, run_groups, selected_runs, decisive):
+    scenario_identities = set(scenarios)
+    for role, run_id in selected_runs.items():
+        dataset_coverage = _dataset_coverage(run_groups[run_id])
+        if set(dataset_coverage) != scenario_identities:
+            raise ComparisonReportError(
+                f'comparison report scenario coverage does not match {role} target'
+            )
+        for identity, scenario in scenarios.items():
+            reported_categories = set(scenario['categories'])
+            dataset_categories = set(dataset_coverage[identity])
+            if reported_categories != dataset_categories:
+                raise ComparisonReportError(
+                    f'comparison report category coverage does not match {role} target'
+                )
+            if not decisive:
+                continue
+            for category, evidence in scenario['categories'].items():
+                reported_metrics = {_metric_key(metric) for metric in evidence['metrics']}
+                if reported_metrics != dataset_coverage[identity][category]:
+                    raise ComparisonReportError(
+                        f'comparison report metric coverage does not match {role} target'
+                    )
+
+
+def _dataset_coverage(records):
+    coverage = defaultdict(lambda: defaultdict(set))
+    for record in records:
+        identity = tuple(record.get(field, '') for field in SCENARIO_FIELDS)
+        policy = metric_policy(record.get('metric_name'), record.get('aggregation'))
+        if policy is None:
+            continue
+        category = policy[0]
+        coverage[identity][category].add((
+            record.get('metric_name'),
+            record.get('aggregation'),
+            record.get('unit'),
+        ))
+    return {
+        identity: dict(categories)
+        for identity, categories in coverage.items()
+    }
+
+
+def _validate_category_threshold(threshold, category, context):
+    expected = CATEGORY_THRESHOLDS[category]
+    unit = 'percentage_points' if category == 'reliability' else 'percent'
+    if (
+        not isinstance(threshold, dict)
+        or set(threshold) != {'possible', 'regression', 'unit'}
+        or not _finite_number(threshold.get('possible'))
+        or not _finite_number(threshold.get('regression'))
+        or threshold['possible'] < 0.0
+        or threshold['possible'] >= threshold['regression']
+        or threshold['possible'] != expected.possible
+        or threshold['regression'] != expected.regression
+        or threshold.get('unit') != unit
+    ):
+        raise ComparisonReportError(
+            f'comparison report {context} practical threshold is invalid'
+        )
+
+
+def _validate_overall_threshold(threshold):
+    expected_possible = {
+        category: round(values.possible / values.regression, 12)
+        for category, values in CATEGORY_THRESHOLDS.items()
+    }
+    if (
+        not isinstance(threshold, dict)
+        or set(threshold) != {'regression', 'unit', 'possible_by_category'}
+        or threshold.get('regression') != 1.0
+        or threshold.get('unit') != 'category_regression_threshold_multiple'
+        or threshold.get('possible_by_category') != expected_possible
+    ):
+        raise ComparisonReportError(
+            'comparison report overall practical threshold is invalid'
+        )
+
+
+def _validate_estimate(evidence, context):
+    point = evidence.get('point_estimate')
+    if not _finite_number(point):
+        raise ComparisonReportError(
+            f'comparison report {context} point estimate is invalid'
+        )
+    interval = evidence.get('confidence_interval')
+    if not isinstance(interval, dict) or set(interval) != {'lower', 'upper'}:
+        raise ComparisonReportError(f'comparison report {context} interval is malformed')
+    lower = interval['lower']
+    upper = interval['upper']
+    if not _finite_number(lower) or not _finite_number(upper) or lower > upper:
+        raise ComparisonReportError(f'comparison report {context} interval is invalid')
+
+
+def _validate_empty_evidence(
+    evidence,
+    context,
+    responsible_fields=('responsible_scenario', 'responsible_metric'),
+):
+    if evidence.get('point_estimate') is not None:
+        raise ComparisonReportError(
+            f'comparison report {context} exposes a point estimate for its status'
+        )
+    if evidence.get('confidence_interval') is not None:
+        raise ComparisonReportError(
+            f'comparison report {context} exposes an interval for its status'
+        )
+    if any(evidence.get(field) is not None for field in responsible_fields):
+        raise ComparisonReportError(
+            f'comparison report {context} exposes responsible evidence for its status'
+        )
+
+
+def _validate_reason(evidence, context):
+    reason = evidence.get('reason')
+    if not isinstance(reason, str) or not reason.strip():
+        raise ComparisonReportError(f'comparison report {context} reason is missing')
+
+
+def _validate_threshold_status(evidence, category, context):
+    thresholds = CATEGORY_THRESHOLDS[category]
+    lower = evidence['confidence_interval']['lower']
+    upper = evidence['confidence_interval']['upper']
+    if lower > thresholds.regression:
+        expected = REGRESSION
+    elif upper >= thresholds.possible:
+        expected = POSSIBLE_REGRESSION
+    else:
+        expected = NO_REGRESSION
+    if evidence['status'] != expected:
+        raise ComparisonReportError(
+            f'comparison report {context} status is inconsistent with its evidence'
+        )
+
+
+def _validate_scenario_reference(identity, context):
+    if not isinstance(identity, dict) or set(identity) != set(SCENARIO_FIELDS):
+        raise ComparisonReportError(
+            f'comparison report {context} scenario reference is malformed'
+        )
+    string_fields = set(SCENARIO_FIELDS) - {'payload_size', 'frequency'}
+    if any(not isinstance(identity[field], str) for field in string_fields):
+        raise ComparisonReportError(
+            f'comparison report {context} scenario reference is malformed'
+        )
+    if type(identity['payload_size']) is not int or identity['payload_size'] < 0:
+        raise ComparisonReportError(
+            f'comparison report {context} scenario reference is malformed'
+        )
+    if not _finite_number(identity['frequency']) or identity['frequency'] < 0.0:
+        raise ComparisonReportError(
+            f'comparison report {context} scenario reference is malformed'
+        )
+
+
+def _validate_metric_reference(metric, context):
+    if (
+        not isinstance(metric, dict)
+        or set(metric) != {'metric_name', 'aggregation', 'source_unit'}
+        or any(not isinstance(metric[field], str) or not metric[field] for field in metric)
+    ):
+        raise ComparisonReportError(
+            f'comparison report {context} metric reference is malformed'
+        )
+
+
+def _scenario_key(identity):
+    return tuple(identity[field] for field in SCENARIO_FIELDS)
+
+
+def _metric_key(metric):
+    return (
+        metric['metric_name'],
+        metric['aggregation'],
+        metric['source_unit'],
+    )
+
+
+def _find_metric(metrics, reference):
+    key = _metric_key(reference)
+    return next((metric for metric in metrics if _metric_key(metric) == key), None)
+
+
+def _complete_target(target):
+    return isinstance(target, dict) and set(target) == {
+        'label',
+        'target_key',
+        'identity',
+    }
+
+
+def _valid_checksum(value):
+    return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value) is not None
+
+
+def _same_number(left, right):
+    return math.isclose(left, right, rel_tol=1e-12, abs_tol=1e-12)
 
 
 def _run_groups(records):

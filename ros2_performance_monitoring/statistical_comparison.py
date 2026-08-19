@@ -33,6 +33,7 @@ EXIT_NO_REGRESSION = 0
 EXIT_REGRESSION = 1
 EXIT_INCONCLUSIVE = 2
 EXIT_INVALID_COMPARISON = 3
+EXIT_OPERATIONAL_FAILURE = 4
 
 NO_REGRESSION = 'No regression'
 POSSIBLE_REGRESSION = 'Possible regression'
@@ -472,13 +473,14 @@ def _metric_pairs(loaded_pairs):
         reference_map, _ = _record_map(reference_records)
         candidate_map, _ = _record_map(candidate_records)
         for identity in sorted(reference_map):
-            if _metric_policy(identity[1], identity[2]) is None:
+            if metric_policy(identity[1], identity[2]) is None:
                 continue
             values[identity].append((reference_map[identity], candidate_map[identity]))
     return dict(values)
 
 
-def _metric_policy(metric_name, aggregation):
+def metric_policy(metric_name, aggregation):
+    """Return the statistical category, adverse direction, and effect unit."""
     if metric_name in ('subscription_latency', 'service_client_latency'):
         if aggregation in ('mean', 'p95'):
             return 'latency', 'increase', 'percent'
@@ -496,18 +498,47 @@ def _metric_policy(metric_name, aggregation):
 
 
 def _insufficient_report(report, metric_pairs):
-    applicable = {
-        _metric_policy(identity[1], identity[2])[0]
-        for identity in metric_pairs
-    }
     reason = (
         f'{report["analysis"]["measured_trial_pairs"]} measured trial pairs are available; '
         f'at least {report["analysis"]["minimum_measured_trials"]} are required'
     )
+    scenario_categories = defaultdict(set)
+    for identity in metric_pairs:
+        scenario, metric_name, aggregation, _unit = identity
+        category, _direction, _effect_unit = metric_policy(
+            metric_name,
+            aggregation,
+        )
+        scenario_categories[scenario].add(category)
+    applicable = {
+        category
+        for categories in scenario_categories.values()
+        for category in categories
+    }
+
     report['overall'] = _empty_evidence(status=INSUFFICIENT_EVIDENCE, reason=reason)
     for category in CATEGORIES:
-        status = INSUFFICIENT_EVIDENCE if category in applicable else NOT_APPLICABLE
-        report['categories'][category].update({'status': status, 'reason': reason})
+        if category in applicable:
+            report['categories'][category].update({
+                'status': INSUFFICIENT_EVIDENCE,
+                'reason': reason,
+            })
+        else:
+            report['categories'][category].update({'status': NOT_APPLICABLE})
+
+    for scenario, categories in sorted(scenario_categories.items()):
+        report['scenarios'].append({
+            'identity': dict(zip(SCENARIO_FIELDS, scenario)),
+            'categories': {
+                category: _empty_scenario_evidence(
+                    category,
+                    INSUFFICIENT_EVIDENCE,
+                    reason,
+                )
+                for category in CATEGORIES
+                if category in categories
+            },
+        })
     return report
 
 
@@ -518,7 +549,7 @@ def _analyse_metrics(report, metric_pairs):
     grouped = defaultdict(lambda: defaultdict(list))
     for identity, pairs in metric_pairs.items():
         scenario, metric_name, aggregation, unit = identity
-        category, direction, effect_unit = _metric_policy(metric_name, aggregation)
+        category, direction, effect_unit = metric_policy(metric_name, aggregation)
         grouped[scenario][category].append({
             'metric_name': metric_name,
             'aggregation': aggregation,
@@ -763,6 +794,18 @@ def _empty_evidence(threshold=None, status=NOT_APPLICABLE, reason=None):
     if reason is not None:
         evidence['reason'] = reason
     return evidence
+
+
+def _empty_scenario_evidence(category, status, reason):
+    return {
+        'status': status,
+        'practical_threshold': _threshold_report(category),
+        'point_estimate': None,
+        'confidence_interval': None,
+        'responsible_metric': None,
+        'metrics': [],
+        'reason': reason,
+    }
 
 
 def _invalid_report(report, status, reason):
