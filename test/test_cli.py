@@ -33,6 +33,7 @@ from ros2_performance_monitoring.statistical_comparison import CANNOT_COMPARE
 from ros2_performance_monitoring.statistical_comparison import INSUFFICIENT_EVIDENCE
 from ros2_performance_monitoring.statistical_comparison import NO_REGRESSION
 from ros2_performance_monitoring.statistical_comparison import REGRESSION
+from ros2_performance_monitoring.statistical_comparison import REPORT_SCHEMA_VERSION
 
 pytestmark = pytest.mark.smoke
 
@@ -600,7 +601,10 @@ def test_experiment_compare_distinguishes_invalid_and_operational_failures(
         dataset_path=experiment_dir / 'dataset' / 'dashboard-data.jsonl',
         dataset_sha256='d' * 64,
     )
-    report = {'schema_version': 2, 'overall': {'status': INSUFFICIENT_EVIDENCE}}
+    report = {
+        'schema_version': REPORT_SCHEMA_VERSION,
+        'overall': {'status': INSUFFICIENT_EVIDENCE},
+    }
     monkeypatch.setattr(cli, 'load_experiment_evidence', lambda path: completed)
     monkeypatch.setattr(cli, 'build_comparison_report', lambda *args, **kwargs: report)
     monkeypatch.setattr(cli, 'load_records', lambda path: ())

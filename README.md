@@ -257,6 +257,13 @@ comparison, and `4` only when an operational failure prevents the comparison.
 See [`doc/statistical-comparison.md`](doc/statistical-comparison.md) for the
 method, report contract, evidence rules, and optional analysis controls.
 
+For a suite containing both Pub/Sub and Service scenarios, the report keeps a
+report-wide result and also evaluates each topology independently from its own
+paired measurements. The dashboard shows the independently calculated result
+for the selected topology, so a regression in one workload does not change the
+other workload's status. Service throughput and reliability remain `N/A` and
+are excluded from the Service overall result.
+
 To inspect that report in Grafana, pass it beside the experiment's exact
 dataset:
 
@@ -353,8 +360,11 @@ ros2-performance-monitoring serve-prometheus \
 ```
 
 When supplied, the validated report is the source of truth for status and only
-its reference/candidate aggregate pair is exported. Without a report, the
-exporter retains the legacy ordered-pair policy and labels it `threshold-only`.
+its reference/candidate aggregate pair is exported. Mixed reports expose the
+report-wide summary with `topology="all"` and independently calculated summaries
+with `topology="pub-sub"` and `topology="service"`. A single-topology report
+exports only its matching topology summary. Without a report, the exporter
+retains the legacy ordered-pair policy and labels it `threshold-only`.
 
 Then open:
 
@@ -394,8 +404,8 @@ manual scenario explorer. Click either run card to open that run's metadata,
 scenario inventory, and complete performance profile. Both comparison views
 show the same five KPI statuses. When a report is supplied, the evidence strip
 shows the measured-pair count, selected-category effect estimate, confidence
-interval, and practical thresholds. Without one, the analysis method is visibly
-labelled `Threshold-only`; see
+interval, and practical thresholds for the selected topology. Without one, the
+analysis method is visibly labelled `Threshold-only`; see
 [`doc/dashboard.md`](doc/dashboard.md#comparison-policy) for the policy and
 missing-data rules.
 
@@ -550,7 +560,7 @@ ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.js
 ```
 
 Pass `--comparison-report <path>` to either exporter command to use a matching
-schema-v2 statistical report instead of the legacy threshold-only statuses.
+schema-v3 statistical report instead of the legacy threshold-only statuses.
 
 The `doctor` subcommand is currently a placeholder and does not perform
 environment checks yet.

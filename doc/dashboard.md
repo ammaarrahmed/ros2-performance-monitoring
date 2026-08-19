@@ -42,7 +42,7 @@ named `cli_srv_10b`, `cli_srv_100kb`, `cli_srv_1mb`, and `cli_srv_4mb`, and
 `cli-srv_multi_process` leaves named `10b`, `100kb`, `1mb`, and `4mb`.
 
 The dashboard does not run benchmarks or parse raw artifacts. It starts from the
-normalized JSONL file. A schema-v2 `comparison-report.json` from `experiment
+normalized JSONL file. A schema-v3 `comparison-report.json` from `experiment
 compare` may be supplied beside an experiment dataset; otherwise the exporter
 uses the deterministic threshold-only comparison policy described below.
 
@@ -170,6 +170,13 @@ measured-pair count and explicitly identifies `Statistical report` or
 not report summaries, so they remain available for investigating the reported
 responsible scenario.
 
+For a mixed Pub/Sub and Service report, every status card and evidence-strip
+query selects the independently calculated summary for the active workload.
+The report-wide summary remains available from Prometheus with
+`topology="all"`, while `topology="pub-sub"` and `topology="service"` carry the
+scoped results used by both dashboard views. Single-topology reports expose
+only their concrete topology summary, avoiding duplicate time series.
+
 Before evaluating performance, the policy compares the actual topology,
 process mode, payload, RMW, transport, executor, and node-role keys in both
 runs. Any missing or newly-added key makes all five statuses `Cannot compare`.
@@ -210,8 +217,8 @@ can be investigated rather than treated as a statistical conclusion.
 
 With a validated report, the report statuses are exported unchanged; the
 exporter does not recalculate confidence or evidence. It exports only the
-report-defined reference/candidate pair plus low-cardinality overall, category,
-and per-scenario evidence. See
+report-defined reference/candidate pair plus low-cardinality report-wide,
+topology, category, and per-scenario evidence. See
 [`statistical-comparison.md`](statistical-comparison.md) for the statistical
 method and evidence rules.
 

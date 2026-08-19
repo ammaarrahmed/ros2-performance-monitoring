@@ -78,7 +78,11 @@ The report records the method as `paired-bootstrap-worst-scenario-v1`.
    effect by that category's regression threshold. Improvements therefore
    cannot cancel regressions, and the interval covers the complete scan rather
    than treating each scenario as an unrelated test.
-6. The two-sided percentile interval is read from the resulting worst-case
+6. The engine repeats that evaluation independently for each topology using
+   only that topology's paired scenario metrics. Topology confidence intervals
+   and verdicts are not copied from or filtered out of the final report-wide
+   result.
+7. The two-sided percentile interval is read from the resulting worst-case
    bootstrap distribution.
 
 Latency and resource increases and throughput decreases are adverse relative
@@ -123,11 +127,15 @@ measurement uncertainty; one is not substituted for the other.
 
 The overall regression rule uses the lower bound of the worst normalized
 scenario across all categories. Overall possible evidence also respects each
-category's own possible threshold.
+category's own possible threshold. The report-wide result scans all applicable
+scenarios, while each topology result scans only the applicable scenarios in
+that topology. Consequently, Pub/Sub and Service regressions remain independent
+in the dashboard. Service throughput and reliability are `N/A` and do not enter
+the Service overall result.
 
 ## Report Contract
 
-`comparison-report.json` has `schema_version: 2` and contains:
+`comparison-report.json` has `schema_version: 3` and contains:
 
 - The experiment ID, exact dataset SHA-256 binding, and complete selected target
   identities.
@@ -135,6 +143,8 @@ category's own possible threshold.
   measured-pair counts, pairing policy, and point estimator.
 - Overall and category statuses, thresholds, point estimates, confidence
   intervals, responsible scenarios, and responsible metrics.
+- A `topologies` map containing independently calculated overall and category
+  summaries for every topology represented by the scenario evidence.
 - Per-scenario category evidence and each contributing metric's adverse
   direction, source unit, effect unit, threshold, estimate, interval, and
   status.
@@ -143,7 +153,7 @@ The report has no generation timestamp so deterministic input and controls
 remain byte stable. Report schema changes require a schema-version increment;
 method changes require a new method identifier.
 
-All outcomes use the schema-v2 field model. Validation is state-aware:
+All outcomes use the schema-v3 field model. Validation is state-aware:
 decisive reports require the configured number of measured pairs and complete
 scenario/metric evidence; insufficient reports require one or more pairs below
 that minimum and retain coverage without statistical estimates; invalid or
@@ -153,11 +163,9 @@ to evidence in the report and bound dataset. The comparison command validates
 the report before publishing it, and the exporter uses the same validation
 entry point before exposing it to Prometheus.
 
-This strengthens schema-v2 validation without changing its top-level shape or
-method identifier. Existing decisive schema-v2 reports remain compatible.
-Schema-v2 `Insufficient evidence` artifacts produced by older versions omitted
-scenario coverage and were already rejected by the exporter; regenerate those
-reports to make them exportable under the corrected contract.
+Schema v3 adds topology summaries to the report contract without changing the
+method identifier. Schema-v2 reports do not contain that evidence and are no
+longer accepted; regenerate them with `experiment compare` before exporting.
 
 A report from a completed experiment contains the verified dataset checksum and
 can be exported with:
@@ -173,7 +181,10 @@ dataset binding and remain useful as JSON/CLI evidence, but are rejected by the
 exporter. Export validates the checksum, experiment identity, target
 provenance, scenario coverage, method, evidence structure, and selected
 aggregate runs. The report remains the source of truth for statuses; Prometheus
-and Grafana do not reproduce the bootstrap calculation.
+and Grafana do not reproduce the bootstrap calculation. For mixed reports, the
+exporter labels the report-wide summary `topology="all"` and the scoped summaries
+with their concrete topology. Single-topology reports export only the concrete
+topology summary to avoid duplicate series.
 
 ## Exit Outcomes
 
