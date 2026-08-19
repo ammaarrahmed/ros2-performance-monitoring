@@ -13,10 +13,14 @@
 # limitations under the License.
 
 from copy import deepcopy
+import json
+from pathlib import Path
+import re
 
 from ros2_performance_monitoring.comparison_report import ValidatedComparisonReport
 from ros2_performance_monitoring.exporters.prometheus import records_to_prometheus
 from ros2_performance_monitoring.statistical_comparison import METHOD
+from ros2_performance_monitoring.statistical_comparison import REPORT_SCHEMA_VERSION
 
 
 def test_records_to_prometheus_converts_normalized_metrics():
@@ -193,6 +197,89 @@ def test_statistical_report_exports_only_report_pair_without_recalculating_statu
     assert _evidence_value(output, 'latency', 'regression_threshold') == 2.0
     assert 'ros2_perf_comparison_scenario_status{' in output
     assert 'responsible_payload_bytes="10"' in latency
+    assert all('topology="pub-sub"' in line for line in status_lines)
+    assert all('topology="all"' not in line for line in status_lines)
+
+
+def test_mixed_statistical_report_exports_each_topology_and_report_wide_summary():
+    reference = _record('subscription_latency', 100.0, 'us', 'mean')
+    reference.update({
+        'run_id': 'reference-median',
+        'run_kind': 'aggregate',
+        'aggregation_method': 'median',
+        'repeat_count': 3,
+    })
+    candidate = deepcopy(reference)
+    candidate['run_id'] = 'candidate-median'
+    report = _statistical_report()
+    service_overall = deepcopy(report['overall'])
+    service_overall['responsible_scenario']['topology'] = 'service'
+    service_latency = deepcopy(report['categories']['latency'])
+    service_latency['responsible_scenario']['topology'] = 'service'
+    report['topologies']['service'] = {
+        'overall': service_overall,
+        'categories': {
+            **{
+                category: deepcopy(evidence)
+                for category, evidence in report['categories'].items()
+            },
+            'latency': service_latency,
+        },
+    }
+
+    output = records_to_prometheus(
+        [reference, candidate],
+        ValidatedComparisonReport(
+            report=report,
+            reference_run='reference-median',
+            candidate_run='candidate-median',
+        ),
+    )
+
+    status_lines = [
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_comparison_status{')
+    ]
+    assert len(status_lines) == 15
+    assert {
+        topology
+        for topology in ('all', 'pub-sub', 'service')
+        if any(f'topology="{topology}"' in line for line in status_lines)
+    } == {'all', 'pub-sub', 'service'}
+    for category in ('throughput', 'reliability'):
+        service = next(
+            line for line in status_lines
+            if 'topology="service"' in line and f'category="{category}"' in line
+        )
+        assert 'evidence_state="N/A"' in service
+        assert service.endswith(' 5')
+
+    query_values = {
+        'library': 'rclcpp',
+        'platform': 'x86_64',
+        'client_source': 'build',
+        'baseline_distro': 'lyrical',
+        'candidate_distro': 'lyrical',
+        'baseline_run': 'reference-median',
+        'candidate_run': 'candidate-median',
+        'evidence_category': 'latency',
+    }
+    dashboard_directory = (
+        Path(__file__).resolve().parents[1] / 'config' / 'grafana' / 'dashboards'
+    )
+    for filename in ('regression_overview.json', 'rclcpp_pubsub_overview.json'):
+        dashboard = json.loads((dashboard_directory / filename).read_text())
+        for title in ('Overall status', 'Effect estimate'):
+            panel = next(
+                panel for panel in dashboard['panels'] if panel['title'] == title
+            )
+            expression = panel['targets'][0]['expr']
+            for topology in ('pub-sub', 'service'):
+                _assert_query_matches_one_series(
+                    output,
+                    expression,
+                    {**query_values, 'topology': topology},
+                )
 
 
 def _evidence_value(output, category, statistic):
@@ -203,6 +290,24 @@ def _evidence_value(output, category, statistic):
         and f'statistic="{statistic}"' in line
     )
     return float(line.rsplit(' ', 1)[1])
+
+
+def _assert_query_matches_one_series(output, expression, variables):
+    rendered = expression
+    for name, value in variables.items():
+        rendered = rendered.replace(f'${name}', value)
+    family, selector = rendered.split('{', 1)
+    selector = selector.split('}', 1)[0]
+    labels = re.findall(r'(\w+)="([^"]*)"', selector)
+    matching = [
+        line for line in output.splitlines()
+        if line.startswith(f'{family}{{')
+        and all(
+            dict(re.findall(r'(\w+)="([^"]*)"', line)).get(name) == value
+            for name, value in labels
+        )
+    ]
+    assert len(matching) == 1, rendered
 
 
 def _statistical_report():
@@ -240,8 +345,8 @@ def _statistical_report():
         'responsible_scenario': None,
         'responsible_metric': None,
     }
-    return {
-        'schema_version': 2,
+    report = {
+        'schema_version': REPORT_SCHEMA_VERSION,
         'experiment_id': 'experiment-export-test',
         'dataset': {
             'sha256': 'd' * 64,
@@ -260,11 +365,17 @@ def _statistical_report():
             'resources': deepcopy(not_applicable),
             'reliability': deepcopy(not_applicable),
         },
+        'topologies': {},
         'scenarios': [{
             'identity': scenario,
             'categories': {'latency': deepcopy(latency)},
         }],
     }
+    report['topologies']['pub-sub'] = {
+        'overall': deepcopy(report['overall']),
+        'categories': deepcopy(report['categories']),
+    }
+    return report
 
 
 def _complete_pubsub_run(run_id):
