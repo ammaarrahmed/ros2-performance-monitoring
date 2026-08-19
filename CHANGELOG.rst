@@ -4,6 +4,9 @@ Changelog for package ros2_performance_monitoring
 
 0.0.0 (unreleased)
 ------------------
+* Hardened resumable experiment and comparison bundles with version 2
+  completion manifests, measured-environment checksums, complete resume
+  validation, and deterministic derived-report recovery.
 * Added one-command per-commit rclcpp comparison orchestration with focused
   preflight, non-persistent dry runs, safe resume, cross-artifact validation,
   operational logs, and a checksum-bound completion manifest.
