@@ -250,6 +250,48 @@ def test_resume_regenerates_version_one_completion_without_rerunning_trials(tmp_
     assert regenerated['measured_environment'] == 'measured_environment.json'
 
 
+def test_valid_version_two_resume_does_not_regenerate_any_artifacts(
+    tmp_path,
+    monkeypatch,
+):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=0, repeats=1)
+    root = tmp_path / 'experiment'
+    first = run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=_successful_trial,
+        environment_collector=_environment,
+    )
+    immutable_outputs = {
+        path: path.read_bytes()
+        for path in (
+            root / 'experiment.complete.json',
+            root / 'dataset' / 'dashboard-data.jsonl',
+            root / 'dataset' / 'dashboard-data.manifest.json',
+        )
+    }
+    monkeypatch.setattr(
+        experiment_module,
+        'build_dataset',
+        lambda *args, **kwargs: pytest.fail('verified dataset must be reused'),
+    )
+
+    resumed = run_experiment(
+        root,
+        plan,
+        specs,
+        images,
+        trial_executor=lambda *args: pytest.fail('verified trials must be reused'),
+        environment_collector=lambda *args: pytest.fail('environment must not be recollected'),
+    )
+
+    assert resumed.reused_trials == first.completed_trials
+    assert all(path.read_bytes() == contents for path, contents in immutable_outputs.items())
+
+
 def test_experiment_loader_uses_valid_trials_when_bundle_completion_is_invalid(tmp_path):
     specs, images = _targets()
     plan = _plan(specs, images, warmups=0, repeats=1)
