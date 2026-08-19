@@ -108,13 +108,18 @@ measurement uncertainty; one is not substituted for the other.
 - `No regression`: the upper confidence bound remains below the possible
   threshold.
 - `Insufficient evidence`: fewer than the configured minimum measured pairs are
-  available. Point estimates are not promoted to statistical verdicts.
+  available. The report preserves the available pair count and known
+  scenario/category coverage, but does not expose a point estimate, confidence
+  interval, responsible metric, or confidence-backed verdict.
 - `Incomplete results`: a planned measured trial or required metric is missing,
-  or metric coverage changes between blocks.
+  or metric coverage changes between blocks. The report includes a reason but
+  no estimate, interval, or responsible evidence.
 - `Cannot compare`: pairing, scenario coverage, target identity, or provenance
-  is incompatible.
+  is incompatible. The report includes a reason but no estimate, interval, or
+  responsible evidence.
 - `N/A`: the category does not apply, such as throughput and reliability for a
-  service-only experiment.
+  service-only experiment. It is not allowed as the overall result and does not
+  participate in that result.
 
 The overall regression rule uses the lower bound of the worst normalized
 scenario across all categories. Overall possible evidence also respects each
@@ -137,6 +142,22 @@ category's own possible threshold.
 The report has no generation timestamp so deterministic input and controls
 remain byte stable. Report schema changes require a schema-version increment;
 method changes require a new method identifier.
+
+All outcomes use the schema-v2 field model. Validation is state-aware:
+decisive reports require the configured number of measured pairs and complete
+scenario/metric evidence; insufficient reports require one or more pairs below
+that minimum and retain coverage without statistical estimates; invalid or
+incomplete outcomes require a reason and empty estimate fields. Thresholds must
+match the category policy, and every responsible scenario and metric must refer
+to evidence in the report and bound dataset. The comparison command validates
+the report before publishing it, and the exporter uses the same validation
+entry point before exposing it to Prometheus.
+
+This strengthens schema-v2 validation without changing its top-level shape or
+method identifier. Existing decisive schema-v2 reports remain compatible.
+Schema-v2 `Insufficient evidence` artifacts produced by older versions omitted
+scenario coverage and were already rejected by the exporter; regenerate those
+reports to make them exportable under the corrected contract.
 
 A report from a completed experiment contains the verified dataset checksum and
 can be exported with:
@@ -166,6 +187,7 @@ missing or failed planned trials instead produce an `Incomplete results` report.
 | `1` | Supported regression |
 | `2` | Possible regression or insufficient evidence |
 | `3` | Invalid, incomplete, not comparable, or not applicable comparison |
+| `4` | Operational failure while loading, validating, or writing evidence |
 
 These codes let local automation consume the decision without parsing terminal
 text. CI policy, hosted storage, and automatic pull-request gating remain
