@@ -42,6 +42,15 @@ from .writers.jsonl import write_jsonl
 PLAN_FILENAME = 'plan.json'
 EXPERIMENT_COMPLETE_FILENAME = 'experiment.complete.json'
 ENVIRONMENT_FILENAME = 'measured_environment.json'
+EXPERIMENT_COMPLETION_SCHEMA_VERSION = 2
+ENVIRONMENT_IDENTITY_FIELDS = frozenset({
+    'architecture',
+    'cpu_model',
+    'kernel',
+    'docker_version',
+    'cpuset_cpus',
+    'cpu_governors',
+})
 TARGET_LABELS = ('reference', 'candidate')
 ORCHESTRATION_STATE_FILENAMES = frozenset({
     'workflow.log',
@@ -193,6 +202,13 @@ def run_experiment(
     for trial in plan['schedule']['trials']:
         completed_trial = _verified_trial(root, trial)
         if completed_trial is not None:
+            if trial['kind'] == 'measured':
+                _validate_verified_trial_environment(
+                    root,
+                    plan,
+                    trial,
+                    completed_trial,
+                )
             completed.append(completed_trial)
             reused += 1
             continue
@@ -223,11 +239,15 @@ def run_experiment(
     aggregate = 'median' if plan['schedule']['measured_repeat_count'] > 1 else None
     build_dataset(measured_inputs, dataset_path, aggregate=aggregate)
     dataset_manifest = verify_dataset_bundle(dataset_path)
+    environment_path = root / ENVIRONMENT_FILENAME
+    _validate_completed_measured_environments(root, plan)
     completion = {
-        'schema_version': 1,
+        'schema_version': EXPERIMENT_COMPLETION_SCHEMA_VERSION,
         'experiment_id': plan['experiment_id'],
         'completed_at': _utc_now(),
         'plan_sha256': _file_sha256(root / PLAN_FILENAME),
+        'measured_environment': str(environment_path.relative_to(root)),
+        'measured_environment_sha256': _file_sha256(environment_path),
         'dataset': str(dataset_path.relative_to(root)),
         'dataset_sha256': dataset_manifest['dataset_sha256'],
         'dataset_manifest_sha256': _file_sha256(manifest_path_for(dataset_path)),
@@ -272,30 +292,7 @@ def load_experiment_evidence(experiment_dir):
     completion = _verify_experiment_completion(root, plan)
 
     environment_path = root / ENVIRONMENT_FILENAME
-    try:
-        environment = json.loads(environment_path.read_text(encoding='utf-8'))
-    except FileNotFoundError:
-        environment = None
-    except json.JSONDecodeError as exc:
-        raise ExperimentError(
-            f'invalid measured environment evidence: {environment_path}'
-        ) from exc
-    expected_environment_fields = {
-        'architecture',
-        'cpu_model',
-        'kernel',
-        'docker_version',
-        'cpuset_cpus',
-        'cpu_governors',
-    }
-    if environment is not None and set(environment) != expected_environment_fields:
-        raise ExperimentError(
-            f'invalid measured environment evidence: {environment_path}'
-        )
-    if environment is not None and environment['cpuset_cpus'] != (
-        plan.get('configuration', {}).get('cpuset_cpus')
-    ):
-        raise ExperimentError('measured environment does not match experiment configuration')
+    environment = _load_measured_environment(root, plan)
 
     measured_trials = []
     for trial in plan.get('schedule', {}).get('trials', ()):
@@ -304,6 +301,17 @@ def load_experiment_evidence(experiment_dir):
         verified = _verified_trial(root, trial)
         if verified is None:
             continue
+        if environment is None:
+            raise ExperimentError(
+                f'measured environment evidence does not exist: {environment_path}'
+            )
+        _validate_verified_trial_environment(
+            root,
+            plan,
+            trial,
+            verified,
+            baseline=environment,
+        )
         normalized_path = verified['normalized_path']
         try:
             records = tuple(
@@ -593,6 +601,85 @@ def _validate_measured_environment(root, evidence):
     )
 
 
+def _load_measured_environment(root, plan):
+    path = root / ENVIRONMENT_FILENAME
+    try:
+        environment = json.loads(path.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        return None
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ExperimentError(f'invalid measured environment evidence: {path}') from exc
+    if not isinstance(environment, dict) or set(environment) != ENVIRONMENT_IDENTITY_FIELDS:
+        raise ExperimentError(f'invalid measured environment evidence: {path}')
+    if environment['cpuset_cpus'] != plan.get('configuration', {}).get('cpuset_cpus'):
+        raise ExperimentError('measured environment does not match experiment configuration')
+    return environment
+
+
+def _validate_verified_trial_environment(
+    root,
+    plan,
+    trial,
+    verified,
+    *,
+    baseline=None,
+):
+    if baseline is None:
+        baseline = _load_measured_environment(root, plan)
+    baseline_path = root / ENVIRONMENT_FILENAME
+    if baseline is None:
+        raise ExperimentError(
+            f'measured environment evidence does not exist: {baseline_path}'
+        )
+    attempt = root / 'trials' / trial['trial_id'] / verified['completion']['attempt_path']
+    evidence_path = attempt / 'environment.json'
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding='utf-8'))
+        identity = _environment_identity(evidence)
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        KeyError,
+        TypeError,
+    ) as exc:
+        raise ExperimentError(
+            f'invalid measured trial environment evidence: {evidence_path}'
+        ) from exc
+    if evidence.get('trial', {}).get('trial_id') != trial['trial_id']:
+        raise ExperimentError(
+            f'measured trial environment has the wrong trial identity: {trial["trial_id"]}'
+        )
+    if identity != baseline:
+        mismatches = sorted(
+            key for key in ENVIRONMENT_IDENTITY_FIELDS
+            if identity.get(key) != baseline.get(key)
+        )
+        raise ExperimentError(
+            f'measured trial environment disagrees with {ENVIRONMENT_FILENAME} for '
+            f'{trial["trial_id"]}: ' + ', '.join(mismatches)
+        )
+
+
+def _validate_completed_measured_environments(root, plan):
+    baseline = _load_measured_environment(root, plan)
+    for trial in plan['schedule']['trials']:
+        if trial['kind'] != 'measured':
+            continue
+        verified = _verified_trial(root, trial)
+        if verified is None:
+            raise ExperimentError(
+                f'measured trial completion is missing or invalid: {trial["trial_id"]}'
+            )
+        _validate_verified_trial_environment(
+            root,
+            plan,
+            trial,
+            verified,
+            baseline=baseline,
+        )
+
+
 def _environment_identity(evidence):
     host = evidence['host']
     return {
@@ -700,12 +787,41 @@ def _verify_experiment_completion(root, plan):
         completion = json.loads(path.read_text(encoding='utf-8'))
     except (FileNotFoundError, json.JSONDecodeError):
         return None
+    expected_fields = {
+        'schema_version',
+        'experiment_id',
+        'completed_at',
+        'plan_sha256',
+        'measured_environment',
+        'measured_environment_sha256',
+        'dataset',
+        'dataset_sha256',
+        'dataset_manifest_sha256',
+        'trial_completion_sha256',
+    }
+    if (
+        not isinstance(completion, dict)
+        or set(completion) != expected_fields
+        or completion.get('schema_version') != EXPERIMENT_COMPLETION_SCHEMA_VERSION
+    ):
+        return None
     if completion.get('experiment_id') != plan['experiment_id']:
         return None
     if completion.get('plan_sha256') != _file_sha256(root / PLAN_FILENAME):
         return None
+    if completion.get('measured_environment') != ENVIRONMENT_FILENAME:
+        return None
+    environment_path = root / ENVIRONMENT_FILENAME
+    if (
+        not environment_path.is_file()
+        or _file_sha256(environment_path) != completion.get(
+            'measured_environment_sha256'
+        )
+    ):
+        return None
     dataset = completion.get('dataset')
-    if not isinstance(dataset, str):
+    expected_dataset = str(Path('dataset') / 'dashboard-data.jsonl')
+    if dataset != expected_dataset:
         return None
     dataset_path = root / dataset
     try:
@@ -718,7 +834,10 @@ def _verify_experiment_completion(root, plan):
         'dataset_manifest_sha256'
     ):
         return None
-    expected_trials = completion.get('trial_completion_sha256', {})
+    expected_trials = completion.get('trial_completion_sha256')
+    planned_trial_ids = {trial['trial_id'] for trial in plan['schedule']['trials']}
+    if not isinstance(expected_trials, dict) or set(expected_trials) != planned_trial_ids:
+        return None
     for trial in plan['schedule']['trials']:
         complete_path = root / 'trials' / trial['trial_id'] / 'complete.json'
         if not complete_path.is_file():
@@ -727,6 +846,10 @@ def _verify_experiment_completion(root, plan):
             return None
         if _verified_trial(root, trial) is None:
             return None
+    try:
+        _validate_completed_measured_environments(root, plan)
+    except ExperimentError:
+        return None
     return completion
 
 
