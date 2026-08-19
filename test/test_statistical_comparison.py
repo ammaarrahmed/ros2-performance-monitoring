@@ -24,6 +24,7 @@ from ros2_performance_monitoring.statistical_comparison import INCOMPLETE_RESULT
 from ros2_performance_monitoring.statistical_comparison import INSUFFICIENT_EVIDENCE
 from ros2_performance_monitoring.statistical_comparison import METHOD
 from ros2_performance_monitoring.statistical_comparison import NO_REGRESSION
+from ros2_performance_monitoring.statistical_comparison import NOT_APPLICABLE
 from ros2_performance_monitoring.statistical_comparison import POSSIBLE_REGRESSION
 from ros2_performance_monitoring.statistical_comparison import REGRESSION
 from ros2_performance_monitoring.statistical_comparison import REPORT_SCHEMA_VERSION
@@ -211,6 +212,45 @@ def test_noisy_scenario_uses_the_category_level_worst_scenario_distribution():
     assert evidence['confidence_interval']['lower'] == 0.0
 
 
+@pytest.mark.parametrize(
+    ('regressed_topology', 'metric_name'),
+    (
+        ('pub-sub', 'subscription_latency'),
+        ('service', 'service_client_latency'),
+    ),
+)
+def test_mixed_topologies_have_independent_scoped_and_report_wide_results(
+    regressed_topology,
+    metric_name,
+):
+    plan, trials = _mixed_experiment(5)
+    _set_all(
+        trials,
+        'candidate',
+        metric_name,
+        'mean',
+        [103.0] * 5,
+        topology=regressed_topology,
+    )
+
+    report = _report(plan, trials)
+
+    unchanged_topology = 'service' if regressed_topology == 'pub-sub' else 'pub-sub'
+    assert set(report['topologies']) == {'pub-sub', 'service'}
+    assert report['topologies'][regressed_topology]['overall']['status'] == REGRESSION
+    assert report['topologies'][unchanged_topology]['overall']['status'] == NO_REGRESSION
+    assert report['overall']['status'] == REGRESSION
+    service_categories = report['topologies']['service']['categories']
+    expected_service = (
+        REGRESSION if regressed_topology == 'service' else NO_REGRESSION
+    )
+    assert service_categories['throughput']['status'] == NOT_APPLICABLE
+    assert service_categories['reliability']['status'] == NOT_APPLICABLE
+    assert service_categories['latency']['status'] == expected_service
+    assert service_categories['resources']['status'] == NO_REGRESSION
+    validate_comparison_report(report)
+
+
 def test_changed_scenario_coverage_and_incompatible_provenance_prevent_analysis():
     plan, trials = _experiment(3)
     candidate_id = next(
@@ -379,18 +419,34 @@ def _experiment(repeats, warmups=0, payload_sizes=(10,)):
     return plan, trial_records
 
 
-def _records(run_id, label, latency=100.0, payload_size=10):
+def _mixed_experiment(repeats):
+    plan, trial_records = _experiment(repeats)
+    for run_id, records in trial_records.items():
+        label = 'reference' if run_id.startswith('reference-') else 'candidate'
+        records.extend(_records(run_id, label, topology='service'))
+    return plan, trial_records
+
+
+def _records(run_id, label, latency=100.0, payload_size=10, topology='pub-sub'):
     commit = 'b' * 40 if label == 'reference' else 'c' * 40
-    metrics = (
-        ('subscription_latency', 'mean', latency, 'us'),
-        ('subscription_latency', 'p95', 200.0, 'us'),
-        ('subscription_throughput', 'observed', 100.0, 'Kb/s'),
-        ('resource_cpu', 'max', 100.0, 'percent'),
-        ('resource_memory_rss', 'max', 100.0, 'KB'),
-        ('total_messages_lost', 'percent', 0.0, 'percent'),
-        ('total_messages_late', 'percent', 0.0, 'percent'),
-        ('total_messages_too_late', 'percent', 0.0, 'percent'),
-    )
+    if topology == 'pub-sub':
+        metrics = (
+            ('subscription_latency', 'mean', latency, 'us'),
+            ('subscription_latency', 'p95', 200.0, 'us'),
+            ('subscription_throughput', 'observed', 100.0, 'Kb/s'),
+            ('resource_cpu', 'max', 100.0, 'percent'),
+            ('resource_memory_rss', 'max', 100.0, 'KB'),
+            ('total_messages_lost', 'percent', 0.0, 'percent'),
+            ('total_messages_late', 'percent', 0.0, 'percent'),
+            ('total_messages_too_late', 'percent', 0.0, 'percent'),
+        )
+    else:
+        metrics = (
+            ('service_client_latency', 'mean', latency, 'us'),
+            ('service_client_latency', 'p95', 200.0, 'us'),
+            ('resource_cpu', 'max', 100.0, 'percent'),
+            ('resource_memory_rss', 'max', 100.0, 'KB'),
+        )
     return [
         {
             'schema_version': 5,
@@ -404,7 +460,7 @@ def _records(run_id, label, latency=100.0, payload_size=10):
             'platform': 'x86_64',
             'ros_distro': 'rolling',
             'executor': 'EventsExecutor',
-            'topology': 'pub-sub',
+            'topology': topology,
             'process_mode': 'single_process',
             'communication_mode': 'ipc_off',
             'payload_size': payload_size,
@@ -428,6 +484,7 @@ def _set_all(
     aggregation,
     values,
     payload_size=10,
+    topology='pub-sub',
 ):
     run_ids = sorted(run_id for run_id in trials if run_id.startswith(f'{target}-measured'))
     assert len(run_ids) == len(values)
@@ -437,6 +494,7 @@ def _set_all(
             if record['metric_name'] == metric_name
             and record['aggregation'] == aggregation
             and record['payload_size'] == payload_size
+            and record['topology'] == topology
         )
         record['numeric_value'] = value
 

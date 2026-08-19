@@ -76,6 +76,9 @@ def test_report_validation_rejects_stale_or_incompatible_identity(field, message
         report['scenarios'][0]['identity']['payload_size'] = 100
         report['categories']['latency']['responsible_scenario']['payload_size'] = 100
         report['overall']['responsible_scenario']['payload_size'] = 100
+        scoped = report['topologies']['pub-sub']
+        scoped['categories']['latency']['responsible_scenario']['payload_size'] = 100
+        scoped['overall']['responsible_scenario']['payload_size'] = 100
     elif field == 'method':
         report['analysis']['method'] = 'different-method'
 
@@ -123,6 +126,10 @@ def test_each_statistical_verdict_validates_and_exports(
             'upper': overall_upper,
         },
     })
+    report['topologies']['pub-sub'] = {
+        'overall': deepcopy(report['overall']),
+        'categories': deepcopy(report['categories']),
+    }
 
     validated = validate_comparison_report(report, records, DATASET_CHECKSUM)
     output = records_to_prometheus(records, validated)
@@ -157,6 +164,10 @@ def test_insufficient_evidence_validates_and_exports_available_coverage(measured
         'metrics': [],
         'reason': reason,
     }
+    report['topologies']['pub-sub'] = {
+        'overall': deepcopy(report['overall']),
+        'categories': deepcopy(report['categories']),
+    }
     for record in records:
         record['repeat_count'] = measured_pairs
         if measured_pairs == 1:
@@ -183,6 +194,7 @@ def test_invalid_outcomes_require_reasons_and_export_without_estimates(status):
         )
         for category in CATEGORIES
     }
+    report['topologies'] = {}
     report['scenarios'] = []
 
     validated = validate_comparison_report(report, records, DATASET_CHECKSUM)
@@ -267,6 +279,24 @@ def test_not_applicable_category_must_be_absent_from_scenario_coverage():
         validate_comparison_report(report, records, DATASET_CHECKSUM)
 
 
+def test_topology_summary_coverage_must_match_reported_scenarios():
+    report, _records = _fixture()
+    report['topologies'] = {}
+
+    with pytest.raises(ComparisonReportError, match='summary coverage is inconsistent'):
+        validate_comparison_report(report)
+
+
+def test_topology_summary_responsible_scenario_must_stay_in_its_scope():
+    report, _records = _fixture()
+    summary = report['topologies']['pub-sub']
+    summary['overall']['responsible_scenario']['topology'] = 'service'
+    summary['categories']['latency']['responsible_scenario']['topology'] = 'service'
+
+    with pytest.raises(ComparisonReportError, match='responsible evidence is inconsistent'):
+        validate_comparison_report(report)
+
+
 def _fixture():
     scenario = dict(zip(
         SCENARIO_FIELDS,
@@ -318,6 +348,12 @@ def _fixture():
             'identity': scenario,
             'categories': {'latency': _scenario_evidence()},
         }],
+    }
+    report['topologies'] = {
+        'pub-sub': {
+            'overall': deepcopy(report['overall']),
+            'categories': deepcopy(report['categories']),
+        },
     }
     records = [
         _record('reference-median', 'b' * 40),

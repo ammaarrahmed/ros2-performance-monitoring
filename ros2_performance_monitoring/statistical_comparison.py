@@ -22,7 +22,7 @@ from ros2_performance_monitoring.comparison import CATEGORIES
 from ros2_performance_monitoring.comparison import CATEGORY_THRESHOLDS
 
 
-REPORT_SCHEMA_VERSION = 2
+REPORT_SCHEMA_VERSION = 3
 METHOD = 'paired-bootstrap-worst-scenario-v1'
 DEFAULT_CONFIDENCE_LEVEL = 0.95
 DEFAULT_BOOTSTRAP_REPEATS = 10000
@@ -238,6 +238,7 @@ def _report_skeleton(
             category: _empty_evidence(_threshold_report(category))
             for category in CATEGORIES
         },
+        'topologies': {},
         'scenarios': [],
     }
 
@@ -502,6 +503,18 @@ def _insufficient_report(report, metric_pairs):
         f'{report["analysis"]["measured_trial_pairs"]} measured trial pairs are available; '
         f'at least {report["analysis"]["minimum_measured_trials"]} are required'
     )
+    evidence = _insufficient_scope(metric_pairs, reason)
+    report.update(evidence)
+    for topology, scoped_pairs in _metric_pairs_by_topology(metric_pairs).items():
+        scoped = _insufficient_scope(scoped_pairs, reason)
+        report['topologies'][topology] = {
+            'overall': scoped['overall'],
+            'categories': scoped['categories'],
+        }
+    return report
+
+
+def _insufficient_scope(metric_pairs, reason):
     scenario_categories = defaultdict(set)
     for identity in metric_pairs:
         scenario, metric_name, aggregation, _unit = identity
@@ -516,18 +529,18 @@ def _insufficient_report(report, metric_pairs):
         for category in categories
     }
 
-    report['overall'] = _empty_evidence(status=INSUFFICIENT_EVIDENCE, reason=reason)
+    categories = {}
     for category in CATEGORIES:
-        if category in applicable:
-            report['categories'][category].update({
-                'status': INSUFFICIENT_EVIDENCE,
-                'reason': reason,
-            })
-        else:
-            report['categories'][category].update({'status': NOT_APPLICABLE})
+        status = INSUFFICIENT_EVIDENCE if category in applicable else NOT_APPLICABLE
+        categories[category] = _empty_evidence(
+            _threshold_report(category),
+            status=status,
+            reason=reason if status == INSUFFICIENT_EVIDENCE else None,
+        )
 
-    for scenario, categories in sorted(scenario_categories.items()):
-        report['scenarios'].append({
+    scenarios = []
+    for scenario, scenario_category_names in sorted(scenario_categories.items()):
+        scenarios.append({
             'identity': dict(zip(SCENARIO_FIELDS, scenario)),
             'categories': {
                 category: _empty_scenario_evidence(
@@ -536,16 +549,44 @@ def _insufficient_report(report, metric_pairs):
                     reason,
                 )
                 for category in CATEGORIES
-                if category in categories
+                if category in scenario_category_names
             },
         })
-    return report
+    return {
+        'overall': _empty_evidence(
+            status=INSUFFICIENT_EVIDENCE,
+            reason=reason,
+        ),
+        'categories': categories,
+        'scenarios': scenarios,
+    }
 
 
 def _analyse_metrics(report, metric_pairs):
-    confidence_level = report['analysis']['confidence_level']
-    repeats = report['analysis']['bootstrap_repeats']
-    seed = report['analysis']['seed']
+    evidence = _analyse_scope(report['analysis'], metric_pairs)
+    report.update(evidence)
+    for topology, scoped_pairs in _metric_pairs_by_topology(metric_pairs).items():
+        scoped = _analyse_scope(report['analysis'], scoped_pairs)
+        report['topologies'][topology] = {
+            'overall': scoped['overall'],
+            'categories': scoped['categories'],
+        }
+
+
+def _metric_pairs_by_topology(metric_pairs):
+    topologies = defaultdict(dict)
+    for identity, pairs in metric_pairs.items():
+        topologies[identity[0][0]][identity] = pairs
+    return {
+        topology: topologies[topology]
+        for topology in sorted(topologies)
+    }
+
+
+def _analyse_scope(analysis, metric_pairs):
+    confidence_level = analysis['confidence_level']
+    repeats = analysis['bootstrap_repeats']
+    seed = analysis['seed']
     grouped = defaultdict(lambda: defaultdict(list))
     for identity, pairs in metric_pairs.items():
         scenario, metric_name, aggregation, unit = identity
@@ -565,6 +606,7 @@ def _analyse_metrics(report, metric_pairs):
     overall_distribution = None
     overall_point = None
     overall_responsible = None
+    scenarios = []
 
     for scenario in sorted(grouped):
         scenario_item = dict(zip(SCENARIO_FIELDS, scenario))
@@ -646,16 +688,20 @@ def _analyse_metrics(report, metric_pairs):
                     'scenario': scenario_item,
                     'metric': responsible_metric,
                 }
-        report['scenarios'].append(scenario_report)
+        scenarios.append(scenario_report)
 
+    categories = {}
     for category in CATEGORIES:
         distribution = category_distributions[category]
         if distribution is None:
-            report['categories'][category].update({'status': NOT_APPLICABLE})
+            categories[category] = _empty_evidence(
+                _threshold_report(category),
+                status=NOT_APPLICABLE,
+            )
             continue
         lower, upper = _interval(distribution, confidence_level)
         point = category_points[category]
-        report['categories'][category] = {
+        categories[category] = {
             'status': _evidence_status(
                 point,
                 lower,
@@ -671,7 +717,7 @@ def _analyse_metrics(report, metric_pairs):
 
     lower, upper = _interval(overall_distribution, confidence_level)
     category_statuses = {
-        evidence['status'] for evidence in report['categories'].values()
+        evidence['status'] for evidence in categories.values()
     }
     if lower > 1.0:
         overall_status = REGRESSION
@@ -679,23 +725,27 @@ def _analyse_metrics(report, metric_pairs):
         overall_status = POSSIBLE_REGRESSION
     else:
         overall_status = NO_REGRESSION
-    report['overall'] = {
-        'status': overall_status,
-        'practical_threshold': {
-            'regression': 1.0,
-            'unit': 'category_regression_threshold_multiple',
-            'possible_by_category': {
-                category: _clean_float(
-                    thresholds.possible / thresholds.regression
-                )
-                for category, thresholds in CATEGORY_THRESHOLDS.items()
+    return {
+        'overall': {
+            'status': overall_status,
+            'practical_threshold': {
+                'regression': 1.0,
+                'unit': 'category_regression_threshold_multiple',
+                'possible_by_category': {
+                    category: _clean_float(
+                        thresholds.possible / thresholds.regression
+                    )
+                    for category, thresholds in CATEGORY_THRESHOLDS.items()
+                },
             },
+            'point_estimate': _clean_float(overall_point),
+            'confidence_interval': _interval_report(lower, upper),
+            'responsible_category': overall_responsible['category'],
+            'responsible_scenario': overall_responsible['scenario'],
+            'responsible_metric': overall_responsible['metric'],
         },
-        'point_estimate': _clean_float(overall_point),
-        'confidence_interval': _interval_report(lower, upper),
-        'responsible_category': overall_responsible['category'],
-        'responsible_scenario': overall_responsible['scenario'],
-        'responsible_metric': overall_responsible['metric'],
+        'categories': categories,
+        'scenarios': scenarios,
     }
 
 

@@ -103,6 +103,7 @@ def validate_comparison_report(report, records=None, dataset_checksum=None):
         'analysis',
         'overall',
         'categories',
+        'topologies',
         'scenarios',
     }
     if set(report) != required:
@@ -135,6 +136,13 @@ def validate_comparison_report(report, records=None, dataset_checksum=None):
         categories,
         scenarios,
         analysis,
+    )
+    topologies = _validate_topologies(report['topologies'])
+    _validate_topology_outcomes(
+        topologies,
+        scenarios,
+        analysis,
+        outcome,
     )
 
     if (records is None) != (dataset_checksum is None):
@@ -356,6 +364,64 @@ def _validate_scenarios(scenarios):
             _validate_scenario_evidence(evidence, category)
         validated[identity_key] = scenario
     return validated
+
+
+def _validate_topologies(topologies):
+    if not isinstance(topologies, dict):
+        raise ComparisonReportError('comparison report topology summaries are malformed')
+    validated = {}
+    for topology, summary in topologies.items():
+        if not isinstance(topology, str) or not topology:
+            raise ComparisonReportError(
+                'comparison report topology summary name is malformed'
+            )
+        if not isinstance(summary, dict) or set(summary) != {'overall', 'categories'}:
+            raise ComparisonReportError(
+                f'comparison report topology {topology} summary is malformed'
+            )
+        overall = _validate_overall_evidence(summary['overall'])
+        categories = summary['categories']
+        if not isinstance(categories, dict) or set(categories) != set(CATEGORIES):
+            raise ComparisonReportError(
+                f'comparison report topology {topology} category coverage is invalid'
+            )
+        for category, evidence in categories.items():
+            _validate_category_evidence(evidence, category)
+        validated[topology] = {
+            'overall': overall,
+            'categories': categories,
+        }
+    return validated
+
+
+def _validate_topology_outcomes(topologies, scenarios, analysis, report_status):
+    if report_status in INVALID_STATUSES:
+        if topologies:
+            raise ComparisonReportError(
+                'invalid comparison report must not expose topology summaries'
+            )
+        return
+
+    expected = {
+        scenario['identity']['topology']
+        for scenario in scenarios.values()
+    }
+    if set(topologies) != expected:
+        raise ComparisonReportError(
+            'comparison report topology summary coverage is inconsistent'
+        )
+    for topology, summary in topologies.items():
+        scoped_scenarios = {
+            identity: scenario
+            for identity, scenario in scenarios.items()
+            if scenario['identity']['topology'] == topology
+        }
+        _validate_outcome(
+            summary['overall'],
+            summary['categories'],
+            scoped_scenarios,
+            analysis,
+        )
 
 
 def _validate_scenario_evidence(evidence, category):
