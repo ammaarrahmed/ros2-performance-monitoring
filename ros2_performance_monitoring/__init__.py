@@ -12,4 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""ROS 2 performance monitoring package scaffold."""
+"""ROS 2 performance monitoring package."""
+
+from .version import project_version
+
+
+__version__ = project_version()

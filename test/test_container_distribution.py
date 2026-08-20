@@ -27,6 +27,7 @@ import pytest
 
 from ros2_performance_monitoring import exporter
 from ros2_performance_monitoring.exporters.prometheus import create_metrics_server
+from ros2_performance_monitoring.version import project_version
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -302,6 +303,7 @@ def _build_image(target, image):
     subprocess.run(
         [
             'docker', 'build', '--target', target, '--tag', image,
+            '--build-arg', f'PROJECT_VERSION={project_version()}',
             '--build-arg', 'VCS_REF=test-revision', str(REPOSITORY_ROOT),
         ],
         check=True,

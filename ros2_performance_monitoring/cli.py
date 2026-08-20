@@ -18,6 +18,7 @@ import subprocess
 import sys
 from typing import Any
 
+from . import __version__
 from .artifacts import ArtifactError
 from .artifacts import discover_benchmark_artifacts
 from .benchmark_image import benchmark_container_exists
@@ -550,6 +551,11 @@ def _confidence_level(value):
 def main() -> Any:
     defaults = RunDefaults()
     parser = CommandArgumentParser(prog='ros2-performance-monitoring')
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=f'%(prog)s {__version__}',
+    )
     subparsers = parser.add_subparsers(dest='command', required=True)
 
     run_parser = subparsers.add_parser('run', help='Start monitoring')

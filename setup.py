@@ -14,17 +14,22 @@
 
 from glob import glob
 import os
+from pathlib import Path
+import xml.etree.ElementTree as ET
 
 from setuptools import find_packages
 from setuptools import setup
 
 
 package_name = 'ros2_performance_monitoring'
+package_version = ET.parse(Path(__file__).parent / 'package.xml').getroot().findtext(
+    'version'
+)
 
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version=package_version,
     packages=find_packages(exclude=['test']),
     package_data={
         package_name: [

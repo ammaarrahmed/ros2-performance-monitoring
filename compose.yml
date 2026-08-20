@@ -8,7 +8,7 @@ services:
       context: .
       target: cli
       args:
-        PROJECT_VERSION: ${ROS2_PERFORMANCE_PROJECT_VERSION:-0.0.0}
+        PROJECT_VERSION: ${ROS2_PERFORMANCE_PROJECT_VERSION:-source}
         VCS_REF: ${ROS2_PERFORMANCE_VCS_REF:-unknown}
     user: ${ROS2_PERFORMANCE_HOST_UID:-1000}:${ROS2_PERFORMANCE_HOST_GID:-1000}
     group_add:
@@ -44,7 +44,7 @@ services:
       context: .
       target: exporter
       args:
-        PROJECT_VERSION: ${ROS2_PERFORMANCE_PROJECT_VERSION:-0.0.0}
+        PROJECT_VERSION: ${ROS2_PERFORMANCE_PROJECT_VERSION:-source}
         VCS_REF: ${ROS2_PERFORMANCE_VCS_REF:-unknown}
     environment:
       ROS2_PERFORMANCE_EXPORTER_INPUT: /data/${ROS2_PERFORMANCE_DATASET_PATH:-dashboard-data.jsonl}
