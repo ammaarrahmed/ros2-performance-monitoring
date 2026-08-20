@@ -488,7 +488,8 @@ def create_metrics_server(
         raise FileNotFoundError(f'normalized metrics file does not exist: {path}')
     if not path.is_file():
         raise ValueError(f'normalized metrics path is not a file: {path}')
-    load_export_data(path, comparison_report_path)
+    records, report = load_export_data(path, comparison_report_path)
+    metrics_body = records_to_prometheus(records, report).encode()
 
     class MetricsHandler(BaseHTTPRequestHandler):
 
@@ -506,13 +507,8 @@ def create_metrics_server(
                 self.end_headers()
                 return
 
-            try:
-                records, report = load_export_data(path, comparison_report_path)
-                body = records_to_prometheus(records, report).encode()
-                self.send_response(200)
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
-                body = str(exc).encode()
-                self.send_response(500)
+            body = metrics_body
+            self.send_response(200)
             self.send_header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()

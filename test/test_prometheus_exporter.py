@@ -16,8 +16,12 @@ from copy import deepcopy
 import json
 from pathlib import Path
 import re
+from threading import Thread
+from urllib.request import urlopen
 
 from ros2_performance_monitoring.comparison_report import ValidatedComparisonReport
+import ros2_performance_monitoring.exporters.prometheus as prometheus
+from ros2_performance_monitoring.exporters.prometheus import create_metrics_server
 from ros2_performance_monitoring.exporters.prometheus import records_to_prometheus
 from ros2_performance_monitoring.statistical_comparison import METHOD
 from ros2_performance_monitoring.statistical_comparison import REPORT_SCHEMA_VERSION
@@ -280,6 +284,36 @@ def test_mixed_statistical_report_exports_each_topology_and_report_wide_summary(
                     expression,
                     {**query_values, 'topology': topology},
                 )
+
+
+def test_metrics_server_loads_and_renders_source_once_at_startup(tmp_path, monkeypatch):
+    dataset = tmp_path / 'dataset.jsonl'
+    dataset.write_text('{}\n', encoding='utf-8')
+    calls = {'load': 0, 'render': 0}
+
+    def fake_load(input_path, comparison_report_path=None):
+        calls['load'] += 1
+        return [_record('subscription_latency', 25.0, 'us', 'mean')], None
+
+    def fake_render(records, comparison_report=None):
+        calls['render'] += 1
+        return 'cached_metric 1\n'
+
+    monkeypatch.setattr(prometheus, 'load_export_data', fake_load)
+    monkeypatch.setattr(prometheus, 'records_to_prometheus', fake_render)
+    server = create_metrics_server(dataset, port=0, host='127.0.0.1')
+    thread = Thread(target=server.serve_forever)
+    thread.start()
+    try:
+        address = f'http://127.0.0.1:{server.server_port}/metrics'
+        assert urlopen(address).read() == b'cached_metric 1\n'
+        assert urlopen(address).read() == b'cached_metric 1\n'
+    finally:
+        server.shutdown()
+        thread.join()
+        server.server_close()
+
+    assert calls == {'load': 1, 'render': 1}
 
 
 def _evidence_value(output, category, statistic):
