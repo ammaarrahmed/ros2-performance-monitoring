@@ -82,6 +82,7 @@ class CompletedTrial:
     sequence: int
     planned_order: int
     records: tuple[dict, ...]
+    environment: dict
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,7 @@ def build_experiment_plan(
     seed,
     experiment_id=None,
     created_at=None,
+    calibration=False,
 ):
     """Build an immutable experiment plan with a deterministic trial schedule."""
     _validate_targets(image_specs, verified_images)
@@ -124,6 +126,8 @@ def build_experiment_plan(
         raise ExperimentError(f'unsupported trial order: {order!r}')
     if type(seed) is not int:
         raise ExperimentError('scheduling seed must be an integer')
+    if type(calibration) is not bool:
+        raise ExperimentError('calibration mode must be a boolean')
     validate_cpuset_cpus(cpuset_cpus)
 
     targets = []
@@ -136,7 +140,7 @@ def build_experiment_plan(
             'identity': spec.identity_payload(),
             'verified_image': _verified_image_dict(verified),
         })
-    if targets[0]['target_key'] == targets[1]['target_key']:
+    if targets[0]['target_key'] == targets[1]['target_key'] and not calibration:
         raise ExperimentError('reference and candidate targets must be different')
 
     schedule = _trial_schedule(
@@ -146,7 +150,7 @@ def build_experiment_plan(
         order,
         seed,
     )
-    return {
+    plan = {
         'schema_version': 1,
         'experiment_id': experiment_id or f'experiment-{uuid.uuid4().hex}',
         'created_at': created_at or _utc_now(),
@@ -166,6 +170,9 @@ def build_experiment_plan(
             'trials': schedule,
         },
     }
+    if calibration:
+        plan['purpose'] = 'calibration'
+    return plan
 
 
 def run_experiment(
@@ -305,7 +312,7 @@ def load_experiment_evidence(experiment_dir):
             raise ExperimentError(
                 f'measured environment evidence does not exist: {environment_path}'
             )
-        _validate_verified_trial_environment(
+        trial_environment = _validate_verified_trial_environment(
             root,
             plan,
             trial,
@@ -337,6 +344,7 @@ def load_experiment_evidence(experiment_dir):
             sequence=trial['sequence'],
             planned_order=trial['planned_order'],
             records=measured_records,
+            environment=trial_environment,
         ))
     if measured_trials and environment is None:
         raise ExperimentError(
@@ -371,6 +379,10 @@ def collect_environment_evidence(plan, trial, image_spec, verified_image):
             'docker_version': docker_version,
             'cpuset_cpus': configuration['cpuset_cpus'],
             'cpu_governors': _cpu_governors(configuration['cpuset_cpus']),
+        },
+        'observations': {
+            'load_average': _load_average(),
+            'cpu_temperature_celsius': _cpu_temperatures(),
         },
         'configuration': dict(configuration),
         'trial': {
@@ -659,6 +671,7 @@ def _validate_verified_trial_environment(
             f'measured trial environment disagrees with {ENVIRONMENT_FILENAME} for '
             f'{trial["trial_id"]}: ' + ', '.join(mismatches)
         )
+    return evidence
 
 
 def _validate_completed_measured_environments(root, plan):
@@ -721,7 +734,7 @@ def _publish_or_validate_plan(root, requested):
 def _immutable_plan(plan):
     return {
         key: plan.get(key)
-        for key in ('schema_version', 'configuration', 'targets', 'schedule')
+        for key in ('schema_version', 'purpose', 'configuration', 'targets', 'schedule')
     }
 
 
@@ -928,6 +941,30 @@ def _cpu_governors(cpuset_cpus):
         except OSError:
             governors[cpu] = 'unavailable'
     return governors
+
+
+def _load_average():
+    try:
+        one, five, fifteen = os.getloadavg()
+    except OSError:
+        return None
+    return {
+        'one_minute': one,
+        'five_minutes': five,
+        'fifteen_minutes': fifteen,
+    }
+
+
+def _cpu_temperatures():
+    temperatures = {}
+    for zone in sorted(Path('/sys/class/thermal').glob('thermal_zone*')):
+        try:
+            zone_type = (zone / 'type').read_text(encoding='utf-8').strip()
+            raw = float((zone / 'temp').read_text(encoding='utf-8').strip())
+        except (OSError, ValueError):
+            continue
+        temperatures[f'{zone.name}:{zone_type}'] = raw / 1000.0
+    return temperatures
 
 
 def validate_cpuset_cpus(expression):
