@@ -15,14 +15,21 @@
 from pathlib import Path
 import re
 
+from ros2_performance_monitoring.dataset import validate_normalized_inputs
 import yaml
-
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPOSITORY_ROOT / '.github/workflows/publish-images.yml'
 WORKFLOW_TEXT = WORKFLOW_PATH.read_text()
 WORKFLOW = yaml.load(WORKFLOW_TEXT, Loader=yaml.BaseLoader)
 PINNED_ACTION = re.compile(r'^[^\s@]+@[0-9a-f]{40}$')
+RELEASE_SMOKE_FIXTURE = (
+    REPOSITORY_ROOT / 'test/fixtures/release-smoke/dashboard-data.json'
+)
+
+
+def test_release_smoke_fixture_matches_the_current_record_schema():
+    assert validate_normalized_inputs((RELEASE_SMOKE_FIXTURE,)) == ('release-smoke',)
 
 
 def test_publish_triggers_are_explicit_and_never_include_pull_requests():
