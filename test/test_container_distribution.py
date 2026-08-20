@@ -193,6 +193,111 @@ def test_runtime_images_and_sibling_daemon_integration(tmp_path):
         )
 
 
+@pytest.mark.docker_integration
+def test_container_controller_runs_short_upstream_benchmark(tmp_path):
+    if os.environ.get('ROS2_PERFORMANCE_RUN_CONTAINER_BENCHMARK_TEST') != '1':
+        pytest.skip(
+            'set ROS2_PERFORMANCE_RUN_CONTAINER_BENCHMARK_TEST=1 to run a benchmark'
+        )
+    suffix = uuid.uuid4().hex[:12]
+    cli_image = f'ros2-performance-monitoring-cli-test:{suffix}'
+    controller_name = f'ros2-performance-controller-benchmark-test-{suffix}'
+    results = tmp_path / 'results'
+    cache = Path(
+        os.environ.get(
+            'ROS2_PERFORMANCE_CONTAINER_BENCHMARK_CACHE',
+            tmp_path / 'cache',
+        )
+    ).resolve()
+    results.mkdir()
+    cache.mkdir(parents=True, exist_ok=True)
+    (cache / 'home').mkdir(exist_ok=True)
+    socket_gid = Path('/var/run/docker.sock').stat().st_gid
+    images_before = _docker_image_references()
+    try:
+        _build_image('cli', cli_image)
+        command = [
+            'docker', 'run', '--rm', '--name', controller_name,
+            '--user', f'{os.getuid()}:{os.getgid()}',
+            '--group-add', str(socket_gid),
+            '--read-only', '--tmpfs', '/tmp',
+            '--volume', '/var/run/docker.sock:/var/run/docker.sock',
+            '--volume', f'{results}:/results',
+            '--volume', f'{cache}:/cache',
+            '--env', 'HOME=/cache/home',
+            '--env', 'ROS2_PERFORMANCE_CONTROLLER_MODE=container',
+            '--env', 'ROS2_PERFORMANCE_CONTROLLER_RESULTS_ROOT=/results',
+            '--env', f'ROS2_PERFORMANCE_HOST_RESULTS_ROOT={results}',
+            '--env', 'ROS2_PERFORMANCE_CONTROLLER_CACHE_ROOT=/cache',
+            '--env', f'ROS2_PERFORMANCE_HOST_CACHE_ROOT={cache}',
+            '--env', f'ROS2_PERFORMANCE_HOST_UID={os.getuid()}',
+            '--env', f'ROS2_PERFORMANCE_HOST_GID={os.getgid()}',
+            '--env', f'ROS2_PERFORMANCE_CONTROLLER_IMAGE={cli_image}',
+            cli_image,
+            'run',
+            '--client-library-source', 'build',
+            '--client-library-repo-url', 'https://github.com/ros2/rclcpp.git',
+            '--client-library-ref', os.environ.get(
+                'ROS2_PERFORMANCE_CONTAINER_RCLCPP_REF', 'rolling'
+            ),
+            '--container-ref', os.environ.get(
+                'ROS2_PERFORMANCE_CONTAINER_BENCHMARK_REF', 'rolling'
+            ),
+            '--ros-distro', os.environ.get(
+                'ROS2_PERFORMANCE_CONTAINER_ROS_DISTRO', 'rolling'
+            ),
+            '--suite', 'service-rclcpp-minimal',
+            '--duration', '1',
+            '--cache-dir', '/cache/benchmark',
+            '/results/smoke',
+        ]
+        cpuset = os.environ.get('ROS2_PERFORMANCE_CONTAINER_CPUSET')
+        if cpuset:
+            command[-1:-1] = ['--cpuset-cpus', cpuset]
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+
+        normalized = results / 'smoke' / 'normalized_metrics.jsonl'
+        metadata_path = next((results / 'smoke').glob('metadata_*.json'))
+        metadata = json.loads(metadata_path.read_text())
+        assert normalized.stat().st_size > 0
+        assert metadata['controller']['execution_mode'] == 'container'
+        assert metadata['controller']['image']['reference'] == cli_image
+        assert metadata['controller']['docker_server']['id']
+        assert metadata['benchmark_image']['id']
+        assert len(metadata['benchmark_repo']['resolved_commit_hash']) == 40
+        assert len(
+            metadata['client_library_under_test']['resolved_commit_hash']
+        ) == 40
+        assert normalized.stat().st_uid == os.getuid()
+        assert normalized.stat().st_gid == os.getgid()
+    finally:
+        subprocess.run(
+            ['docker', 'rm', '-f', controller_name],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ['docker', 'image', 'rm', '-f', cli_image],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        for image_reference in _docker_image_references() - images_before:
+            subprocess.run(
+                ['docker', 'image', 'rm', image_reference],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+
 def _build_image(target, image):
     subprocess.run(
         [
@@ -280,6 +385,19 @@ def _docker_output(command):
         capture_output=True,
         text=True,
     ).stdout.strip()
+
+
+def _docker_image_references():
+    result = subprocess.run(
+        [
+            'docker', 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}',
+            'ros2-performance-monitoring/benchmark',
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return set(result.stdout.splitlines())
 
 
 def _record():
