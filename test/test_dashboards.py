@@ -35,8 +35,15 @@ COMPARISON_DIMENSIONS = {
     'rmw',
     'topology',
 }
-SINGLE_RUN_SCOPE_VARIABLES = ('library', 'platform', 'ros_distro', 'client_source')
+SINGLE_RUN_SCOPE_VARIABLES = (
+    'history_bundle',
+    'library',
+    'platform',
+    'ros_distro',
+    'client_source',
+)
 COMPARISON_SCOPE_VARIABLES = (
+    'history_bundle',
     'library',
     'platform',
     'baseline_distro',
@@ -128,18 +135,22 @@ def test_dashboard_queries_share_run_scope():
             if variable['hide'] == 0
         ]
         if dashboard['uid'] in COMPARISON_DASHBOARD_UIDS:
-            assert tuple(visible_variables[:5]) == COMPARISON_SCOPE_VARIABLES, path
+            assert tuple(visible_variables[:6]) == COMPARISON_SCOPE_VARIABLES, path
         else:
-            assert tuple(visible_variables[:4]) == SINGLE_RUN_SCOPE_VARIABLES, path
+            assert tuple(visible_variables[:5]) == SINGLE_RUN_SCOPE_VARIABLES, path
 
         for panel in dashboard['panels']:
             for target in panel.get('targets', []):
                 expression = target['expr']
                 selectors = set(re.findall(r'\w+(?:=|=~)"\\?[^,}]+', expression))
+                if expression.startswith('ros2_perf_bundle_info{'):
+                    assert selectors == {'bundle_id=~"$history_bundle"'}
+                    continue
                 assert shared_selectors <= selectors, (
                     path,
                     panel['id'],
                 )
+                assert 'bundle_id=~"$history_bundle"' in selectors
                 if dashboard['uid'] not in COMPARISON_DASHBOARD_UIDS:
                     assert 'ros_distro="$ros_distro"' in selectors
                 if '$baseline_run' in expression:
@@ -178,6 +189,47 @@ def test_comparison_run_variables_are_scoped_to_their_distributions():
                 '/.*run_display="(?<text>[^"]+)".*'
                 'run_id="(?<value>[^"]+)".*/'
             )
+            assert 'ros2_perf_comparison_analysis{' in variables[name]['definition']
+            assert f'"{name}", "(.*)"' in variables[name]['definition']
+        assert 'baseline_run="$baseline_run"' in variables['candidate_run']['definition']
+
+
+def test_history_bundle_selector_scopes_every_dashboard():
+    """Test indexed history selection scopes variables, panels, and dashboard links."""
+    for path, dashboard in _load_dashboards().items():
+        history = dashboard['templating']['list'][0]
+        assert history['name'] == 'history_bundle', path
+        assert history['definition'] == (
+            'label_values(ros2_perf_bundle_info, bundle_id)'
+        )
+        assert history['includeAll'] is True
+        assert history['allValue'] == '.*'
+        assert history['current']['value'] == '.*'
+
+        for variable in dashboard['templating']['list'][1:]:
+            definition = variable.get('definition', '')
+            if 'ros2_perf_' in definition:
+                assert 'bundle_id=~"$history_bundle"' in definition
+
+        dashboard_text = json.dumps(dashboard)
+        internal_links = re.findall(r'href=\\?"(/d/[^"\\]+)', dashboard_text)
+        assert internal_links, path
+        assert all('var-history_bundle=$history_bundle' in link for link in internal_links)
+
+
+def test_default_dashboard_shows_indexed_profile_authority():
+    """Test the home dashboard makes smoke-profile authority explicit."""
+    dashboard = _dashboard_by_uid(_load_dashboards(), 'ros2-regression-overview')
+    panel = next(
+        panel for panel in dashboard['panels']
+        if panel['title'] == 'Active evidence profile'
+    )
+    assert panel['targets'][0]['expr'] == (
+        'ros2_perf_bundle_info{bundle_id=~"$history_bundle"}'
+    )
+    assert panel['targets'][0]['legendFormat'] == (
+        '{{profile}} · authoritative={{authoritative}} · {{profile_notice}}'
+    )
 
 
 def test_run_detail_selector_only_returns_active_runs():
