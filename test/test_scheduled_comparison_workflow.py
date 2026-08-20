@@ -140,6 +140,9 @@ def test_both_checksum_bound_bundles_are_short_lived_and_state_uses_compact_one(
     assert 'scheduled_comparison validate' in WORKFLOW_TEXT
     assert 'docker push' not in WORKFLOW_TEXT
     assert 'ghcr.io' not in WORKFLOW_TEXT
+    assert benchmark['outputs']['dashboard_artifact_name'] == (
+        '${{ steps.bundle.outputs.dashboard_artifact_name }}'
+    )
 
 
 def test_summary_and_failure_diagnostics_report_required_cost_and_identity():

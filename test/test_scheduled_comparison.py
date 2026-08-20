@@ -91,6 +91,7 @@ def test_pinned_profile_is_non_authoritative_and_exact():
 def test_github_state_response_is_decoded_without_checkout():
     state = {'schema_version': 1, 'candidate_sha': CANDIDATE_SHA}
     encoded = base64.b64encode(json.dumps(state).encode()).decode()
+    encoded = f'{encoded[:12]}\n{encoded[12:]}'
     requests = []
 
     def opener(request, timeout):
@@ -297,6 +298,46 @@ def test_downloaded_bundle_rejects_tampered_payload(tmp_path):
 
     with pytest.raises(scheduled.ScheduledComparisonError, match='checksum failed'):
         scheduled.validate_bundle(compact, profile)
+
+
+def test_downloaded_bundle_rejects_incomplete_checksum_coverage(tmp_path):
+    profile = scheduled.load_profile(PROFILE_PATH)
+    evidence = _completed_evidence(tmp_path / 'evidence', profile, 0)
+    compact = tmp_path / 'compact'
+    scheduled.build_bundles(
+        evidence,
+        compact,
+        profile,
+        REFERENCE_SHA,
+        CANDIDATE_SHA,
+        'owner/repository',
+        '1234',
+        '1',
+    )
+    checksum_path = compact / scheduled.CHECKSUM_FILENAME
+    checksums = checksum_path.read_text(encoding='utf-8').splitlines()
+    checksum_path.write_text('\n'.join(checksums[1:]) + '\n', encoding='utf-8')
+
+    with pytest.raises(scheduled.ScheduledComparisonError, match='incomplete coverage'):
+        scheduled.validate_bundle(compact, profile)
+
+
+def test_state_refuses_the_full_evidence_artifact(tmp_path):
+    profile = scheduled.load_profile(PROFILE_PATH)
+    evidence = _completed_evidence(tmp_path / 'evidence', profile, 0)
+    scheduled.build_bundles(
+        evidence,
+        tmp_path / 'compact',
+        profile,
+        REFERENCE_SHA,
+        CANDIDATE_SHA,
+        'owner/repository',
+        '1234',
+        '1',
+    )
+
+    with pytest.raises(scheduled.ScheduledComparisonError, match='dashboard bundle'):
+        scheduled.build_state(evidence, profile, 'full-artifact')
 
 
 def _state(candidate_sha):

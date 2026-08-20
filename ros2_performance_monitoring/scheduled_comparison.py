@@ -110,7 +110,8 @@ class GitHubAPI:
         try:
             if response['encoding'] != 'base64':
                 raise ValueError('content is not base64 encoded')
-            raw = base64.b64decode(response['content'], validate=True)
+            encoded = ''.join(response['content'].split())
+            raw = base64.b64decode(encoded, validate=True)
             return json.loads(raw.decode('utf-8'))
         except (KeyError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ScheduledComparisonError('last-successful state is invalid') from exc
@@ -329,6 +330,22 @@ def validate_bundle(bundle_dir, profile):
         if relative in seen or not path.is_file() or _sha256(path) != checksum:
             raise ScheduledComparisonError(f'bundle checksum failed for {relative!r}')
         seen.add(relative)
+    actual = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob('*')
+        if path.is_file() and path.name != CHECKSUM_FILENAME
+    }
+    if seen != actual:
+        raise ScheduledComparisonError('bundle checksum manifest has incomplete coverage')
+    required_files = (
+        _FULL_BUNDLE_FILES
+        if manifest['bundle_kind'] == 'full-evidence'
+        else _COMPACT_BUNDLE_FILES
+        if manifest['bundle_kind'] == 'dashboard'
+        else ()
+    )
+    if not required_files or not set(required_files).issubset(seen):
+        raise ScheduledComparisonError('bundle kind or required payload is invalid')
     if MANIFEST_FILENAME not in seen:
         raise ScheduledComparisonError('bundle manifest is not checksum-bound')
     return manifest
@@ -337,6 +354,8 @@ def validate_bundle(bundle_dir, profile):
 def build_state(bundle_dir, profile, artifact_name):
     """Create durable state only from a validated completed comparison bundle."""
     manifest = validate_bundle(bundle_dir, profile)
+    if manifest['bundle_kind'] != 'dashboard':
+        raise ScheduledComparisonError('state must advance from the dashboard bundle')
     return {
         'schema_version': STATE_SCHEMA_VERSION,
         'profile': profile['name'],
@@ -467,8 +486,9 @@ def _validate_state(state, profile):
         raise ScheduledComparisonError('last-successful state belongs to another profile')
     _full_sha(state['candidate_sha'], 'last-successful candidate SHA')
     comparison = state['comparison']
-    if not isinstance(comparison, dict) or comparison.get('exit_code') not in (
-        COMPLETED_EXIT_CODES
+    if (
+        not isinstance(comparison, dict)
+        or comparison.get('exit_code') not in COMPLETED_EXIT_CODES
     ):
         raise ScheduledComparisonError('last-successful state was not completed')
 
