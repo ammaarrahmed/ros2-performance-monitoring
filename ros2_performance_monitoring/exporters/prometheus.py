@@ -459,6 +459,30 @@ def serve_metrics(
     host='0.0.0.0',
     comparison_report_path=None,
 ):
+    server = create_metrics_server(
+        input_path,
+        port=port,
+        host=host,
+        comparison_report_path=comparison_report_path,
+    )
+    path = Path(input_path).expanduser().resolve()
+    print(f'Serving Prometheus metrics from {path}')
+    print(f'Exporter: http://localhost:{port}/metrics')
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print('Stopping Prometheus exporter')
+    finally:
+        server.server_close()
+
+
+def create_metrics_server(
+    input_path,
+    port=9108,
+    host='0.0.0.0',
+    comparison_report_path=None,
+):
+    """Create a validated metrics and health server without starting its loop."""
     path = Path(input_path).expanduser().resolve()
     if not path.exists():
         raise FileNotFoundError(f'normalized metrics file does not exist: {path}')
@@ -469,6 +493,14 @@ def serve_metrics(
     class MetricsHandler(BaseHTTPRequestHandler):
 
         def do_GET(self):
+            if self.path in ('/healthz', '/healthz/'):
+                body = b'ok\n'
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if self.path not in ('/metrics', '/metrics/'):
                 self.send_response(404)
                 self.end_headers()
@@ -489,12 +521,4 @@ def serve_metrics(
         def log_message(self, _format, *args):
             return
 
-    server = HTTPServer((host, port), MetricsHandler)
-    print(f'Serving Prometheus metrics from {path}')
-    print(f'Exporter: http://localhost:{port}/metrics')
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print('Stopping Prometheus exporter')
-    finally:
-        server.server_close()
+    return HTTPServer((host, port), MetricsHandler)
