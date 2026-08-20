@@ -4,6 +4,10 @@ Changelog for package ros2_performance_monitoring
 
 0.1.0 (unreleased)
 ------------------
+* Added a versioned, explicitly ordered active-history index for bounded,
+  checksum-verified comparison bundles, atomic startup validation, cached
+  multi-bundle metrics, profile authority metadata, and bundle-scoped Grafana
+  selection.
 * Added a guarded latest-versus-last-successful rclcpp comparison producer with
   a pinned non-authoritative smoke profile, durable transparent state, and
   checksum-bound full and dashboard artifacts.

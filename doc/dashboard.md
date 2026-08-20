@@ -81,6 +81,19 @@ dataset checksum, selected target identities, method, and scenario coverage. A
 malformed, unsupported, stale, or unrelated report stops startup with a clear
 error.
 
+To serve a bounded set of downloaded comparison bundles, provide a versioned
+active-history index instead of a single input:
+
+```bash
+ros2-performance-monitoring dashboard up \
+  --history-index ./deployment/active-history.json
+```
+
+The index explicitly orders and limits active evidence; startup validates every
+bundle and fails without serving partial metrics if any checksum, report,
+dataset binding, run ID, or Prometheus series conflicts. See
+[`dashboard-history.md`](dashboard-history.md) for the complete contract.
+
 The command starts Prometheus and Grafana with Docker Compose, then keeps the
 Prometheus exporter running in the foreground.
 
@@ -126,8 +139,11 @@ ros2-performance-monitoring serve-prometheus --input dashboard-data.jsonl --port
 ```
 
 Use `--comparison-report <path>` here as well to inspect report-backed metrics.
-The exporter revalidates the report and dataset on each scrape, so replacing the
-dataset without its matching report cannot leave a stale verdict visible.
+The exporter validates and renders its source before binding the HTTP server,
+then reuses that immutable payload for every scrape. Restart it after replacing
+a single dataset/report pair. Indexed history mode uses
+`--history-index <path>` and applies the same startup cache to the complete
+validated window.
 
 Then inspect:
 
@@ -154,6 +170,14 @@ This prevents a run removed from the active JSONL dataset from remaining as a
 selectable but empty result until Prometheus retention expires. The candidate
 selector also excludes the selected reference run because comparing a run with
 itself cannot reveal a regression.
+
+In history mode, the first selector chooses one indexed bundle or the complete
+active window. Every raw and report-derived query carries that scope. Reference
+and candidate choices are joined to `ros2_perf_comparison_analysis`, so a
+report-backed bundle cannot silently lose or reverse its recorded pair. The
+home view renders each selected profile's authority flag and notice from
+`ros2_perf_bundle_info`; the initial scheduled smoke profile is therefore
+visibly non-authoritative.
 
 1. Overall, latency, throughput, resource, and reliability status cards.
 2. Mean and p95 latency scaling lines over a logarithmic payload axis.

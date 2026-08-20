@@ -195,6 +195,21 @@ For a dataset without a statistical report, leave
 ./scripts/container-workflow down
 ```
 
+To serve several downloaded compact bundles, mount one directory containing a
+versioned active-history index and all of its relative bundle paths:
+
+```bash
+export ROS2_PERFORMANCE_DASHBOARD_DATA_DIR="$(pwd)/deployment"
+export ROS2_PERFORMANCE_HISTORY_INDEX_PATH=/data/active-history.json
+unset ROS2_PERFORMANCE_REPORT_PATH
+./scripts/container-workflow dashboard
+```
+
+The exporter validates the complete window before startup and caches the
+rendered metrics for normal scrapes. See
+[`doc/dashboard-history.md`](doc/dashboard-history.md) for the index, checksum,
+compact report bundle, and legacy threshold-only bundle contracts.
+
 The exporter target runs as a non-root user with a read-only root filesystem,
 a read-only evidence mount, all capabilities dropped, and no Docker tooling or
 socket. Ports, host directories, data paths, image references, and dashboard
@@ -533,6 +548,15 @@ python3 -m ros2_performance_monitoring.scheduled_comparison validate \
   --bundle ./rclcpp-dashboard
 ```
 
+Several validated compact artifacts can be activated together through the
+bounded history index. It lists bundle directories explicitly in oldest-first
+order, pins each `SHA256SUMS` digest, carries the expected profile authority and
+notice, and sets the maximum active count. The exporter fails atomically on a
+mismatched report/dataset pair, checksum error, duplicate run ID, or duplicate
+Prometheus series. It never scans a directory or manages artifact retention.
+See [`doc/dashboard-history.md`](doc/dashboard-history.md) for the complete
+contract and deployment example.
+
 The durable baseline is the reviewable
 `.benchmark-state/rclcpp-last-successful.json` file on the `benchmark-state`
 branch. Only a completed default-branch producer may update it. The benchmark
@@ -659,6 +683,14 @@ ros2-performance-monitoring serve-prometheus \
   --port 9108
 ```
 
+To inspect an indexed comparison window instead:
+
+```bash
+ros2-performance-monitoring serve-prometheus \
+  --history-index ./deployment/active-history.json \
+  --port 9108
+```
+
 When supplied, the validated report is the source of truth for status and only
 its reference/candidate aggregate pair is exported. Mixed reports expose the
 report-wide summary with `topology="all"` and independently calculated summaries
@@ -681,6 +713,11 @@ Start the local dashboard stack:
 ```bash
 ros2-performance-monitoring dashboard up --input ./results/dashboard-data.jsonl
 ```
+
+Use `--history-index ./deployment/active-history.json` instead of `--input` to
+select from a bounded window. The history bundle selector keeps raw queries and
+the reference/candidate pair within the same verified bundle. The home view
+also shows the bound profile, authoritative flag, and producer notice.
 
 This starts Prometheus and Grafana with Docker Compose, then keeps the metrics
 exporter running in the foreground. Keep this terminal open while using the

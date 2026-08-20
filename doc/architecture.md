@@ -24,6 +24,7 @@ This keeps the project focused on:
 - End-to-end local per-commit workflow orchestration and completion evidence.
 - Short-lived scheduled comparison artifacts for latest-versus-last-successful
   rclcpp revisions.
+- Explicit bounded activation of checksum-verified dashboard history.
 
 It avoids taking ownership of:
 
@@ -47,6 +48,8 @@ focused host preflight
      -> cross-artifact validation -> comparison.complete.json
      -> report validation + Prometheus mapping -> Prometheus -> Grafana
      -> legacy threshold-only comparison -> Prometheus -> Grafana
+     -> active-history index -> atomic bundle validation -> cached Prometheus
+        history -> bundle-scoped Grafana views
      -> same-target paired noise analysis -> calibration-report.json
         -> calibration.complete.json (never a dashboard or gate input)
 ```
@@ -168,6 +171,17 @@ state advancement. There is no pull-request trigger, artifact retention is 14
 days, and derived benchmark images remain runner-local and unpublished. The
 off-hours trigger is additionally gated by an opt-in repository variable until
 the manual integration pilot succeeds.
+
+The history-serving boundary is separate from production and retention. A
+versioned index lists active bundle paths in stable oldest-first order and
+declares a bounded window. Each entry pins the digest of its checksum manifest
+and the expected profile metadata. The loader never scans a directory or uses
+modification times. It validates all indexed bundles before returning any,
+checks each report only against its co-located dataset, rejects run and
+Prometheus-series collisions, and renders the accepted window once before the
+HTTP server starts. Compact report bundles retain their exact producer,
+comparison, target, topology, and run identities; legacy dataset bundles are
+labelled threshold-only and cannot carry report-backed evidence.
 
 The comparison workflow is a thin coordinator over the target resolver and
 builder, immutable experiment runner, dataset builder, statistical comparison
