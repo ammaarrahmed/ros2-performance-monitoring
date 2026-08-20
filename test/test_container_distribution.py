@@ -101,6 +101,31 @@ def test_exporter_entrypoint_reads_environment(monkeypatch):
     }
 
 
+def test_exporter_entrypoint_prefers_history_environment(monkeypatch):
+    received = {}
+    monkeypatch.setenv('ROS2_PERFORMANCE_EXPORTER_INPUT', '/data/input.jsonl')
+    monkeypatch.setenv(
+        'ROS2_PERFORMANCE_EXPORTER_HISTORY_INDEX',
+        '/data/active-history.json',
+    )
+    monkeypatch.setattr(
+        exporter,
+        'serve_metrics',
+        lambda *args, **kwargs: received.update(args=args, kwargs=kwargs),
+    )
+
+    exporter.main()
+
+    assert received == {
+        'args': (None,),
+        'kwargs': {
+            'port': 9108,
+            'comparison_report_path': None,
+            'history_index_path': '/data/active-history.json',
+        },
+    }
+
+
 def test_exporter_serves_health_and_metrics(tmp_path):
     dataset = tmp_path / 'dashboard-data.jsonl'
     dataset.write_text(json.dumps(_record()) + '\n')

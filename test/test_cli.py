@@ -189,11 +189,17 @@ def test_export_commands_forward_optional_comparison_report(
     importlib.reload(cli)
     received = {}
 
-    def fake_export(input_path, port=9108, comparison_report_path=None):
+    def fake_export(
+        input_path,
+        port=9108,
+        comparison_report_path=None,
+        history_index_path=None,
+    ):
         received.update({
             'input': input_path,
             'port': port,
             'comparison_report': comparison_report_path,
+            'history_index': history_index_path,
         })
 
     monkeypatch.setattr(cli, patched_name, fake_export)
@@ -212,6 +218,54 @@ def test_export_commands_forward_optional_comparison_report(
         'input': str(tmp_path / 'dataset.jsonl'),
         'port': 9108,
         'comparison_report': str(tmp_path / 'comparison-report.json'),
+        'history_index': None,
+    }
+
+
+@pytest.mark.parametrize(
+    ('arguments', 'patched_name'),
+    (
+        (['dashboard', 'up'], 'dashboard_up'),
+        (['serve-prometheus'], 'serve_metrics'),
+    ),
+)
+def test_export_commands_accept_history_index(
+    tmp_path,
+    monkeypatch,
+    arguments,
+    patched_name,
+):
+    importlib.reload(cli)
+    received = {}
+
+    def fake_export(
+        input_path,
+        port=9108,
+        comparison_report_path=None,
+        history_index_path=None,
+    ):
+        received.update({
+            'input': input_path,
+            'port': port,
+            'comparison_report': comparison_report_path,
+            'history_index': history_index_path,
+        })
+
+    monkeypatch.setattr(cli, patched_name, fake_export)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        *arguments,
+        '--history-index',
+        str(tmp_path / 'active-history.json'),
+    ])
+
+    cli.main()
+
+    assert received == {
+        'input': None,
+        'port': 9108,
+        'comparison_report': None,
+        'history_index': str(tmp_path / 'active-history.json'),
     }
 
 

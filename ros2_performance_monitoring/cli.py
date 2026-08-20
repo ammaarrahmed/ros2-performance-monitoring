@@ -159,7 +159,11 @@ def parse_command(args: argparse.Namespace) -> None:
 
 def bring_up_dashboard(args: argparse.Namespace) -> None:
     try:
-        dashboard_up(args.input, comparison_report_path=args.comparison_report)
+        dashboard_up(
+            args.input,
+            comparison_report_path=args.comparison_report,
+            history_index_path=args.history_index,
+        )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -177,6 +181,7 @@ def serve_prometheus(args: argparse.Namespace) -> None:
             args.input,
             args.port,
             comparison_report_path=args.comparison_report,
+            history_index_path=args.history_index,
         )
     except (FileNotFoundError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
@@ -1059,19 +1064,27 @@ def main() -> Any:
         default=MINIMUM_MEASURED_TRIALS,
         help=f'Minimum measured trial pairs (default: {MINIMUM_MEASURED_TRIALS})',
     )
-    dashboard_up_parser.add_argument(
+    dashboard_input = dashboard_up_parser.add_mutually_exclusive_group(required=True)
+    dashboard_input.add_argument(
         '--input',
-        required=True,
         help='Normalized metrics JSONL path',
+    )
+    dashboard_input.add_argument(
+        '--history-index',
+        help='Versioned active comparison history index path',
     )
     dashboard_up_parser.add_argument(
         '--comparison-report',
         help='Versioned statistical comparison report path',
     )
-    serve_prometheus_parser.add_argument(
+    exporter_input = serve_prometheus_parser.add_mutually_exclusive_group(required=True)
+    exporter_input.add_argument(
         '--input',
-        required=True,
         help='Normalized metrics JSONL path',
+    )
+    exporter_input.add_argument(
+        '--history-index',
+        help='Versioned active comparison history index path',
     )
     serve_prometheus_parser.add_argument(
         '--comparison-report',
