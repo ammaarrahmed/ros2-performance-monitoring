@@ -72,6 +72,44 @@ does not run the measured ROS workload itself. The controller, benchmark
 container, and any helper containers started by the external benchmark are
 siblings on the same host daemon.
 
+### Use Published Runtime Images
+
+Project releases publish matching `linux/amd64` runtime images at:
+
+- `ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli`
+- `ghcr.io/ammaarrahmed/ros2-performance-monitoring-exporter`
+
+Use the manifest digests recorded in the GitHub release notes and workflow
+summary. Check out the same project release, then pin both images by digest:
+
+```bash
+git switch --detach <release-version>
+export ROS2_PERFORMANCE_CLI_IMAGE="ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli@sha256:<cli-digest>"
+export ROS2_PERFORMANCE_EXPORTER_IMAGE="ghcr.io/ammaarrahmed/ros2-performance-monitoring-exporter@sha256:<exporter-digest>"
+docker pull "$ROS2_PERFORMANCE_CLI_IMAGE"
+docker pull "$ROS2_PERFORMANCE_EXPORTER_IMAGE"
+./scripts/container-workflow run \
+  --suite service-rclcpp-minimal \
+  --duration 1 \
+  smoke
+```
+
+The same exporter pin is used by `./scripts/container-workflow dashboard`.
+Update or roll back by changing the two digest values; released digests are not
+removed automatically. Release-version and full 40-character commit tags are
+also published for discovery, but deployments should use digests. There is no
+`latest` release contract.
+
+Before the first publication, a repository owner must open each package's
+settings in GitHub Container Registry and change its visibility to **Public**.
+This is a one-time setting that allows the `docker pull` commands above to work
+without registry credentials. The OCI source label links each package to this
+repository. See GitHub's
+[package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+
+To test unreleased changes or a non-`amd64` host, build the targets locally as
+described below.
+
 Build both runtime targets from the current checkout:
 
 ```bash
@@ -129,6 +167,7 @@ export ROS2_PERFORMANCE_HOST_UID="$(id -u)"
 export ROS2_PERFORMANCE_HOST_GID="$(id -g)"
 export ROS2_PERFORMANCE_DOCKER_GID="$(stat -c %g /var/run/docker.sock)"
 export ROS2_PERFORMANCE_VCS_REF="$(git rev-parse HEAD)"
+export ROS2_PERFORMANCE_PROJECT_VERSION="$(sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' package.xml)"
 mkdir -p "$ROS2_PERFORMANCE_RESULTS_DIR" \
   "$ROS2_PERFORMANCE_CACHE_DIR/home"
 docker compose build cli exporter
@@ -786,6 +825,60 @@ host.
 
 The `ament-copyright`, `ament-flake8`, and `ament-pep257` test helpers are
 provided by the sourced ROS 2 installation.
+
+### Runtime image release checks
+
+The package version in `package.xml` is the project version source. A release
+tag must match it exactly in `MAJOR.MINOR.PATCH` form; `v`-prefixed,
+placeholder, mismatched, or abbreviated identities are rejected. Publish by
+creating a GitHub release from that existing tag, or manually dispatch the
+`Publish runtime images` workflow with the tag when publication must be
+started explicitly. Pull requests, schedules, and ordinary branch pushes do
+not publish images.
+
+The workflow builds and smoke-tests both targets before it logs in and pushes
+either release image. It publishes no partial release summary unless both
+manifests and their attestations succeed. Every Action, BuildKit image, and
+runtime base image is pinned; BuildKit cache entries are never tagged as
+releases. Each pushed image includes standard OCI identity labels, an SBOM,
+maximal BuildKit provenance, and a GitHub registry-backed provenance
+attestation. The summary records each manifest digest, build/push time, and
+compressed content size. Published-release runs append the same immutable
+digests to the release notes.
+
+Run the offline release-contract tests with:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
+  test/test_release_contract.py test/test_publish_workflow.py
+```
+
+Run the local image inspection, CLI data-processing, and exporter endpoint
+smoke test with:
+
+```bash
+version="$(sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' package.xml)"
+revision="$(git rev-parse HEAD)"
+docker build --target cli \
+  --build-arg "PROJECT_VERSION=$version" \
+  --build-arg "VCS_REF=$revision" \
+  --tag ros2-performance-monitoring-cli:release-smoke .
+docker build --target exporter \
+  --build-arg "PROJECT_VERSION=$version" \
+  --build-arg "VCS_REF=$revision" \
+  --tag ros2-performance-monitoring-exporter:release-smoke .
+scripts/smoke-runtime-images \
+  ros2-performance-monitoring-cli:release-smoke \
+  ros2-performance-monitoring-exporter:release-smoke \
+  "$version" "$revision"
+docker image rm \
+  ros2-performance-monitoring-cli:release-smoke \
+  ros2-performance-monitoring-exporter:release-smoke
+```
+
+The smoke script removes its temporary exporter container and output directory.
+The final `docker image rm` removes only the two explicitly named local test
+images.
 
 ### ROS 2 workspace
 

@@ -4,6 +4,9 @@ Changelog for package ros2_performance_monitoring
 
 0.1.0 (unreleased)
 ------------------
+* Added versioned, digest-pinnable CLI and exporter image publication with a
+  strict release-version contract, pre-push smoke tests, OCI metadata, SBOMs,
+  provenance attestations, immutable tags, and release digest reporting.
 * Added a container-first workflow with shared CLI and exporter image targets,
   explicit controller-to-daemon path mapping, non-root ownership and socket
   access, verified controller provenance, and a complete Compose dashboard.
