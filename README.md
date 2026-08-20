@@ -31,15 +31,23 @@ RMW implementation, communication mode, and payload size.
 
 ## Prerequisites
 
-- Git and an internet connection are available so the external benchmark
-  repository and container images can be fetched.
+- A compatible Linux Docker host and an internet connection are available so
+  external repositories and container images can be fetched.
 - Docker is installed and running, and the current user can use it without
   `sudo`.
 - Docker Compose and Docker Buildx plugins are installed.
 - Docker has several GB of free disk space for the ROS 2 benchmark image.
 - Ports `3000`, `9090`, and `9108` are free when starting the dashboard.
 
-From the repository root, create a virtual environment and install the command:
+The container-first workflow needs no host Python, ROS installation, or
+`vcstool`; the Docker engine and its Compose and Buildx plugins are the runtime
+requirements. Git is needed on the host only to clone this repository and
+record the checkout revision in a locally built controller image. The CLI
+image contains the project command, Python dependencies, Git, `vcstool`, Docker
+CLI, Buildx, and Compose.
+
+The host-installed workflow remains supported. For that path, create a virtual
+environment and install the command from the repository root:
 
 ```bash
 python3 -m venv .venv
@@ -56,7 +64,117 @@ docker buildx version
 git --version
 ```
 
-## Full Local Workflow
+## Container-First Workflow
+
+The controller image orchestrates the existing benchmark container through the
+mounted host Docker socket. It does not contain or start a Docker daemon, and it
+does not run the measured ROS workload itself. The controller, benchmark
+container, and any helper containers started by the external benchmark are
+siblings on the same host daemon.
+
+Build both runtime targets from the current checkout:
+
+```bash
+./scripts/container-workflow build
+```
+
+The wrapper creates persistent `./results` and `./.container-cache`
+directories, passes the invoking UID and GID, adds the Docker socket group, and
+records the current Git revision. Start with the short service benchmark:
+
+```bash
+./scripts/container-workflow run \
+  --suite service-rclcpp-minimal \
+  --duration 1 \
+  smoke
+```
+
+`smoke` is resolved under the controller's `/results` mount and is written to
+`./results/smoke` on the host. A repeated comparison uses the same CLI syntax:
+
+```bash
+./scripts/container-workflow experiment compare \
+  --reference-ref <reference-rclcpp-commit> \
+  --candidate-ref <candidate-rclcpp-commit> \
+  --ros-distro rolling \
+  --suite service-rclcpp-minimal \
+  --duration 1 \
+  --warmups 1 \
+  --repeats 3 \
+  --cpuset-cpus 0-3 \
+  --results-dir rclcpp-change
+```
+
+The two persistent path mappings are explicit:
+
+| Purpose | Controller path | Default host path |
+| --- | --- | --- |
+| Results and resumable bundles | `/results` | `./results` |
+| Source, target, and BuildKit client state | `/cache` | `./.container-cache` |
+
+Relative result and cache paths are resolved below those controller roots.
+Absolute controller paths must also remain below the matching root. Docker bind
+mount sources and retained-container labels use the translated absolute host
+path; local Buildx contexts are read by the Docker client from the persistent
+controller cache. This distinction prevents the host daemon from receiving a
+container-only path, including when a path contains spaces.
+
+To use Compose directly instead of the wrapper, set the mapping and ownership
+variables first:
+
+```bash
+export ROS2_PERFORMANCE_RESULTS_DIR="$(pwd)/results"
+export ROS2_PERFORMANCE_CACHE_DIR="$(pwd)/.container-cache"
+export ROS2_PERFORMANCE_HOST_UID="$(id -u)"
+export ROS2_PERFORMANCE_HOST_GID="$(id -g)"
+export ROS2_PERFORMANCE_DOCKER_GID="$(stat -c %g /var/run/docker.sock)"
+export ROS2_PERFORMANCE_VCS_REF="$(git rev-parse HEAD)"
+mkdir -p "$ROS2_PERFORMANCE_RESULTS_DIR" \
+  "$ROS2_PERFORMANCE_CACHE_DIR/home"
+docker compose build cli exporter
+docker compose run --rm cli experiment compare \
+  --reference-ref <reference-rclcpp-commit> \
+  --candidate-ref <candidate-rclcpp-commit> \
+  --results-dir rclcpp-change \
+  --dry-run
+```
+
+Run a completed comparison dashboard entirely in containers by mounting its
+bundle read-only into the exporter:
+
+```bash
+export ROS2_PERFORMANCE_DASHBOARD_DATA_DIR="$(pwd)/results/rclcpp-change"
+export ROS2_PERFORMANCE_DATASET_PATH=dataset/dashboard-data.jsonl
+export ROS2_PERFORMANCE_REPORT_PATH=/data/comparison-report.json
+./scripts/container-workflow dashboard
+```
+
+For a dataset without a statistical report, leave
+`ROS2_PERFORMANCE_REPORT_PATH` unset. Stop the stack with:
+
+```bash
+./scripts/container-workflow down
+```
+
+The exporter target runs as a non-root user with a read-only root filesystem,
+a read-only evidence mount, all capabilities dropped, and no Docker tooling or
+socket. Ports, host directories, data paths, image references, and dashboard
+image/port choices are configurable through the `ROS2_PERFORMANCE_*` variables
+in `compose.yml`.
+
+Run metadata and trial environment evidence record whether the controller ran
+on the host or in a container, the installed project version, inspected
+controller image ID/digest and revision when available, Docker client version,
+and the verified Docker server identity. Claimed container image metadata is
+rejected when it does not match Docker inspection.
+
+Containerizing the controller makes setup reproducible on compatible Linux
+Docker hosts. It does not make performance measurements from different CPUs,
+kernels, virtual machines, power states, thermal conditions, or background
+loads directly comparable. The host-installed CLI remains available as a
+reference controller for controlled A/B diagnostics.
+
+## Host-Installed Workflow
 
 Run these commands from the repository root.
 
@@ -972,6 +1090,39 @@ Run the ROS 2 package tests:
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 colcon test --packages-select ros2_performance_monitoring --python-testing pytest
 colcon test-result --verbose
 ```
+
+Container distribution tests are opt-in because they build local images. They
+verify the CLI/exporter tool boundary, non-root exporter health and metrics,
+and same-daemon sibling visibility, then remove their temporary containers and
+image tags:
+
+```bash
+ROS2_PERFORMANCE_RUN_CONTAINER_IMAGE_TESTS=1 \
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+python3 -m pytest -q test/test_container_distribution.py
+```
+
+The end-to-end container benchmark test is gated separately because it builds
+an exact upstream ROS 2 target and needs several GB of Docker storage. Give it
+a dedicated persistent source cache; exact refs and an isolated CPU set are
+recommended for reviewer runs:
+
+```bash
+ROS2_PERFORMANCE_RUN_CONTAINER_BENCHMARK_TEST=1 \
+ROS2_PERFORMANCE_CONTAINER_BENCHMARK_CACHE="$HOME/.cache/ros2-performance-container-test" \
+ROS2_PERFORMANCE_CONTAINER_BENCHMARK_REF=<ros2-benchmark-container-commit> \
+ROS2_PERFORMANCE_CONTAINER_RCLCPP_REF=<rclcpp-commit> \
+ROS2_PERFORMANCE_CONTAINER_CPUSET=0-3 \
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+python3 -m pytest -q \
+  test/test_container_distribution.py::test_container_controller_runs_short_upstream_benchmark
+```
+
+The test runs the reduced service suite for one second per case, checks
+controller/daemon/image provenance and host ownership, and removes benchmark
+image tags that it created. BuildKit cache and the explicitly supplied source
+cache remain reusable; inspect them with `docker system df` and remove them
+only when they are no longer needed.
 
 ## License
 
