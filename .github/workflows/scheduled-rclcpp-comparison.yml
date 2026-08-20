@@ -18,8 +18,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PROFILE_NAME: rolling-workflow-smoke-v1
-  PROFILE_PATH: .github/benchmark-profiles/rolling-workflow-smoke-v1.json
+  PROFILE_NAME: rolling-workflow-smoke-v2
+  PROFILE_PATH: .github/benchmark-profiles/rolling-workflow-smoke-v2.json
   CONTROLLER_IMAGE: ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli@sha256:6e34ecb868fad2a45c89dd294c647c679cc274af9a46f61780c6a0a69d7c5624
   STATE_BRANCH: benchmark-state
   STATE_PATH: .benchmark-state/rclcpp-last-successful.json
@@ -38,6 +38,8 @@ jobs:
       candidate_sha: ${{ steps.plan.outputs.candidate_sha }}
       baseline_source: ${{ steps.plan.outputs.baseline_source }}
       missed_commit_count: ${{ steps.plan.outputs.missed_commit_count }}
+      source_dependencies_b64: ${{ steps.plan.outputs.source_dependencies_b64 }}
+      source_dependencies_sha256: ${{ steps.plan.outputs.source_dependencies_sha256 }}
     steps:
       - name: Check out the producer revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -88,6 +90,9 @@ jobs:
       CONTROLLER_RESULTS_DIR: scheduled-comparison
       FULL_ARTIFACT_NAME: rclcpp-evidence-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
       DASHBOARD_ARTIFACT_NAME: rclcpp-dashboard-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
+      SOURCE_DEPENDENCIES_B64: ${{ needs.discover.outputs.source_dependencies_b64 }}
+      SOURCE_DEPENDENCIES_SHA256: ${{ needs.discover.outputs.source_dependencies_sha256 }}
+      SOURCE_DEPENDENCIES_FILE: ${{ runner.temp }}/rolling-source-dependencies.repos
     outputs:
       comparison_exit_code: ${{ steps.bundle.outputs.comparison_exit_code }}
       comparison_outcome: ${{ steps.bundle.outputs.comparison_outcome }}
@@ -107,7 +112,7 @@ jobs:
           path: |
             .scheduled-cache/benchmark
             .scheduled-cache/benchmark-targets
-          key: rclcpp-producer-${{ runner.os }}-${{ env.PROFILE_NAME }}-${{ needs.discover.outputs.candidate_sha }}
+          key: rclcpp-producer-${{ runner.os }}-${{ env.PROFILE_NAME }}-${{ needs.discover.outputs.candidate_sha }}-${{ needs.discover.outputs.source_dependencies_sha256 }}
           restore-keys: |
             rclcpp-producer-${{ runner.os }}-${{ env.PROFILE_NAME }}-
 
@@ -131,6 +136,22 @@ jobs:
             --format '{{index .RepoDigests 0}}' "${CONTROLLER_IMAGE}")
           test "${inspected}" = "${CONTROLLER_IMAGE}"
           docker run --rm "${CONTROLLER_IMAGE}" --version
+
+      - name: Materialize the exact Rolling dependency snapshot
+        run: |
+          set -euo pipefail
+          printf '%s' "${SOURCE_DEPENDENCIES_B64}" \
+            | base64 --decode > "${SOURCE_DEPENDENCIES_FILE}"
+          actual=$(sha256sum "${SOURCE_DEPENDENCIES_FILE}" | cut -d ' ' -f 1)
+          test "${actual}" = "${SOURCE_DEPENDENCIES_SHA256}"
+          jq -e '
+            .repositories | length > 0 and
+            all(.[];
+              .type == "git" and
+              (.url | type == "string") and
+              (.version | test("^[0-9a-f]{40}$"))
+            )
+          ' "${SOURCE_DEPENDENCIES_FILE}" >/dev/null
 
       - name: Record initial runtime and storage diagnostics
         run: |
@@ -166,11 +187,13 @@ jobs:
             --env ROS2_PERFORMANCE_CONTROLLER_IMAGE="${CONTROLLER_IMAGE}" \
             --volume "${GITHUB_WORKSPACE}/results:/results" \
             --volume "${GITHUB_WORKSPACE}/.scheduled-cache:/cache" \
+            --volume "${SOURCE_DEPENDENCIES_FILE}:/source-dependencies.repos:ro" \
             --volume /var/run/docker.sock:/var/run/docker.sock \
             "${CONTROLLER_IMAGE}" experiment compare \
             --reference-ref "${REFERENCE_SHA}" \
             --candidate-ref "${CANDIDATE_SHA}" \
             --rclcpp-repo-url https://github.com/ros2/rclcpp.git \
+            --source-dependencies /source-dependencies.repos \
             --container-repo-url https://github.com/ros2/ros2-benchmark-container.git \
             --container-ref "${benchmark_ref}" \
             --ros-distro rolling \
@@ -208,7 +231,8 @@ jobs:
             --candidate-sha "${CANDIDATE_SHA}" \
             --github-repository "${GITHUB_REPOSITORY}" \
             --run-id "${GITHUB_RUN_ID}" \
-            --run-attempt "${GITHUB_RUN_ATTEMPT}"
+            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --source-dependencies "${SOURCE_DEPENDENCIES_FILE}"
           manifest="${COMPACT_DIR}/producer-manifest.json"
           echo "comparison_exit_code=$(jq -r .comparison_exit_code "${manifest}")" \
             >> "${GITHUB_OUTPUT}"
@@ -250,6 +274,7 @@ jobs:
           ARTIFACT_BYTES: ${{ steps.metrics.outputs.artifact_bytes }}
           BASELINE_SOURCE: ${{ needs.discover.outputs.baseline_source }}
           MISSED_COMMITS: ${{ needs.discover.outputs.missed_commit_count }}
+          SOURCE_DEPENDENCIES_SHA256: ${{ needs.discover.outputs.source_dependencies_sha256 }}
         run: |
           {
             echo "## ${PROFILE_NAME} producer result"
@@ -259,6 +284,8 @@ jobs:
             echo "Reference: \`${REFERENCE_SHA}\` (${BASELINE_SOURCE})"
             echo
             echo "Candidate: \`${CANDIDATE_SHA}\` (${MISSED_COMMITS} upstream commit(s) coalesced)"
+            echo
+            echo "Rolling dependency snapshot: \`${SOURCE_DEPENDENCIES_SHA256}\`"
             echo
             echo "Outcome: **${OUTCOME}** (completed exit code ${EXIT_CODE})"
             echo

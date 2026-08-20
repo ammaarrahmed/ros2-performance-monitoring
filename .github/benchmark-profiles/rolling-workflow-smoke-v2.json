@@ -1,11 +1,20 @@
 {
-  "schema_version": 1,
-  "name": "rolling-workflow-smoke-v1",
+  "schema_version": 2,
+  "name": "rolling-workflow-smoke-v2",
   "authoritative": false,
   "notice": "Pipeline smoke evidence only; this profile is not calibrated for authoritative performance claims.",
   "rclcpp": {
     "repository": "https://github.com/ros2/rclcpp.git",
     "ref": "rolling"
+  },
+  "source_dependencies": {
+    "repositories": {
+      "ros2/rcl": {
+        "type": "git",
+        "url": "https://github.com/ros2/rcl.git",
+        "version": "rolling"
+      }
+    }
   },
   "benchmark_container": {
     "repository": "https://github.com/ros2/ros2-benchmark-container.git",
