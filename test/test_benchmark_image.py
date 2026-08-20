@@ -27,6 +27,8 @@ from ros2_performance_monitoring.benchmark_image import MANIFEST_PATH
 from ros2_performance_monitoring.benchmark_image import validate_benchmark_container
 from ros2_performance_monitoring.benchmark_image import verify_benchmark_image
 from ros2_performance_monitoring.client_target import ClientLibraryTarget
+from ros2_performance_monitoring.source_dependencies import SourceDependency
+from ros2_performance_monitoring.source_dependencies import SourceDependencySnapshot
 
 
 @pytest.mark.parametrize(
@@ -39,6 +41,7 @@ from ros2_performance_monitoring.client_target import ClientLibraryTarget
             spec,
             client_target=replace(spec.client_target, resolved_commit='c' * 40),
         ),
+        lambda spec: replace(spec, source_dependencies=_source_dependencies()),
         lambda spec: replace(
             spec,
             build_configuration=BuildConfiguration(cmake_build_type='RelWithDebInfo'),
@@ -150,7 +153,17 @@ def test_source_image_rejects_packaged_prefix_or_dynamic_library(
 
 
 def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch):
-    spec = _source_spec(tmp_path)
+    dependency_checkout = tmp_path / 'dependencies' / 'ros2' / 'rcl'
+    dependency_checkout.mkdir(parents=True)
+    dependency_commit = 'c' * 40
+    spec = replace(
+        _source_spec(tmp_path),
+        source_dependencies=_source_dependencies(
+            tmp_path / 'dependencies',
+            dependency_checkout,
+            dependency_commit,
+        ),
+    )
     spec.client_target.checkout_path.mkdir()
     (tmp_path / 'cache').mkdir()
     (tmp_path / 'cache' / 'Dockerfile').write_text('FROM scratch\n')
@@ -166,11 +179,12 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
         calls.append((command, kwargs))
         if command[0] == 'git':
             if 'rev-parse' in command:
-                commit = (
-                    spec.benchmark_resolved_commit
-                    if command[2] == str((tmp_path / 'cache').resolve())
-                    else spec.client_target.resolved_commit
-                )
+                commits = {
+                    str((tmp_path / 'cache').resolve()): spec.benchmark_resolved_commit,
+                    str(spec.client_target.checkout_path): spec.client_target.resolved_commit,
+                    str(dependency_checkout): dependency_commit,
+                }
+                commit = commits[command[2]]
                 return subprocess.CompletedProcess(command, 0, stdout=f'{commit}\n')
             return subprocess.CompletedProcess(command, 0, stdout='')
         if command[:3] == ['docker', 'buildx', 'inspect']:
@@ -207,6 +221,7 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
     assert 'SOURCE_OVERLAY_PARALLEL_WORKERS=2' in source_build
     assert f'ros2-performance-monitoring.target-key={spec.target_key}' in source_build
     assert f'rclcpp={spec.client_target.checkout_path}' in source_build
+    assert f'source-dependencies={tmp_path / "dependencies"}' in source_build
     benchmark_context = next(
         item.removeprefix('benchmark=')
         for item in source_build
@@ -221,6 +236,7 @@ def test_source_build_uses_complete_buildx_argument_lists(tmp_path, monkeypatch)
         'FROM ros2-benchmark-container AS ros2-performance-monitoring-target'
         in dockerfile.read_text()
     )
+    assert 'COPY --from=source-dependencies . /target_ws/src' in dockerfile.read_text()
     assert '--parallel-workers ${SOURCE_OVERLAY_PARALLEL_WORKERS}' in dockerfile.read_text()
     assert '-DBUILD_TESTING=OFF' in dockerfile.read_text()
     assert 'ENV MAKEFLAGS="-j${SOURCE_OVERLAY_PARALLEL_WORKERS}' in dockerfile.read_text()
@@ -244,6 +260,23 @@ def _source_spec(tmp_path: Path | None = None):
             resolved_commit='b' * 40,
             checkout_path=checkout,
         ),
+    )
+
+
+def _source_dependencies(
+    checkout_root: Path = Path('/tmp/source-dependencies'),
+    repository_checkout: Path = Path('/tmp/source-dependencies/ros2/rcl'),
+    commit: str = 'd' * 40,
+):
+    return SourceDependencySnapshot(
+        repositories=(SourceDependency(
+            path='ros2/rcl',
+            repository_url='https://github.com/ros2/rcl.git',
+            requested_ref=commit,
+            resolved_commit=commit,
+            checkout_path=repository_checkout,
+        ),),
+        checkout_path=checkout_root,
     )
 
 

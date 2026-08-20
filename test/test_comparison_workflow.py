@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
@@ -23,6 +24,8 @@ from ros2_performance_monitoring.client_target import ClientLibraryTarget
 import ros2_performance_monitoring.comparison_workflow as workflow
 from ros2_performance_monitoring.config import RunDefaults
 from ros2_performance_monitoring.experiment import prepare_experiment
+from ros2_performance_monitoring.source_dependencies import SourceDependency
+from ros2_performance_monitoring.source_dependencies import SourceDependencySnapshot
 from ros2_performance_monitoring.statistical_comparison import CANNOT_COMPARE
 
 
@@ -79,7 +82,11 @@ def test_mocked_end_to_end_workflow_composes_stages_and_reuses_completed_work(
 ):
     root = tmp_path / 'comparison'
     calls = []
-    options = _options(root)
+    options = replace(
+        _options(root),
+        source_dependencies_file='/workspace/rolling-dependencies.repos',
+    )
+    source_dependencies = _source_dependencies()
 
     monkeypatch.setattr(
         workflow,
@@ -101,6 +108,15 @@ def test_mocked_end_to_end_workflow_composes_stages_and_reuses_completed_work(
             calls,
             f'resolve:{requested_ref}',
             _target(requested_ref),
+        ),
+    )
+    monkeypatch.setattr(
+        workflow,
+        'resolve_source_dependency_snapshot',
+        lambda manifest_path, cache_dir: _call(
+            calls,
+            f'dependencies:{manifest_path}',
+            source_dependencies,
         ),
     )
     monkeypatch.setattr(
@@ -217,6 +233,7 @@ def test_mocked_end_to_end_workflow_composes_stages_and_reuses_completed_work(
         'preflight',
         f'resolve:{REFERENCE_COMMIT}',
         f'resolve:{CANDIDATE_COMMIT}',
+        'dependencies:/workspace/rolling-dependencies.repos',
         'benchmark-repository',
         f'verify:{REFERENCE_COMMIT}',
         f'verify:{CANDIDATE_COMMIT}',
@@ -625,6 +642,20 @@ def _target(commit):
         requested_ref=commit,
         resolved_commit=commit,
         checkout_path=Path('/cache') / commit,
+    )
+
+
+def _source_dependencies():
+    commit = 'e' * 40
+    return SourceDependencySnapshot(
+        repositories=(SourceDependency(
+            path='ros2/rcl',
+            repository_url='https://github.com/ros2/rcl.git',
+            requested_ref=commit,
+            resolved_commit=commit,
+            checkout_path=Path('/cache/dependencies/ros2/rcl'),
+        ),),
+        checkout_path=Path('/cache/dependencies'),
     )
 
 

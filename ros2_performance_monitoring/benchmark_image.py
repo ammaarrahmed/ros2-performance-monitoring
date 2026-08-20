@@ -24,6 +24,7 @@ import subprocess
 
 from .client_target import ClientLibraryTarget
 from .controller import resolve_cache_path
+from .source_dependencies import SourceDependencySnapshot
 
 
 LABEL_PREFIX = 'ros2-performance-monitoring'
@@ -56,7 +57,7 @@ class BuildConfiguration:
     schema_version: int = 1
     cmake_build_type: str = 'Release'
     benchmark_builder: str = 'upstream-combined-dockerfile-v1'
-    source_overlay_builder: str = 'colcon-merge-install-v3'
+    source_overlay_builder: str = 'colcon-merge-install-v4'
     source_overlay_parallel_workers: int = 2
     benchmark_runner_patch: str = 'multi-process-results-dir-v1'
 
@@ -91,6 +92,7 @@ class BenchmarkImageSpec:
     benchmark_requested_ref: str
     benchmark_resolved_commit: str
     client_target: ClientLibraryTarget
+    source_dependencies: SourceDependencySnapshot | None = None
     build_configuration: BuildConfiguration = BuildConfiguration()
 
     def __post_init__(self) -> None:
@@ -102,6 +104,8 @@ class BenchmarkImageSpec:
             r'[0-9a-f]{40}', self.client_target.resolved_commit
         ):
             raise ValueError('Source-built rclcpp commit must be a full lowercase SHA')
+        if self.client_target.source != 'build' and self.source_dependencies is not None:
+            raise ValueError('Source dependencies require a source-built rclcpp target')
 
     @property
     def target_key(self) -> str:
@@ -134,7 +138,7 @@ class BenchmarkImageSpec:
     def identity_payload(self) -> dict:
         """Return the canonical identity inputs without host cache paths."""
         return {
-            'schema_version': 1,
+            'schema_version': 2,
             'ros_distro': self.ros_distro,
             'architecture': self.architecture,
             'benchmark_repository': {
@@ -149,6 +153,11 @@ class BenchmarkImageSpec:
                 'requested_ref': self.client_target.requested_ref,
                 'resolved_commit': self.client_target.resolved_commit,
             },
+            'source_dependencies': (
+                None
+                if self.source_dependencies is None
+                else self.source_dependencies.identity_payload()
+            ),
             'build_configuration': self.build_configuration.to_dict(),
         }
 
@@ -175,6 +184,11 @@ class BenchmarkImageSpec:
             f'{LABEL_PREFIX}.client-repository': self.client_target.repository_url or '',
             f'{LABEL_PREFIX}.client-ref': self.client_target.requested_ref,
             f'{LABEL_PREFIX}.client-commit': self.client_target.resolved_commit,
+            f'{LABEL_PREFIX}.source-dependencies-sha256': (
+                self.source_dependencies.snapshot_key
+                if self.source_dependencies is not None
+                else ''
+            ),
             f'{LABEL_PREFIX}.build-configuration-sha256': hashlib.sha256(
                 build_configuration_json.encode()
             ).hexdigest(),
@@ -223,6 +237,15 @@ def build_benchmark_image(spec: BenchmarkImageSpec, cache_dir: str) -> VerifiedI
             spec.client_target.resolved_commit,
             'rclcpp target',
         )
+        if spec.source_dependencies is not None:
+            if spec.source_dependencies.checkout_path is None:
+                raise RuntimeError('Source dependency snapshot has no checkout path')
+            for dependency in spec.source_dependencies.repositories:
+                _verify_git_checkout(
+                    dependency.checkout_path,
+                    dependency.resolved_commit,
+                    f'source dependency {dependency.path!r}',
+                )
     benchmark_scripts = _prepare_benchmark_scripts(spec, benchmark_context)
     _select_builder(spec.architecture)
     _build_final_image(spec, benchmark_context, benchmark_scripts)
@@ -361,6 +384,8 @@ def _build_final_image(
         fragment = SOURCE_DOCKERFILE
         source_context_arguments = [
             '--build-context', f'rclcpp={spec.client_target.checkout_path}',
+            '--build-context',
+            f'source-dependencies={_source_dependencies_context(spec, benchmark_context)}',
             '--build-arg',
             'SOURCE_OVERLAY_PARALLEL_WORKERS='
             f'{spec.build_configuration.source_overlay_parallel_workers}',
@@ -401,6 +426,21 @@ def _prepare_combined_dockerfile(
     fragment_text = fragment.read_text().rstrip()
     dockerfile.write_text(f'{upstream_text}\n\n{fragment_text}\n')
     return dockerfile
+
+
+def _source_dependencies_context(
+    spec: BenchmarkImageSpec,
+    benchmark_context: Path,
+) -> Path:
+    if spec.source_dependencies is not None:
+        if spec.source_dependencies.checkout_path is None:
+            raise ValueError('Source dependency snapshot has no checkout path')
+        return spec.source_dependencies.checkout_path
+    managed_cache = benchmark_context.with_name(f'{benchmark_context.name}-targets')
+    empty_context = managed_cache / 'source-dependencies' / 'empty'
+    empty_context.mkdir(parents=True, exist_ok=True)
+    (empty_context / '.empty').touch(exist_ok=True)
+    return empty_context
 
 
 def _verify_git_checkout(path: Path | None, expected_commit: str, label: str) -> None:

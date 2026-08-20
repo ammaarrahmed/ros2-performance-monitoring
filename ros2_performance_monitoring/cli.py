@@ -59,6 +59,7 @@ from .exporters.prometheus import serve_metrics
 from .parsers.ros2_benchmark_container import latest_run_metadata
 from .parsers.ros2_benchmark_container import parse_artifact
 from .run_metadata import generation_rundata
+from .source_dependencies import resolve_source_dependency_snapshot
 from .statistical_comparison import build_comparison_report
 from .statistical_comparison import comparison_exit_code
 from .statistical_comparison import DEFAULT_BOOTSTRAP_REPEATS
@@ -208,6 +209,11 @@ def build_container_command(args: argparse.Namespace) -> None:
 
 def _prepare_image_spec(args: argparse.Namespace) -> BenchmarkImageSpec:
     client_target = _prepare_client_target(args)
+    source_dependencies = _prepare_source_dependencies(
+        args.source_dependencies,
+        (client_target,),
+        args.cache_dir,
+    )
     default_repo_url, default_ref = get_default_container_repo()
     container_repo_url = args.container_repo_url or default_repo_url
     container_ref = args.container_ref or default_ref
@@ -223,6 +229,7 @@ def _prepare_image_spec(args: argparse.Namespace) -> BenchmarkImageSpec:
         benchmark_requested_ref=container_ref,
         benchmark_resolved_commit=benchmark_commit,
         client_target=client_target,
+        source_dependencies=source_dependencies,
     )
 
 
@@ -271,6 +278,11 @@ def experiment_run_command(args: argparse.Namespace) -> None:
         label: _prepare_experiment_client_target(args, label)
         for label in ('reference', 'candidate')
     }
+    source_dependencies = _prepare_source_dependencies(
+        args.source_dependencies,
+        tuple(client_targets.values()),
+        args.cache_dir,
+    )
     default_repo_url, default_ref = get_default_container_repo()
     container_repo_url = args.container_repo_url or default_repo_url
     container_ref = args.container_ref or default_ref
@@ -288,6 +300,7 @@ def experiment_run_command(args: argparse.Namespace) -> None:
             benchmark_requested_ref=container_ref,
             benchmark_resolved_commit=benchmark_commit,
             client_target=client_targets[label],
+            source_dependencies=source_dependencies,
         )
         for label in ('reference', 'candidate')
     }
@@ -442,6 +455,7 @@ def experiment_compare_command(args: argparse.Namespace) -> int:
         schedule_seed=args.seed,
         cache_dir=args.cache_dir,
         rclcpp_repository_url=args.rclcpp_repo_url,
+        source_dependencies_file=args.source_dependencies,
         container_repository_url=args.container_repo_url,
         container_ref=args.container_ref,
         skip_build=args.skip_build,
@@ -487,6 +501,7 @@ def experiment_calibrate_command(args: argparse.Namespace) -> int:
         schedule_seed=args.seed,
         cache_dir=args.cache_dir,
         rclcpp_repository_url=args.rclcpp_repo_url,
+        source_dependencies_file=args.source_dependencies,
         container_repository_url=args.container_repo_url,
         container_ref=args.container_ref,
         skip_build=args.skip_build,
@@ -521,6 +536,16 @@ def _prepare_experiment_client_target(args, label):
         requested_ref=requested_ref,
         cache_dir=args.cache_dir,
     )
+
+
+def _prepare_source_dependencies(manifest_path, client_targets, cache_dir):
+    if not manifest_path:
+        return None
+    if any(target.source != 'build' for target in client_targets):
+        raise RuntimeError(
+            '--source-dependencies requires every target to build rclcpp from source'
+        )
+    return resolve_source_dependency_snapshot(manifest_path, cache_dir)
 
 
 def _positive_integer(value):
@@ -701,6 +726,10 @@ def main() -> Any:
         '--client-library-repo-url',
         help=f'rclcpp repository URL (build default: {DEFAULT_RCLCPP_REPOSITORY})',
     )
+    run_parser.add_argument(
+        '--source-dependencies',
+        help='Exact vcstool manifest to build below the source rclcpp target',
+    )
     build_container_parser.add_argument(
         'ros_distro', nargs='?', choices=SUPPORTED_ROS_DISTROS, default=defaults.ros_distro,
         help='ROS Distro',
@@ -734,6 +763,10 @@ def main() -> Any:
     build_container_parser.add_argument(
         '--client-library-repo-url',
         help=f'rclcpp repository URL (build default: {DEFAULT_RCLCPP_REPOSITORY})',
+    )
+    build_container_parser.add_argument(
+        '--source-dependencies',
+        help='Exact vcstool manifest to build below the source rclcpp target',
     )
     parse_parser.add_argument('results_dir', help='Results directory created by run')
     parse_parser.add_argument('--output', required=True, help='JSONL output path')
@@ -804,6 +837,10 @@ def main() -> Any:
     )
     experiment_run_parser.add_argument('--container-repo-url')
     experiment_run_parser.add_argument('--container-ref')
+    experiment_run_parser.add_argument(
+        '--source-dependencies',
+        help='Exact vcstool manifest shared by both source rclcpp targets',
+    )
     experiment_run_parser.add_argument(
         '--skip-build', action='store_true',
         help='Require both exact verified target images to exist locally',
@@ -883,6 +920,10 @@ def main() -> Any:
     )
     experiment_compare_parser.add_argument('--container-repo-url')
     experiment_compare_parser.add_argument('--container-ref')
+    experiment_compare_parser.add_argument(
+        '--source-dependencies',
+        help='Exact vcstool manifest shared by both source rclcpp targets',
+    )
     experiment_compare_parser.add_argument(
         '--skip-build', action='store_true',
         help='Require both exact verified target images to exist locally',
@@ -996,6 +1037,10 @@ def main() -> Any:
     )
     experiment_calibrate_parser.add_argument('--container-repo-url')
     experiment_calibrate_parser.add_argument('--container-ref')
+    experiment_calibrate_parser.add_argument(
+        '--source-dependencies',
+        help='Exact vcstool manifest shared by both source rclcpp streams',
+    )
     experiment_calibrate_parser.add_argument(
         '--skip-build', action='store_true',
         help='Require the exact verified target image to exist locally',

@@ -44,6 +44,8 @@ from .experiment import prepare_experiment
 from .experiment import run_experiment
 from .preflight import DEFAULT_MINIMUM_FREE_BYTES
 from .preflight import run_comparison_preflight
+from .source_dependencies import resolve_remote_source_dependency_snapshot
+from .source_dependencies import resolve_source_dependency_snapshot
 from .statistical_comparison import build_comparison_report
 from .statistical_comparison import CANNOT_COMPARE
 from .statistical_comparison import comparison_exit_code
@@ -100,6 +102,7 @@ class ComparisonWorkflowOptions:
     schedule_seed: int
     cache_dir: str
     rclcpp_repository_url: str = DEFAULT_RCLCPP_REPOSITORY
+    source_dependencies_file: str | None = None
     container_repository_url: str | None = None
     container_ref: str | None = None
     skip_build: bool = False
@@ -127,6 +130,7 @@ class CalibrationWorkflowOptions:
     schedule_seed: int
     cache_dir: str
     rclcpp_repository_url: str = DEFAULT_RCLCPP_REPOSITORY
+    source_dependencies_file: str | None = None
     container_repository_url: str | None = None
     container_ref: str | None = None
     skip_build: bool = False
@@ -179,6 +183,7 @@ def run_calibration_workflow(options: CalibrationWorkflowOptions):
         schedule_seed=options.schedule_seed,
         cache_dir=options.cache_dir,
         rclcpp_repository_url=options.rclcpp_repository_url,
+        source_dependencies_file=options.source_dependencies_file,
         container_repository_url=options.container_repository_url,
         container_ref=options.container_ref,
         skip_build=options.skip_build,
@@ -255,6 +260,14 @@ def _run_workflow(options, calibration):
                 )
             ),
         }
+        source_dependencies = (
+            resolve_source_dependency_snapshot(
+                options.source_dependencies_file,
+                options.cache_dir,
+            )
+            if options.source_dependencies_file
+            else None
+        )
         container_url, container_ref = _container_inputs(options)
         benchmark_commit = setup_container_repo(
             container_repo_url=container_url,
@@ -268,6 +281,7 @@ def _run_workflow(options, calibration):
             container_url,
             container_ref,
             benchmark_commit,
+            source_dependencies,
             calibration=calibration,
         )
 
@@ -470,6 +484,11 @@ def _plan_dry_run(options, root, architecture, calibration=False):
             )
         ),
     }
+    source_dependencies = (
+        resolve_remote_source_dependency_snapshot(options.source_dependencies_file)
+        if options.source_dependencies_file
+        else None
+    )
     container_url, container_ref = _container_inputs(options)
     benchmark_commit = resolve_container_repo_ref(container_url, container_ref)
     image_specs = _image_specs(
@@ -479,6 +498,7 @@ def _plan_dry_run(options, root, architecture, calibration=False):
         container_url,
         container_ref,
         benchmark_commit,
+        source_dependencies,
         calibration=calibration,
     )
     planned_images = {
@@ -545,6 +565,7 @@ def _image_specs(
     container_url,
     container_ref,
     benchmark_commit,
+    source_dependencies=None,
     calibration=False,
 ):
     specs = {
@@ -555,6 +576,7 @@ def _image_specs(
             benchmark_requested_ref=container_ref,
             benchmark_resolved_commit=benchmark_commit,
             client_target=client_targets[label],
+            source_dependencies=source_dependencies,
         )
         for label in TARGET_LABELS
     }

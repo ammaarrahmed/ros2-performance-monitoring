@@ -50,6 +50,16 @@ class ClientLibraryTarget:
         )
 
 
+@dataclass(frozen=True)
+class SourceCheckout:
+    """Describe one exact source repository checkout in the managed cache."""
+
+    repository_url: str
+    requested_ref: str
+    resolved_commit: str
+    checkout_path: Path
+
+
 def resolve_rclcpp_target(
     repository_url: str,
     requested_ref: str,
@@ -66,10 +76,43 @@ def resolve_rclcpp_target(
         raise RuntimeError('Git executable was not found on PATH')
 
     cache_root = _target_cache_root(cache_dir, repository_url)
+    checkout = resolve_source_checkout(
+        repository_url,
+        requested_ref,
+        cache_root,
+        label='rclcpp',
+    )
+    return ClientLibraryTarget(
+        name='rclcpp',
+        source='build',
+        repository_url=repository_url,
+        requested_ref=requested_ref,
+        resolved_commit=checkout.resolved_commit,
+        checkout_path=checkout.checkout_path,
+    )
+
+
+def resolve_source_checkout(
+    repository_url: str,
+    requested_ref: str,
+    cache_root: Path,
+    *,
+    checkout_path: Path | None = None,
+    label: str = 'source repository',
+) -> SourceCheckout:
+    """Fetch one Git repository and prepare an immutable exact worktree."""
+    if not repository_url.strip():
+        raise ValueError(f'The {label} repository URL cannot be empty')
+    if not requested_ref.strip() or requested_ref.startswith('-'):
+        raise ValueError(f'Invalid {label} ref: {requested_ref!r}')
+    if shutil.which('git') is None:
+        raise RuntimeError('Git executable was not found on PATH')
+
+    cache_root = Path(cache_root)
     mirror_path = cache_root / 'repository.git'
     if mirror_path.exists() and not (mirror_path / 'HEAD').is_file():
         raise RuntimeError(
-            f'Cannot use rclcpp cache at {mirror_path}: it is not a Git mirror'
+            f'Cannot use {label} cache at {mirror_path}: it is not a Git mirror'
         )
     if not mirror_path.exists():
         mirror_path.parent.mkdir(parents=True, exist_ok=True)
@@ -86,12 +129,10 @@ def resolve_rclcpp_target(
         ],
         check=True,
     )
-    resolved_commit = _resolve_commit(mirror_path, requested_ref)
-    checkout_path = cache_root / 'checkouts' / resolved_commit
-    _prepare_checkout(mirror_path, checkout_path, resolved_commit)
-    return ClientLibraryTarget(
-        name='rclcpp',
-        source='build',
+    resolved_commit = _resolve_commit(mirror_path, requested_ref, label)
+    checkout_path = checkout_path or cache_root / 'checkouts' / resolved_commit
+    _prepare_checkout(mirror_path, checkout_path, resolved_commit, label)
+    return SourceCheckout(
         repository_url=repository_url,
         requested_ref=requested_ref,
         resolved_commit=resolved_commit,
@@ -120,12 +161,12 @@ def _target_cache_root(cache_dir: str, repository_url: str) -> Path:
     return managed_cache / 'rclcpp' / repository_key
 
 
-def _resolve_commit(mirror_path: Path, requested_ref: str) -> str:
+def _resolve_commit(mirror_path: Path, requested_ref: str, label: str = 'rclcpp') -> str:
     revision = requested_ref
     if requested_ref.startswith('refs/'):
         candidates = _matching_refs(mirror_path, (requested_ref,))
         if candidates != (requested_ref,):
-            raise RuntimeError(f'rclcpp ref {requested_ref!r} was not found')
+            raise RuntimeError(f'{label} ref {requested_ref!r} was not found')
     elif not _COMMIT_PATTERN.fullmatch(requested_ref) and requested_ref != 'HEAD':
         possible_refs = (
             f'refs/heads/{requested_ref}',
@@ -133,11 +174,11 @@ def _resolve_commit(mirror_path: Path, requested_ref: str) -> str:
         )
         candidates = _matching_refs(mirror_path, possible_refs)
         if not candidates:
-            raise RuntimeError(f'rclcpp ref {requested_ref!r} was not found')
+            raise RuntimeError(f'{label} ref {requested_ref!r} was not found')
         if len(candidates) > 1:
             joined_candidates = ', '.join(candidates)
             raise RuntimeError(
-                f'rclcpp ref {requested_ref!r} is ambiguous: {joined_candidates}'
+                f'{label} ref {requested_ref!r} is ambiguous: {joined_candidates}'
             )
         revision = candidates[0]
 
@@ -153,7 +194,7 @@ def _resolve_commit(mirror_path: Path, requested_ref: str) -> str:
     resolved_commit = result.stdout.strip()
     if result.returncode != 0 or not re.fullmatch(r'[0-9a-f]{40}', resolved_commit):
         raise RuntimeError(
-            f'rclcpp ref {requested_ref!r} does not resolve to one full commit SHA'
+            f'{label} ref {requested_ref!r} does not resolve to one full commit SHA'
         )
     return resolved_commit
 
@@ -171,7 +212,12 @@ def _matching_refs(mirror_path: Path, possible_refs: tuple[str, ...]) -> tuple[s
     return tuple(line for line in result.stdout.splitlines() if line)
 
 
-def _prepare_checkout(mirror_path: Path, checkout_path: Path, commit: str) -> None:
+def _prepare_checkout(
+    mirror_path: Path,
+    checkout_path: Path,
+    commit: str,
+    label: str = 'rclcpp',
+) -> None:
     if checkout_path.exists():
         result = _checkout_revision(checkout_path)
         if result.returncode != 0:
@@ -187,7 +233,7 @@ def _prepare_checkout(mirror_path: Path, checkout_path: Path, commit: str) -> No
             result = _checkout_revision(checkout_path)
         if result.returncode != 0 or result.stdout.strip() != commit:
             raise RuntimeError(
-                f'Cached rclcpp checkout at {checkout_path} does not match {commit}'
+                f'Cached {label} checkout at {checkout_path} does not match {commit}'
             )
         return
 

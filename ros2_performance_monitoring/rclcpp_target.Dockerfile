@@ -10,9 +10,10 @@ ARG TARGET_MANIFEST_B64
 ENV MAKEFLAGS="-j${SOURCE_OVERLAY_PARALLEL_WORKERS} -l${SOURCE_OVERLAY_PARALLEL_WORKERS}"
 
 COPY --from=benchmark . /ws/src/ros2_benchmark_container/benchmark
+COPY --from=source-dependencies . /target_ws/src
 COPY --from=rclcpp . /target_ws/src/rclcpp
 
-RUN rm -f /target_ws/src/rclcpp/.git \
+RUN find /target_ws/src -name .git -exec rm -rf {} + \
     && rosdep install \
       --from-paths /target_ws/src \
       --ignore-src \
