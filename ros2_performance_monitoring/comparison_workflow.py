@@ -25,6 +25,8 @@ from .benchmark_image import BenchmarkImageSpec
 from .benchmark_image import build_benchmark_image
 from .benchmark_image import VerifiedImage
 from .benchmark_image import verify_benchmark_image
+from .calibration import build_calibration_report
+from .calibration import validate_calibration_report
 from .client_target import DEFAULT_RCLCPP_REPOSITORY
 from .client_target import resolve_rclcpp_target
 from .client_target import resolve_remote_rclcpp_target
@@ -59,6 +61,8 @@ WORKFLOW_STATUS_FILENAME = 'workflow.status.json'
 WORKFLOW_LOG_FILENAME = 'workflow.log'
 WORKFLOW_COMPLETE_FILENAME = 'comparison.complete.json'
 REPORT_FILENAME = 'comparison-report.json'
+CALIBRATION_COMPLETE_FILENAME = 'calibration.complete.json'
+CALIBRATION_REPORT_FILENAME = 'calibration-report.json'
 WORKFLOW_COMPLETION_SCHEMA_VERSION = 2
 OPERATIONAL_ERROR_EXIT = 4
 TARGET_LABELS = ('reference', 'candidate')
@@ -71,6 +75,10 @@ INVALID_COMPARISON_STATUSES = frozenset({
 
 class ComparisonWorkflowError(RuntimeError):
     """Report an operational failure distinct from comparison evidence."""
+
+
+class CalibrationWorkflowError(ComparisonWorkflowError):
+    """Report an operational failure in the local calibration workflow."""
 
 
 @dataclass(frozen=True)
@@ -103,6 +111,31 @@ class ComparisonWorkflowOptions:
 
 
 @dataclass(frozen=True)
+class CalibrationWorkflowOptions:
+    """Describe one end-to-end controlled A/A calibration invocation."""
+
+    results_dir: str
+    target_ref: str
+    ros_distro: str
+    suite: str
+    executor: str
+    duration: int
+    cpuset_cpus: str | None
+    warmups: int
+    repeats: int
+    schedule_seed: int
+    cache_dir: str
+    rclcpp_repository_url: str = DEFAULT_RCLCPP_REPOSITORY
+    container_repository_url: str | None = None
+    container_ref: str | None = None
+    skip_build: bool = False
+    dry_run: bool = False
+    confidence_level: float = DEFAULT_CONFIDENCE_LEVEL
+    bootstrap_repeats: int = DEFAULT_BOOTSTRAP_REPEATS
+    bootstrap_seed: int = DEFAULT_SEED
+
+
+@dataclass(frozen=True)
 class ComparisonWorkflowResult:
     """Summarize planned or completed end-to-end comparison outputs."""
 
@@ -125,9 +158,44 @@ class ComparisonWorkflowResult:
 
 def run_comparison_workflow(options: ComparisonWorkflowOptions):
     """Resolve, prepare, execute, analyse, and validate one comparison."""
+    return _run_workflow(options, calibration=False)
+
+
+def run_calibration_workflow(options: CalibrationWorkflowOptions):
+    """Resolve, execute, and analyse a controlled same-target experiment."""
+    comparison_options = ComparisonWorkflowOptions(
+        results_dir=options.results_dir,
+        reference_ref=options.target_ref,
+        candidate_ref=options.target_ref,
+        ros_distro=options.ros_distro,
+        suite=options.suite,
+        executor=options.executor,
+        duration=options.duration,
+        cpuset_cpus=options.cpuset_cpus,
+        warmups=options.warmups,
+        repeats=options.repeats,
+        order='balanced',
+        schedule_seed=options.schedule_seed,
+        cache_dir=options.cache_dir,
+        rclcpp_repository_url=options.rclcpp_repository_url,
+        container_repository_url=options.container_repository_url,
+        container_ref=options.container_ref,
+        skip_build=options.skip_build,
+        dry_run=options.dry_run,
+        confidence_level=options.confidence_level,
+        bootstrap_repeats=options.bootstrap_repeats,
+        bootstrap_seed=options.bootstrap_seed,
+    )
+    try:
+        return _run_workflow(comparison_options, calibration=True)
+    except ComparisonWorkflowError as exc:
+        raise CalibrationWorkflowError(str(exc)) from exc
+
+
+def _run_workflow(options, calibration):
     if options.order != 'balanced':
         raise ComparisonWorkflowError(
-            'end-to-end comparison requires balanced scheduling'
+            'end-to-end workflow requires balanced scheduling'
         )
     root = Path(options.results_dir).expanduser().resolve()
     stage = 'preflight'
@@ -153,7 +221,12 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
                 'preflight requirement.'
             )
         try:
-            return _plan_dry_run(options, root, preflight.architecture)
+            return _plan_dry_run(
+                options,
+                root,
+                preflight.architecture,
+                calibration=calibration,
+            )
         except Exception as exc:
             if isinstance(exc, ComparisonWorkflowError):
                 raise
@@ -166,16 +239,19 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
     try:
         stage = 'target-resolution'
         _record_stage(root, stage, started_at)
+        reference_target = resolve_rclcpp_target(
+            options.rclcpp_repository_url,
+            options.reference_ref,
+            options.cache_dir,
+        )
         client_targets = {
-            'reference': resolve_rclcpp_target(
-                options.rclcpp_repository_url,
-                options.reference_ref,
-                options.cache_dir,
-            ),
-            'candidate': resolve_rclcpp_target(
-                options.rclcpp_repository_url,
-                options.candidate_ref,
-                options.cache_dir,
+            'reference': reference_target,
+            'candidate': (
+                reference_target if calibration else resolve_rclcpp_target(
+                    options.rclcpp_repository_url,
+                    options.candidate_ref,
+                    options.cache_dir,
+                )
             ),
         }
         container_url, container_ref = _container_inputs(options)
@@ -191,6 +267,7 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             container_url,
             container_ref,
             benchmark_commit,
+            calibration=calibration,
         )
 
         stage = 'target-preparation'
@@ -199,7 +276,12 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             label: _prepare_image(label, image_specs[label], options)
             for label in TARGET_LABELS
         }
-        requested_plan = _build_plan(options, image_specs, verified_images)
+        requested_plan = _build_plan(
+            options,
+            image_specs,
+            verified_images,
+            calibration=calibration,
+        )
         plan = prepare_experiment(
             root,
             requested_plan,
@@ -207,7 +289,13 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             verified_images,
         )
         _write_target_manifests(root, plan, image_specs)
-        _print_plan(root, plan, image_specs, dry_run=False)
+        _print_plan(
+            root,
+            plan,
+            image_specs,
+            dry_run=False,
+            calibration=calibration,
+        )
 
         stage = 'experiment-execution'
         _record_stage(root, stage, started_at)
@@ -218,60 +306,115 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             verified_images,
         )
 
-        stage = 'comparison-report'
+        stage = 'calibration-report' if calibration else 'comparison-report'
         _record_stage(root, stage, started_at)
         completed = load_experiment_evidence(root)
         if not completed.experiment_complete or completed.dataset_path is None:
             raise ComparisonWorkflowError('experiment did not publish verified completion')
-        report_path = root / REPORT_FILENAME
+        report_filename = (
+            CALIBRATION_REPORT_FILENAME if calibration else REPORT_FILENAME
+        )
+        completion_filename = (
+            CALIBRATION_COMPLETE_FILENAME
+            if calibration
+            else WORKFLOW_COMPLETE_FILENAME
+        )
+        report_path = root / report_filename
         dataset_path = completed.dataset_path
         dataset_manifest = verify_dataset_bundle(dataset_path)
         records = _load_dataset_records(dataset_path)
-        report = _load_reusable_report(
-            root,
-            report_path,
-            records,
-            dataset_path,
-            dataset_manifest,
-            options,
-            completed.plan,
-        )
-        if report is None:
-            if report_path.exists() or (root / WORKFLOW_COMPLETE_FILENAME).exists():
-                print(
-                    'Existing comparison report completion chain is invalid; '
-                    'regenerating it from verified experiment evidence.'
-                )
-            _remove_file(root / WORKFLOW_COMPLETE_FILENAME)
-            trial_records = {
-                trial.trial_id: trial.records
+        trial_records = {
+            trial.trial_id: trial.records
+            for trial in completed.measured_trials
+        }
+        trial_environments = (
+            {
+                trial.trial_id: trial.environment
                 for trial in completed.measured_trials
             }
-            report = build_comparison_report(
-                completed.plan,
+            if calibration
+            else {}
+        )
+        if calibration:
+            report = _load_reusable_calibration_report(
+                root,
+                report_path,
+                dataset_path,
+                dataset_manifest,
+                options,
+                completed,
                 trial_records,
-                reference='reference',
-                candidate='candidate',
-                confidence_level=options.confidence_level,
-                bootstrap_repeats=options.bootstrap_repeats,
-                seed=options.bootstrap_seed,
-                minimum_trials=options.minimum_trials,
-                dataset_sha256=completed.dataset_sha256,
+                trial_environments,
             )
+        else:
+            report = _load_reusable_report(
+                root,
+                report_path,
+                records,
+                dataset_path,
+                dataset_manifest,
+                options,
+                completed.plan,
+            )
+        if report is None:
+            if report_path.exists() or (root / completion_filename).exists():
+                print(
+                    f'Existing {"calibration" if calibration else "comparison"} '
+                    'report completion chain is invalid; '
+                    'regenerating it from verified experiment evidence.'
+                )
+            _remove_file(root / completion_filename)
+            if calibration:
+                report = build_calibration_report(
+                    completed.plan,
+                    trial_records,
+                    trial_environments,
+                    completed.environment,
+                    confidence_level=options.confidence_level,
+                    bootstrap_repeats=options.bootstrap_repeats,
+                    seed=options.bootstrap_seed,
+                    dataset_sha256=completed.dataset_sha256,
+                )
+            else:
+                report = build_comparison_report(
+                    completed.plan,
+                    trial_records,
+                    reference='reference',
+                    candidate='candidate',
+                    confidence_level=options.confidence_level,
+                    bootstrap_repeats=options.bootstrap_repeats,
+                    seed=options.bootstrap_seed,
+                    minimum_trials=options.minimum_trials,
+                    dataset_sha256=completed.dataset_sha256,
+                )
             write_json(report, report_path)
 
         stage = 'final-validation'
         _record_stage(root, stage, started_at)
-        _validate_outputs(
-            root,
-            plan,
-            image_specs,
-            completed,
-            dataset_path,
-            dataset_manifest,
-            records,
-            report,
-        )
+        if calibration:
+            _validate_calibration_outputs(
+                root,
+                plan,
+                image_specs,
+                completed,
+                dataset_path,
+                dataset_manifest,
+                report,
+                options,
+                trial_records,
+                trial_environments,
+            )
+        else:
+            _validate_outputs(
+                root,
+                plan,
+                image_specs,
+                completed,
+                dataset_path,
+                dataset_manifest,
+                records,
+                report,
+            )
         completion = _completion_manifest(
             root,
             plan,
@@ -279,16 +422,18 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
             dataset_manifest,
             report_path,
             report,
+            calibration=calibration,
+            completion_filename=completion_filename,
         )
         _record_stage(root, 'complete', started_at, outcome='completed')
-        _write_if_changed(root / WORKFLOW_COMPLETE_FILENAME, completion)
+        _write_if_changed(root / completion_filename, completion)
     except Exception as exc:
         _record_failure(root, stage, started_at, exc)
         if isinstance(exc, ComparisonWorkflowError):
             raise
         raise ComparisonWorkflowError(f'{stage} failed: {exc}') from exc
 
-    dashboard_command = _dashboard_command(dataset_path, report_path)
+    dashboard_command = () if calibration else _dashboard_command(dataset_path, report_path)
     result = ComparisonWorkflowResult(
         dry_run=False,
         experiment_dir=root,
@@ -302,23 +447,26 @@ def run_comparison_workflow(options: ComparisonWorkflowOptions):
         reused_trials=experiment_result.reused_trials,
         dataset_path=dataset_path,
         report_path=report_path,
-        overall_status=report['overall']['status'],
-        exit_code=comparison_exit_code(report),
+        overall_status=None if calibration else report['overall']['status'],
+        exit_code=0 if calibration else comparison_exit_code(report),
         dashboard_command=dashboard_command,
     )
-    _print_summary(result)
+    _print_summary(result, calibration=calibration)
     return result
 
 
-def _plan_dry_run(options, root, architecture):
+def _plan_dry_run(options, root, architecture, calibration=False):
+    reference_target = resolve_remote_rclcpp_target(
+        options.rclcpp_repository_url,
+        options.reference_ref,
+    )
     client_targets = {
-        'reference': resolve_remote_rclcpp_target(
-            options.rclcpp_repository_url,
-            options.reference_ref,
-        ),
-        'candidate': resolve_remote_rclcpp_target(
-            options.rclcpp_repository_url,
-            options.candidate_ref,
+        'reference': reference_target,
+        'candidate': (
+            reference_target if calibration else resolve_remote_rclcpp_target(
+                options.rclcpp_repository_url,
+                options.candidate_ref,
+            )
         ),
     }
     container_url, container_ref = _container_inputs(options)
@@ -330,6 +478,7 @@ def _plan_dry_run(options, root, architecture):
         container_url,
         container_ref,
         benchmark_commit,
+        calibration=calibration,
     )
     planned_images = {
         label: VerifiedImage(
@@ -340,10 +489,23 @@ def _plan_dry_run(options, root, architecture):
         )
         for label in TARGET_LABELS
     }
-    plan = _build_plan(options, image_specs, planned_images)
-    _print_plan(root, plan, image_specs, dry_run=True)
+    plan = _build_plan(
+        options,
+        image_specs,
+        planned_images,
+        calibration=calibration,
+    )
+    _print_plan(
+        root,
+        plan,
+        image_specs,
+        dry_run=True,
+        calibration=calibration,
+    )
     dataset_path = root / 'dataset' / 'dashboard-data.jsonl'
-    report_path = root / REPORT_FILENAME
+    report_path = root / (
+        CALIBRATION_REPORT_FILENAME if calibration else REPORT_FILENAME
+    )
     result = ComparisonWorkflowResult(
         dry_run=True,
         experiment_dir=root,
@@ -359,7 +521,9 @@ def _plan_dry_run(options, root, architecture):
         report_path=report_path,
         overall_status=None,
         exit_code=None,
-        dashboard_command=_dashboard_command(dataset_path, report_path),
+        dashboard_command=(
+            () if calibration else _dashboard_command(dataset_path, report_path)
+        ),
     )
     print('Dry run complete; no repositories, images, containers, or artifacts were created.')
     return result
@@ -380,6 +544,7 @@ def _image_specs(
     container_url,
     container_ref,
     benchmark_commit,
+    calibration=False,
 ):
     specs = {
         label: BenchmarkImageSpec(
@@ -392,7 +557,10 @@ def _image_specs(
         )
         for label in TARGET_LABELS
     }
-    if specs['reference'].target_key == specs['candidate'].target_key:
+    if (
+        specs['reference'].target_key == specs['candidate'].target_key
+        and not calibration
+    ):
         raise ComparisonWorkflowError(
             'reference and candidate refs resolve to the same target; '
             'choose two different rclcpp commits'
@@ -414,7 +582,7 @@ def _prepare_image(label, spec, options):
     return image
 
 
-def _build_plan(options, image_specs, verified_images):
+def _build_plan(options, image_specs, verified_images, calibration=False):
     return build_experiment_plan(
         image_specs,
         verified_images,
@@ -426,6 +594,7 @@ def _build_plan(options, image_specs, verified_images):
         measured_repeat_count=options.repeats,
         order=options.order,
         seed=options.schedule_seed,
+        calibration=calibration,
     )
 
 
@@ -504,6 +673,51 @@ def _load_reusable_report(
     return report
 
 
+def _load_reusable_calibration_report(
+    root,
+    path,
+    dataset_path,
+    dataset_manifest,
+    options,
+    completed,
+    trial_records,
+    trial_environments,
+):
+    checksum = dataset_manifest['dataset_sha256']
+    try:
+        report = json.loads(path.read_text(encoding='utf-8'))
+        validate_calibration_report(
+            report,
+            completed.plan,
+            trial_records,
+            trial_environments,
+            completed.environment,
+            confidence_level=options.confidence_level,
+            bootstrap_repeats=options.bootstrap_repeats,
+            seed=options.bootstrap_seed,
+            dataset_sha256=checksum,
+        )
+    except (
+        FileNotFoundError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
+        return None
+    if not _verify_workflow_completion(
+        root,
+        completed.plan,
+        dataset_path,
+        dataset_manifest,
+        path,
+        report,
+        calibration=True,
+        completion_filename=CALIBRATION_COMPLETE_FILENAME,
+    ):
+        return None
+    return report
+
+
 def _validate_outputs(
     root,
     plan,
@@ -514,14 +728,68 @@ def _validate_outputs(
     records,
     report,
 ):
+    _validate_common_outputs(
+        root,
+        plan,
+        image_specs,
+        completed,
+        dataset_path,
+        dataset_manifest,
+    )
+    _validate_report_identity(report, plan, completed.dataset_sha256)
+    if comparison_exit_code(report) != EXIT_INVALID_COMPARISON:
+        validate_comparison_report(report, records, dataset_manifest['dataset_sha256'])
+    else:
+        _validate_invalid_report_structure(report)
+
+
+def _validate_calibration_outputs(
+    root,
+    plan,
+    image_specs,
+    completed,
+    dataset_path,
+    dataset_manifest,
+    report,
+    options,
+    trial_records,
+    trial_environments,
+):
+    _validate_common_outputs(
+        root,
+        plan,
+        image_specs,
+        completed,
+        dataset_path,
+        dataset_manifest,
+    )
+    validate_calibration_report(
+        report,
+        plan,
+        trial_records,
+        trial_environments,
+        completed.environment,
+        confidence_level=options.confidence_level,
+        bootstrap_repeats=options.bootstrap_repeats,
+        seed=options.bootstrap_seed,
+        dataset_sha256=dataset_manifest['dataset_sha256'],
+    )
+
+
+def _validate_common_outputs(
+    root,
+    plan,
+    image_specs,
+    completed,
+    dataset_path,
+    dataset_manifest,
+):
     if completed.plan != plan:
         raise ComparisonWorkflowError('completed experiment plan does not match requested plan')
     if completed.dataset_path != dataset_path:
         raise ComparisonWorkflowError('completed experiment dataset path is inconsistent')
     if completed.dataset_sha256 != dataset_manifest.get('dataset_sha256'):
         raise ComparisonWorkflowError('experiment and dataset checksums do not agree')
-    _validate_report_identity(report, plan, completed.dataset_sha256)
-
     planned_targets = {target['label']: target for target in plan['targets']}
     for label in TARGET_LABELS:
         target_path = root / 'targets' / f'{label}.json'
@@ -540,10 +808,6 @@ def _validate_outputs(
             raise ComparisonWorkflowError(
                 f'verified {label} target manifest does not agree with the experiment plan'
             )
-    if comparison_exit_code(report) != EXIT_INVALID_COMPARISON:
-        validate_comparison_report(report, records, dataset_manifest['dataset_sha256'])
-    else:
-        _validate_invalid_report_structure(report)
 
 
 def _validate_report_identity(report, plan, dataset_sha256):
@@ -621,6 +885,8 @@ def _completion_manifest(
     dataset_manifest,
     report_path,
     report,
+    calibration=False,
+    completion_filename=WORKFLOW_COMPLETE_FILENAME,
 ):
     completion = {
         'schema_version': WORKFLOW_COMPLETION_SCHEMA_VERSION,
@@ -637,12 +903,20 @@ def _completion_manifest(
         'dataset_manifest_sha256': _file_sha256(manifest_path_for(dataset_path)),
         'report': str(report_path.relative_to(root)),
         'report_sha256': _file_sha256(report_path),
-        'overall_status': report['overall']['status'],
-        'comparison_exit_code': comparison_exit_code(report),
     }
+    if calibration:
+        completion.update({
+            'evidence_type': 'calibration',
+            'calibration_exit_code': 0,
+        })
+    else:
+        completion.update({
+            'overall_status': report['overall']['status'],
+            'comparison_exit_code': comparison_exit_code(report),
+        })
     try:
         existing = json.loads(
-            (root / WORKFLOW_COMPLETE_FILENAME).read_text(encoding='utf-8')
+            (root / completion_filename).read_text(encoding='utf-8')
         )
     except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
         return completion
@@ -661,8 +935,10 @@ def _verify_workflow_completion(
     dataset_manifest,
     report_path,
     report,
+    calibration=False,
+    completion_filename=WORKFLOW_COMPLETE_FILENAME,
 ):
-    completion_path = root / WORKFLOW_COMPLETE_FILENAME
+    completion_path = root / completion_filename
     try:
         completion = json.loads(completion_path.read_text(encoding='utf-8'))
         expected = _completion_manifest(
@@ -672,6 +948,8 @@ def _verify_workflow_completion(
             dataset_manifest,
             report_path,
             report,
+            calibration=calibration,
+            completion_filename=completion_filename,
         )
     except (
         FileNotFoundError,
@@ -764,8 +1042,9 @@ def _append_log(root, message):
         log.write(f'{message}\n')
 
 
-def _print_plan(root, plan, image_specs, dry_run):
-    mode = 'Dry-run comparison plan' if dry_run else 'Resolved comparison plan'
+def _print_plan(root, plan, image_specs, dry_run, calibration=False):
+    workflow = 'calibration' if calibration else 'comparison'
+    mode = f'Dry-run {workflow} plan' if dry_run else f'Resolved {workflow} plan'
     print(f'{mode}:')
     for label in TARGET_LABELS:
         spec = image_specs[label]
@@ -792,11 +1071,15 @@ def _print_plan(root, plan, image_specs, dry_run):
         )
     print(f'  experiment plan: {root / "plan.json"}')
     print(f'  dataset: {root / "dataset" / "dashboard-data.jsonl"}')
-    print(f'  report: {root / REPORT_FILENAME}')
+    report_filename = (
+        CALIBRATION_REPORT_FILENAME if calibration else REPORT_FILENAME
+    )
+    print(f'  report: {root / report_filename}')
 
 
-def _print_summary(result):
-    print('Comparison workflow complete:')
+def _print_summary(result, calibration=False):
+    workflow = 'Calibration' if calibration else 'Comparison'
+    print(f'{workflow} workflow complete:')
     print(f'  reference commit: {result.reference_commit}')
     print(f'  candidate commit: {result.candidate_commit}')
     print(
@@ -805,8 +1088,11 @@ def _print_summary(result):
     )
     print(f'  dataset: {result.dataset_path}')
     print(f'  report: {result.report_path}')
-    print(f'  overall evidence: {result.overall_status}')
-    print(f'  dashboard: {shlex.join(result.dashboard_command)}')
+    if calibration:
+        print('  outcome: calibration evidence generated (not a regression verdict)')
+    else:
+        print(f'  overall evidence: {result.overall_status}')
+        print(f'  dashboard: {shlex.join(result.dashboard_command)}')
 
 
 def _dashboard_command(dataset_path, report_path):

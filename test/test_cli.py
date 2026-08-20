@@ -97,6 +97,7 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         'dataset build',
         'experiment run',
         'experiment compare',
+        'experiment calibrate',
         'experiment report',
         'dashboard up',
         'dashboard down',
@@ -104,6 +105,59 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         'help',
     ):
         assert f'ros2-performance-monitoring {command}' in output
+
+
+def test_experiment_calibrate_forwards_controlled_profile_and_returns_success(
+    tmp_path,
+    monkeypatch,
+):
+    importlib.reload(cli)
+    received = {}
+
+    def fake_calibration(options):
+        received['options'] = options
+        return argparse.Namespace(exit_code=0)
+
+    monkeypatch.setattr(cli, 'run_calibration_workflow', fake_calibration)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'experiment',
+        'calibrate',
+        '--results-dir',
+        str(tmp_path / 'calibration'),
+        '--target-ref',
+        'a' * 40,
+        '--ros-distro',
+        'rolling',
+        '--suite',
+        'service-rclcpp-minimal',
+        '--duration',
+        '10',
+        '--cpuset-cpus',
+        '0-3',
+        '--warmups',
+        '2',
+        '--repeats',
+        '12',
+        '--seed',
+        '7',
+        '--bootstrap-seed',
+        '19',
+        '--bootstrap-repeats',
+        '500',
+    ])
+
+    assert cli.main() == 0
+
+    options = received['options']
+    assert options.results_dir == str(tmp_path / 'calibration')
+    assert options.target_ref == 'a' * 40
+    assert options.cpuset_cpus == '0-3'
+    assert options.warmups == 2
+    assert options.repeats == 12
+    assert options.schedule_seed == 7
+    assert options.bootstrap_seed == 19
+    assert options.bootstrap_repeats == 500
 
 
 @pytest.mark.parametrize(

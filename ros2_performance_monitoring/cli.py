@@ -33,9 +33,12 @@ from .client_target import DEFAULT_RCLCPP_REPOSITORY
 from .client_target import resolve_rclcpp_target
 from .comparison_report import ComparisonReportError
 from .comparison_report import validate_comparison_report
+from .comparison_workflow import CalibrationWorkflowError
+from .comparison_workflow import CalibrationWorkflowOptions
 from .comparison_workflow import ComparisonWorkflowError
 from .comparison_workflow import ComparisonWorkflowOptions
 from .comparison_workflow import OPERATIONAL_ERROR_EXIT
+from .comparison_workflow import run_calibration_workflow
 from .comparison_workflow import run_comparison_workflow
 from .config import RunDefaults
 from .config import SUPPORTED_ROS_DISTROS
@@ -64,6 +67,10 @@ from .statistical_comparison import MINIMUM_MEASURED_TRIALS
 from .statistical_comparison import StatisticalComparisonError
 from .writers.jsonl import write_json
 from .writers.jsonl import write_jsonl
+
+
+CALIBRATION_DEFAULT_WARMUPS = 2
+CALIBRATION_DEFAULT_REPEATS = 10
 
 
 class CommandArgumentParser(argparse.ArgumentParser):
@@ -454,6 +461,37 @@ def experiment_compare_command(args: argparse.Namespace) -> int:
         return OPERATIONAL_ERROR_EXIT
 
 
+def experiment_calibrate_command(args: argparse.Namespace) -> int:
+    """Run a controlled same-commit calibration without a regression verdict."""
+    options = CalibrationWorkflowOptions(
+        results_dir=args.results_dir,
+        target_ref=args.target_ref,
+        ros_distro=args.ros_distro,
+        suite=args.suite,
+        executor=args.executor,
+        duration=args.duration,
+        cpuset_cpus=args.cpuset_cpus,
+        warmups=args.warmups,
+        repeats=args.repeats,
+        schedule_seed=args.seed,
+        cache_dir=args.cache_dir,
+        rclcpp_repository_url=args.rclcpp_repo_url,
+        container_repository_url=args.container_repo_url,
+        container_ref=args.container_ref,
+        skip_build=args.skip_build,
+        dry_run=args.dry_run,
+        confidence_level=args.confidence_level,
+        bootstrap_repeats=args.bootstrap_repeats,
+        bootstrap_seed=args.bootstrap_seed,
+    )
+    try:
+        result = run_calibration_workflow(options)
+    except CalibrationWorkflowError as exc:
+        print(f'Calibration workflow failed: {exc}', file=sys.stderr)
+        return OPERATIONAL_ERROR_EXIT
+    return result.exit_code if result.exit_code is not None else 0
+
+
 def _prepare_experiment_client_target(args, label):
     source = getattr(args, f'{label}_source')
     requested_ref = getattr(args, f'{label}_ref')
@@ -566,6 +604,11 @@ def main() -> Any:
         help='Run a complete local per-commit comparison',
     )
     experiment_compare_parser.set_defaults(func=experiment_compare_command)
+    experiment_calibrate_parser = experiment_subparsers.add_parser(
+        'calibrate',
+        help='Measure same-commit benchmark noise without a regression verdict',
+    )
+    experiment_calibrate_parser.set_defaults(func=experiment_calibrate_command)
     experiment_report_parser = experiment_subparsers.add_parser(
         'report',
         help='Write statistical evidence for an existing experiment bundle',
@@ -880,6 +923,89 @@ def main() -> Any:
         default=MINIMUM_MEASURED_TRIALS,
         help=f'Minimum measured trial pairs (default: {MINIMUM_MEASURED_TRIALS})',
     )
+    experiment_calibrate_parser.add_argument(
+        '--results-dir',
+        required=True,
+        help='Calibration bundle directory to create or safely resume',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--target-ref',
+        required=True,
+        help='Exact rclcpp branch, tag, or commit measured in both streams',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--rclcpp-repo-url',
+        default=DEFAULT_RCLCPP_REPOSITORY,
+        help=f'rclcpp repository URL (default: {DEFAULT_RCLCPP_REPOSITORY})',
+    )
+    experiment_calibrate_parser.add_argument(
+        '-t', '--duration', type=_positive_integer, default=defaults.duration,
+        help='Duration in seconds for every trial scenario',
+    )
+    experiment_calibrate_parser.add_argument(
+        '-d', '--ros-distro', choices=SUPPORTED_ROS_DISTROS, default=defaults.ros_distro,
+        help='ROS distribution used by both measured streams',
+    )
+    experiment_calibrate_parser.add_argument(
+        '-x', '--executor', default=defaults.executor,
+        help='Executor shared by every trial',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--suite', default=defaults.default_benchmark,
+        help='Benchmark suite shared by every trial',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--cpuset-cpus',
+        help='Restrict every trial to a Docker CPU-set expression',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--warmups',
+        type=_non_negative_integer,
+        default=CALIBRATION_DEFAULT_WARMUPS,
+        help=f'Warm-up trials per stream (default: {CALIBRATION_DEFAULT_WARMUPS})',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--repeats',
+        type=_positive_integer,
+        default=CALIBRATION_DEFAULT_REPEATS,
+        help=f'Measured trials per stream (default: {CALIBRATION_DEFAULT_REPEATS})',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--seed', type=int, default=DEFAULT_SEED,
+        help=f'Deterministic scheduling seed (default: {DEFAULT_SEED})',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--cache-dir', default=defaults.cache_dir,
+        help='Cache directory for benchmark and target repositories',
+    )
+    experiment_calibrate_parser.add_argument('--container-repo-url')
+    experiment_calibrate_parser.add_argument('--container-ref')
+    experiment_calibrate_parser.add_argument(
+        '--skip-build', action='store_true',
+        help='Require the exact verified target image to exist locally',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Resolve and print the plan without persistent preparation or execution',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--confidence-level',
+        type=_confidence_level,
+        default=DEFAULT_CONFIDENCE_LEVEL,
+        help=f'Two-sided confidence level (default: {DEFAULT_CONFIDENCE_LEVEL:g})',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--bootstrap-repeats',
+        type=_positive_integer,
+        default=DEFAULT_BOOTSTRAP_REPEATS,
+        help=f'Paired bootstrap resamples (default: {DEFAULT_BOOTSTRAP_REPEATS})',
+    )
+    experiment_calibrate_parser.add_argument(
+        '--bootstrap-seed',
+        type=int,
+        default=DEFAULT_SEED,
+        help=f'Deterministic bootstrap seed (default: {DEFAULT_SEED})',
+    )
     experiment_report_parser.add_argument(
         'experiment_dir',
         help='Completed experiment bundle to compare',
@@ -952,6 +1078,7 @@ def main() -> Any:
             dataset_build_parser,
             experiment_run_parser,
             experiment_compare_parser,
+            experiment_calibrate_parser,
             experiment_report_parser,
             dashboard_up_parser,
             dashboard_down_parser,
