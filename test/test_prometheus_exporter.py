@@ -320,6 +320,43 @@ def test_metrics_server_loads_and_renders_source_once_at_startup(tmp_path, monke
     assert calls == {'load': 1, 'render': 1}
 
 
+def test_history_server_loads_and_renders_window_once_at_startup(tmp_path, monkeypatch):
+    import ros2_performance_monitoring.exporters.history as history
+    index = tmp_path / 'active-history.json'
+    index.write_text('{}\n', encoding='utf-8')
+    bundles = (_history_bundle('cached', 0, 'cached-run'),)
+    calls = {'load': 0, 'render': 0}
+
+    def fake_load(index_path):
+        calls['load'] += 1
+        return bundles
+
+    def fake_render(active_bundles):
+        calls['render'] += 1
+        assert active_bundles is bundles
+        return 'cached_history_metric 1\n'
+
+    monkeypatch.setattr(history, 'load_active_history', fake_load)
+    monkeypatch.setattr(prometheus, 'history_to_prometheus', fake_render)
+    server = create_metrics_server(
+        history_index_path=index,
+        port=0,
+        host='127.0.0.1',
+    )
+    thread = Thread(target=server.serve_forever)
+    thread.start()
+    try:
+        address = f'http://127.0.0.1:{server.server_port}/metrics'
+        assert urlopen(address).read() == b'cached_history_metric 1\n'
+        assert urlopen(address).read() == b'cached_history_metric 1\n'
+    finally:
+        server.shutdown()
+        thread.join()
+        server.server_close()
+
+    assert calls == {'load': 1, 'render': 1}
+
+
 def test_history_exports_ordered_profile_and_evidence_metadata():
     bundles = [
         _history_bundle('oldest', 0, 'old-run', authoritative=False),

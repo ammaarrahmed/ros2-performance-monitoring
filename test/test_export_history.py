@@ -63,6 +63,20 @@ def test_index_checksum_rejects_rewritten_bundle_checksums(tmp_path):
         load_active_history(index)
 
 
+def test_history_rejects_unlisted_directory_symlinks(tmp_path):
+    entry = _threshold_bundle(tmp_path, 'bundle', 'run-a')
+    index = _write_index(tmp_path, [entry], limit=1)
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (tmp_path / entry['path'] / 'linked').symlink_to(
+        outside,
+        target_is_directory=True,
+    )
+
+    with pytest.raises(HistoryIndexError, match='contains a symlink'):
+        load_active_history(index)
+
+
 def test_report_is_loaded_against_its_own_dataset(tmp_path, monkeypatch):
     entries = [
         _report_bundle(tmp_path, 'comparison-one', 'run-one'),

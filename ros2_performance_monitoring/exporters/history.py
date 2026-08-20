@@ -201,6 +201,9 @@ def _validate_profile(profile, bundle_id):
 
 
 def _validate_checksums(root, bundle_id):
+    bundle_paths = tuple(root.rglob('*'))
+    if any(path.is_symlink() for path in bundle_paths):
+        raise HistoryIndexError(f'active bundle {bundle_id!r} contains a symlink')
     try:
         lines = (root / CHECKSUM_FILENAME).read_text(encoding='utf-8').splitlines()
     except (OSError, UnicodeDecodeError) as exc:
@@ -224,7 +227,7 @@ def _validate_checksums(root, bundle_id):
         seen.add(relative)
     actual = {
         path.relative_to(root).as_posix()
-        for path in root.rglob('*')
+        for path in bundle_paths
         if path.is_file() and path.name != CHECKSUM_FILENAME
     }
     if seen != actual:
