@@ -99,6 +99,39 @@ it as non-root with a read-only evidence mount and root filesystem, dropped
 capabilities, and `no-new-privileges`. Prometheus reaches it over the Compose
 network rather than through a host-installed Python process.
 
+## Runtime Image Release Boundary
+
+`package.xml` is the canonical project version. Python package metadata reads
+that value during the wheel build, and the installed CLI reports it through
+`--version`. Release publication accepts only an existing `MAJOR.MINOR.PATCH`
+Git tag that exactly matches the package version. The same value and the full
+tagged commit are passed to the OCI version and revision labels and verified
+against the locally loaded images before registry authentication.
+
+The release workflow has a pre-publication phase and a publication phase. The
+first phase checks out the exact tag, builds both `linux/amd64` targets, runs
+CLI help/version and data processing, verifies image contents and metadata,
+and serves a read-only fixture through the exporter health and metrics
+endpoints. A failure in either build or any smoke check prevents both pushes.
+The second phase refuses to overwrite either version or full-commit tag, then
+publishes both manifests with SBOM and maximal BuildKit provenance attestations.
+GitHub provenance attestations bind the workflow identity to the returned
+registry digests. Only after both images are pushed and attested does the
+workflow report a complete release and update release notes.
+
+The CLI and exporter packages are linked to this repository through their OCI
+source labels. Package visibility is a one-time owner-controlled registry
+setting; publication credentials remain the workflow's scoped `GITHUB_TOKEN`.
+Build cache uses the GitHub Actions cache backend and is never an image tag.
+Release manifests remain addressable by digest for update and rollback; there
+is no mutable `latest` deployment input or automatic registry cleanup.
+
+These distributable project runtimes are separate from the large derived ROS
+benchmark target images. Exact `ros2-benchmark-container` and rclcpp targets
+remain content-addressed outputs in the benchmark host's Docker daemon. They
+are neither tagged as project releases nor pushed by the runtime publication
+workflow.
+
 The comparison workflow is a thin coordinator over the target resolver and
 builder, immutable experiment runner, dataset builder, statistical comparison
 engine, report validator, and dashboard command. It does not reimplement their
