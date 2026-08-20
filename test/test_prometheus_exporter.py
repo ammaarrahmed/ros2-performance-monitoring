@@ -13,15 +13,19 @@
 # limitations under the License.
 
 from copy import deepcopy
+from dataclasses import replace
 import json
 from pathlib import Path
 import re
 from threading import Thread
 from urllib.request import urlopen
 
+import pytest
 from ros2_performance_monitoring.comparison_report import ValidatedComparisonReport
+from ros2_performance_monitoring.exporters.history import HistoryBundle
 import ros2_performance_monitoring.exporters.prometheus as prometheus
 from ros2_performance_monitoring.exporters.prometheus import create_metrics_server
+from ros2_performance_monitoring.exporters.prometheus import history_to_prometheus
 from ros2_performance_monitoring.exporters.prometheus import records_to_prometheus
 from ros2_performance_monitoring.statistical_comparison import METHOD
 from ros2_performance_monitoring.statistical_comparison import REPORT_SCHEMA_VERSION
@@ -316,6 +320,91 @@ def test_metrics_server_loads_and_renders_source_once_at_startup(tmp_path, monke
     assert calls == {'load': 1, 'render': 1}
 
 
+def test_history_exports_ordered_profile_and_evidence_metadata():
+    bundles = [
+        _history_bundle('oldest', 0, 'old-run', authoritative=False),
+        _history_bundle('middle', 1, 'middle-run', authoritative=False),
+        _history_bundle('newest', 2, 'new-run', authoritative=True),
+    ]
+
+    output = history_to_prometheus(bundles)
+
+    info_lines = [
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_bundle_info{')
+    ]
+    assert ['bundle_id="oldest"', 'bundle_id="middle"', 'bundle_id="newest"'] == [
+        re.search(r'bundle_id="[^"]+"', line).group(0)
+        for line in info_lines
+    ]
+    assert 'history_position="0"' in info_lines[0]
+    assert 'authoritative="false"' in info_lines[0]
+    assert 'evidence="threshold-only"' in info_lines[0]
+    assert 'profile="rolling-smoke"' in info_lines[0]
+    assert 'profile_notice="Not calibrated."' in info_lines[0]
+    assert 'authoritative="true"' in info_lines[2]
+    raw_line = next(
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_latency_us{') and 'run_id="new-run"' in line
+    )
+    assert 'bundle_id="newest"' in raw_line
+    assert 'candidate_sha="cccccccccccccccccccccccccccccccccccccccc"' in raw_line
+
+
+def test_history_preserves_report_pair_and_topology_identity():
+    reference = _record('subscription_latency', 100.0, 'us', 'mean')
+    reference['run_id'] = 'reference-median'
+    candidate = deepcopy(reference)
+    candidate['run_id'] = 'candidate-median'
+    report = _statistical_report()
+    bundle = _history_bundle('comparison', 0, 'unused')
+    bundle = replace(
+        bundle,
+        records=[reference, candidate],
+        comparison_report=ValidatedComparisonReport(
+            report=report,
+            reference_run='reference-median',
+            candidate_run='candidate-median',
+        ),
+        evidence='statistical-report',
+        comparison_id=report['experiment_id'],
+    )
+
+    output = history_to_prometheus((bundle,))
+
+    status = next(
+        line for line in output.splitlines()
+        if line.startswith('ros2_perf_comparison_status{')
+        and 'category="overall"' in line
+    )
+    assert 'baseline_run="reference-median"' in status
+    assert 'candidate_run="candidate-median"' in status
+    assert 'comparison_id="experiment-export-test"' in status
+    assert 'topology="pub-sub"' in status
+    assert 'evidence="statistical-report"' in status
+
+
+def test_history_rejects_conflicting_run_ids():
+    bundles = (
+        _history_bundle('first', 0, 'same-run'),
+        _history_bundle('second', 1, 'same-run'),
+    )
+
+    with pytest.raises(ValueError, match="conflicting run ID 'same-run'"):
+        history_to_prometheus(bundles)
+
+
+def test_history_rejects_conflicting_prometheus_series():
+    first = _record('subscription_latency', 25.0, 'us', 'mean')
+    second = deepcopy(first)
+    second.update({'unit': 'ms', 'numeric_value': 0.025})
+    bundle = _history_bundle('collision', 0, 'unused')
+    bundle = replace(bundle, records=[first, second])
+
+    with pytest.raises(ValueError, match='conflicting Prometheus series'):
+        history_to_prometheus((bundle,))
+
+
 def _evidence_value(output, category, statistic):
     line = next(
         line for line in output.splitlines()
@@ -429,6 +518,24 @@ def _complete_pubsub_run(run_id):
         record['run_id'] = run_id
         records.append(record)
     return records
+
+
+def _history_bundle(bundle_id, position, run_id, authoritative=False):
+    record = _record('subscription_latency', 25.0, 'us', 'mean')
+    record['run_id'] = run_id
+    return HistoryBundle(
+        bundle_id=bundle_id,
+        position=position,
+        records=[record],
+        comparison_report=None,
+        evidence='threshold-only',
+        profile='rolling-smoke',
+        authoritative=authoritative,
+        notice='Not calibrated.',
+        comparison_id='',
+        reference_sha='b' * 40,
+        candidate_sha='c' * 40,
+    )
 
 
 def _record(

@@ -85,6 +85,10 @@ METRIC_FAMILIES = {
         'help': 'ROS 2 performance run metadata.',
         'type': 'gauge',
     },
+    'ros2_perf_bundle_info': {
+        'help': 'ROS 2 performance active history bundle metadata.',
+        'type': 'gauge',
+    },
     'ros2_perf_comparison_status': {
         'help': 'ROS 2 performance comparison status by KPI category.',
         'type': 'gauge',
@@ -118,14 +122,21 @@ def load_records(input_path):
     return records
 
 
-def records_to_prometheus(records, comparison_report=None):
+def records_to_prometheus(records, comparison_report=None, common_labels=None):
     lines = []
     for name, metadata in METRIC_FAMILIES.items():
         lines.append(f'# HELP {name} {metadata["help"]}')
         lines.append(f'# TYPE {name} {metadata["type"]}')
+    lines.extend(_records_to_samples(records, comparison_report, common_labels))
+    lines.append('')
+    return '\n'.join(lines)
 
+
+def _records_to_samples(records, comparison_report=None, common_labels=None):
+    common_labels = common_labels or {}
+    lines = []
     for labels, record in _unique_runs(records).items():
-        info_labels = dict(labels)
+        info_labels = {**dict(labels), **common_labels}
         info_labels['timestamp'] = record.get('timestamp', '')
         info_labels['run_kind'] = record.get('run_kind', 'measured')
         info_labels['aggregation_method'] = record.get('aggregation_method', 'none')
@@ -134,21 +145,77 @@ def records_to_prometheus(records, comparison_report=None):
         lines.append(_sample('ros2_perf_run_info', info_labels, 1))
 
     for record in records:
-        sample = _record_sample(record)
+        sample = _record_sample(record, common_labels)
         if sample is not None:
             lines.append(sample)
 
     for labels, count in _resource_counts(records).items():
-        resource_labels = dict(labels)
+        resource_labels = {**dict(labels), **common_labels}
         lines.append(_sample('ros2_perf_resource_samples_total', resource_labels, count))
 
     if comparison_report is None:
-        lines.extend(_legacy_comparison_samples(records))
+        lines.extend(_legacy_comparison_samples(records, common_labels))
     else:
-        lines.extend(_report_comparison_samples(records, comparison_report))
+        lines.extend(_report_comparison_samples(records, comparison_report, common_labels))
+    return lines
 
+
+def history_to_prometheus(bundles):
+    """Render one fully validated active history and reject identity collisions."""
+    lines = []
+    for name, metadata in METRIC_FAMILIES.items():
+        lines.append(f'# HELP {name} {metadata["help"]}')
+        lines.append(f'# TYPE {name} {metadata["type"]}')
+
+    run_bundles = {}
+    samples = []
+    for bundle in bundles:
+        run_ids = {record.get('run_id', '') for record in bundle.records}
+        for run_id in sorted(run_ids):
+            previous = run_bundles.get(run_id)
+            if previous is not None:
+                raise ValueError(
+                    f'conflicting run ID {run_id!r} in bundles '
+                    f'{previous!r} and {bundle.bundle_id!r}'
+                )
+            run_bundles[run_id] = bundle.bundle_id
+        common_labels = _history_labels(bundle)
+        info_labels = {
+            **common_labels,
+            'profile_notice': bundle.notice,
+        }
+        samples.append(_sample('ros2_perf_bundle_info', info_labels, 1))
+        samples.extend(_records_to_samples(
+            bundle.records,
+            bundle.comparison_report,
+            common_labels,
+        ))
+    _reject_series_collisions(samples)
+    lines.extend(samples)
     lines.append('')
     return '\n'.join(lines)
+
+
+def _history_labels(bundle):
+    return {
+        'bundle_id': bundle.bundle_id,
+        'history_position': str(bundle.position),
+        'profile': bundle.profile,
+        'authoritative': str(bundle.authoritative).lower(),
+        'evidence': bundle.evidence,
+        'comparison_id': bundle.comparison_id,
+        'reference_sha': bundle.reference_sha,
+        'candidate_sha': bundle.candidate_sha,
+    }
+
+
+def _reject_series_collisions(samples):
+    identities = set()
+    for sample in samples:
+        identity, separator, _value = sample.rpartition(' ')
+        if not separator or identity in identities:
+            raise ValueError(f'conflicting Prometheus series: {identity}')
+        identities.add(identity)
 
 
 def load_export_data(input_path, comparison_report_path=None):
@@ -161,18 +228,19 @@ def load_export_data(input_path, comparison_report_path=None):
     return records, report
 
 
-def _legacy_comparison_samples(records):
+def _legacy_comparison_samples(records, common_labels=None):
+    common_labels = common_labels or {}
     lines = []
     exported_analysis = set()
     for result in comparison_results(records):
-        labels = _comparison_labels(result)
+        labels = {**_comparison_labels(result), **common_labels}
         labels.update({
             'category': result.category,
             'method': THRESHOLD_ONLY_METHOD,
             'evidence_state': STATUS_LABELS[result.status],
         })
         lines.append(_sample('ros2_perf_comparison_status', labels, result.status))
-        analysis_labels = _comparison_labels(result)
+        analysis_labels = {**_comparison_labels(result), **common_labels}
         analysis_key = tuple(sorted(analysis_labels.items()))
         if analysis_key not in exported_analysis:
             analysis_labels['method'] = THRESHOLD_ONLY_METHOD
@@ -194,7 +262,7 @@ def _comparison_labels(result):
     }
 
 
-def _report_comparison_samples(records, validated):
+def _report_comparison_samples(records, validated, common_labels=None):
     report = validated.report
     reference = _record_for_run(records, validated.reference_run)
     candidate = _record_for_run(records, validated.candidate_run)
@@ -210,6 +278,7 @@ def _report_comparison_samples(records, validated):
             reference.get('client_library_commit'),
         ),
         'platform': normalize_platform(reference.get('platform')),
+        **(common_labels or {}),
     }
     analysis = report['analysis']
     summaries = []
@@ -352,12 +421,12 @@ def _record_for_run(records, run_id):
     return next(record for record in records if record.get('run_id') == run_id)
 
 
-def _record_sample(record):
+def _record_sample(record, common_labels=None):
     family = _family_for_record(record)
     if family is None:
         return None
 
-    labels = _base_labels(record)
+    labels = {**_base_labels(record), **(common_labels or {})}
     labels['metric'] = record.get('metric_name', '')
     labels['aggregation'] = record.get('aggregation', '')
     return _sample(family, labels, _prometheus_value(record))
@@ -454,18 +523,21 @@ def _format_number(value):
 
 
 def serve_metrics(
-    input_path,
+    input_path=None,
     port=9108,
     host='0.0.0.0',
     comparison_report_path=None,
+    history_index_path=None,
 ):
     server = create_metrics_server(
         input_path,
         port=port,
         host=host,
         comparison_report_path=comparison_report_path,
+        history_index_path=history_index_path,
     )
-    path = Path(input_path).expanduser().resolve()
+    source_path = history_index_path if history_index_path is not None else input_path
+    path = Path(source_path).expanduser().resolve()
     print(f'Serving Prometheus metrics from {path}')
     print(f'Exporter: http://localhost:{port}/metrics')
     try:
@@ -477,19 +549,29 @@ def serve_metrics(
 
 
 def create_metrics_server(
-    input_path,
+    input_path=None,
     port=9108,
     host='0.0.0.0',
     comparison_report_path=None,
+    history_index_path=None,
 ):
     """Create a validated metrics and health server without starting its loop."""
-    path = Path(input_path).expanduser().resolve()
-    if not path.exists():
-        raise FileNotFoundError(f'normalized metrics file does not exist: {path}')
-    if not path.is_file():
-        raise ValueError(f'normalized metrics path is not a file: {path}')
-    records, report = load_export_data(path, comparison_report_path)
-    metrics_body = records_to_prometheus(records, report).encode()
+    if (input_path is None) == (history_index_path is None):
+        raise ValueError('exactly one normalized input or history index is required')
+    if history_index_path is not None:
+        if comparison_report_path is not None:
+            raise ValueError('a comparison report cannot be combined with a history index')
+        from ros2_performance_monitoring.exporters.history import load_active_history
+        bundles = load_active_history(history_index_path)
+        metrics_body = history_to_prometheus(bundles).encode()
+    else:
+        path = Path(input_path).expanduser().resolve()
+        if not path.exists():
+            raise FileNotFoundError(f'normalized metrics file does not exist: {path}')
+        if not path.is_file():
+            raise ValueError(f'normalized metrics path is not a file: {path}')
+        records, report = load_export_data(path, comparison_report_path)
+        metrics_body = records_to_prometheus(records, report).encode()
 
     class MetricsHandler(BaseHTTPRequestHandler):
 
