@@ -313,6 +313,44 @@ or unrelated report therefore fails instead of being displayed beside a
 different dataset. Add `--start-dashboard` to the comparison invocation to run
 that command automatically after successful validation.
 
+### Calibrate Same-Commit Benchmark Noise
+
+Use the separate calibration workflow before treating comparison outcomes as a
+required gate. It resolves one exact rclcpp target, measures it as two distinct
+balanced streams, and reports how often unchanged paired KPI effects cross the
+current practical thresholds. It does not produce a reference-versus-candidate
+verdict:
+
+```bash
+ros2-performance-monitoring experiment calibrate \
+  --target-ref <rclcpp-commit> \
+  --ros-distro rolling \
+  --suite service-rclcpp-minimal \
+  --duration 10 \
+  --warmups 2 \
+  --repeats 10 \
+  --cpuset-cpus 0-3 \
+  --seed 42 \
+  --results-dir ./experiments/host-calibration
+```
+
+Ten measured pairs per stream are a recommended first local profile, not a
+statistical guarantee or an automatic threshold recommendation. Use an idle,
+thermally stable host with a dedicated CPU set and keep the power, cooling,
+middleware, Docker, kernel, and background-load conditions consistent. The
+bundle records the exact target and benchmark commits, ROS distribution,
+executor, suite, duration, architecture, kernel, Docker version, CPU governors,
+CPU set, per-trial load averages, and available thermal-zone readings.
+
+The workflow writes `calibration-report.json` and
+`calibration.complete.json`, returns `0` when valid calibration evidence is
+published, and returns `4` for operational failure. It never returns a
+regression-gate outcome. Calibration reports have a separate schema and are
+rejected by `--comparison-report`; inspect them as JSON instead of supplying
+them to the exporter or dashboard. Rerun the identical command to resume or
+verify the immutable bundle. See [`doc/calibration.md`](doc/calibration.md) for
+the method, report fields, controlled-host checklist, and interpretation.
+
 ### 3. Inspect Or Reprocess The Artifacts
 
 The `run` command automatically creates the normalized JSONL consumed by the
@@ -587,6 +625,9 @@ ros2-performance-monitoring experiment compare \
   --reference-ref <reference-commit> \
   --candidate-ref <candidate-commit> \
   --results-dir ./experiments/example
+ros2-performance-monitoring experiment calibrate \
+  --target-ref <commit> \
+  --results-dir ./experiments/calibration
 ros2-performance-monitoring experiment report ./experiments/example
 ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
 ros2-performance-monitoring dataset build \

@@ -6,6 +6,11 @@ an existing experiment bundle. A completed report can be supplied to the
 exporter and dashboard; without one, the dashboard retains its legacy
 point-estimate policy.
 
+Same-target A/A measurements intentionally use the separate `experiment
+calibrate` command and calibration report contract. They cannot enter this
+comparison path or produce a regression verdict; see
+[`calibration.md`](calibration.md).
+
 ## Run The Comparison
 
 Create a balanced experiment with at least three measured trials per target,

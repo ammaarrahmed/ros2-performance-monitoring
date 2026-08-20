@@ -20,6 +20,7 @@ This keeps the project focused on:
 - Content-addressed local benchmark images and containers.
 - Immutable experiment plans and repeated-trial bundle orchestration.
 - Repeat-aware local statistical comparison reports.
+- Controlled same-target calibration evidence for local benchmark noise.
 - End-to-end local per-commit workflow orchestration and completion evidence.
 
 It avoids taking ownership of:
@@ -44,6 +45,8 @@ focused host preflight
      -> cross-artifact validation -> comparison.complete.json
      -> report validation + Prometheus mapping -> Prometheus -> Grafana
      -> legacy threshold-only comparison -> Prometheus -> Grafana
+     -> same-target paired noise analysis -> calibration-report.json
+        -> calibration.complete.json (never a dashboard or gate input)
 ```
 
 The comparison workflow is a thin coordinator over the target resolver and
@@ -119,6 +122,17 @@ resample. Category decisions use the worst scenario, while overall evidence
 uses the worst category-normalized scenario. The resulting versioned JSON report
 binds completed evidence to the exact dashboard dataset SHA-256 while remaining
 separate from Prometheus and Grafana formatting.
+
+Calibration reuses the same preflight, exact target resolution, verified image,
+balanced schedule, environment checks, trial completion, dataset, and immutable
+resume boundaries. Its plan is explicitly marked `purpose: calibration`, which
+is the only state in which both labelled streams may share a target key. The
+normal comparison coordinator and statistical report builder continue to reject
+that identity. Calibration output uses its own versioned report and completion
+names, records per-KPI paired noise and individual threshold-crossing counts,
+and has no overall verdict or dashboard command. Load averages and available
+thermal-zone temperatures are observations rather than immutable host identity
+fields because they naturally vary between trials.
 
 Artifact sources include:
 
