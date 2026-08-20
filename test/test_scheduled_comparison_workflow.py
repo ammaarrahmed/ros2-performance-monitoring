@@ -82,6 +82,9 @@ def test_discovery_skips_unchanged_revisions_before_benchmark_setup():
     benchmark = WORKFLOW['jobs']['benchmark']
 
     assert discover['outputs']['should_run'] == '${{ steps.plan.outputs.should_run }}'
+    assert discover['outputs']['source_dependencies_sha256'] == (
+        '${{ steps.plan.outputs.source_dependencies_sha256 }}'
+    )
     assert benchmark['needs'] == 'discover'
     assert benchmark['if'] == "needs.discover.outputs.should_run == 'true'"
     assert 'scheduled_comparison discover' in WORKFLOW_TEXT
@@ -115,6 +118,10 @@ def test_benchmark_uses_one_digest_pinned_container_controller():
     assert '--env ROS2_PERFORMANCE_CONTROLLER_IMAGE="${CONTROLLER_IMAGE}"' in compare
     assert '--volume "${GITHUB_WORKSPACE}/results:/results"' in compare
     assert '--volume "${GITHUB_WORKSPACE}/.scheduled-cache:/cache"' in compare
+    assert (
+        '--volume "${SOURCE_DEPENDENCIES_FILE}:/source-dependencies.repos:ro"'
+        in compare
+    )
     assert '"${CONTROLLER_IMAGE}" experiment compare' in compare
 
 
@@ -130,6 +137,7 @@ def test_smoke_command_uses_exact_refs_and_every_pinned_profile_setting():
         '--reference-ref "${REFERENCE_SHA}"',
         '--candidate-ref "${CANDIDATE_SHA}"',
         '--rclcpp-repo-url https://github.com/ros2/rclcpp.git',
+        '--source-dependencies /source-dependencies.repos',
         '--container-repo-url https://github.com/ros2/ros2-benchmark-container.git',
         '--container-ref "${benchmark_ref}"',
         '--ros-distro rolling',
@@ -148,6 +156,27 @@ def test_smoke_command_uses_exact_refs_and_every_pinned_profile_setting():
     assert '--cpuset-cpus' not in compare
     assert '0|1|2)' in compare
     assert '3|4) exit' in compare
+
+
+def test_rolling_dependencies_are_resolved_once_and_checksum_bound():
+    benchmark = WORKFLOW['jobs']['benchmark']
+    materialize = next(
+        step['run']
+        for step in benchmark['steps']
+        if step['name'] == 'Materialize the exact Rolling dependency snapshot'
+    )
+    bundle = next(
+        step['run']
+        for step in benchmark['steps']
+        if step['name'] == 'Validate and assemble both publication bundles'
+    )
+
+    assert 'source_dependencies_b64' in WORKFLOW['jobs']['discover']['outputs']
+    assert 'base64 --decode' in materialize
+    assert 'sha256sum "${SOURCE_DEPENDENCIES_FILE}"' in materialize
+    assert 'test("^[0-9a-f]{40}$")' in materialize
+    assert '--source-dependencies "${SOURCE_DEPENDENCIES_FILE}"' in bundle
+    assert 'Rolling dependency snapshot:' in WORKFLOW_TEXT
 
 
 def test_both_checksum_bound_bundles_are_short_lived_and_state_uses_compact_one():

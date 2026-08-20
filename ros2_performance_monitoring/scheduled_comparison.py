@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import re
 import shutil
 import sys
@@ -32,10 +33,10 @@ from .remote_ref import resolve_remote_commit
 from .writers.jsonl import write_json
 
 
-PROFILE_SCHEMA_VERSION = 1
-PLAN_SCHEMA_VERSION = 1
-STATE_SCHEMA_VERSION = 1
-BUNDLE_SCHEMA_VERSION = 1
+PROFILE_SCHEMA_VERSION = 2
+PLAN_SCHEMA_VERSION = 2
+STATE_SCHEMA_VERSION = 2
+BUNDLE_SCHEMA_VERSION = 2
 STATE_BRANCH = 'benchmark-state'
 STATE_PATH = '.benchmark-state/rclcpp-last-successful.json'
 MANIFEST_FILENAME = 'producer-manifest.json'
@@ -163,7 +164,7 @@ def load_profile(path):
     profile = _read_json(path, 'producer profile')
     required = {
         'schema_version', 'name', 'authoritative', 'notice', 'rclcpp',
-        'benchmark_container', 'comparison',
+        'source_dependencies', 'benchmark_container', 'comparison',
     }
     if set(profile) != required or profile['schema_version'] != PROFILE_SCHEMA_VERSION:
         raise ScheduledComparisonError('producer profile has an unsupported shape')
@@ -174,6 +175,7 @@ def load_profile(path):
             'scheduled smoke profiles must explicitly remain non-authoritative'
         )
     _validate_repository(profile['rclcpp'], exact_ref=False, label='rclcpp')
+    _validate_source_dependencies_profile(profile['source_dependencies'])
     _validate_repository(
         profile['benchmark_container'],
         exact_ref=True,
@@ -195,7 +197,7 @@ def load_profile(path):
     }
     if profile['comparison'] != expected_comparison:
         raise ScheduledComparisonError(
-            'rolling-workflow-smoke-v1 comparison settings have changed'
+            f'{profile["name"]} comparison settings have changed'
         )
     return profile
 
@@ -219,6 +221,7 @@ def plan_comparison(profile, state, bootstrap_sha, github, now=None):
                 'candidate_sha': candidate,
                 'baseline_source': 'last-successful',
                 'missed_commit_count': 0,
+                'source_dependencies': None,
             }
         baseline_source = 'last-successful'
     elif bootstrap_sha:
@@ -237,6 +240,9 @@ def plan_comparison(profile, state, bootstrap_sha, github, now=None):
     )
     if missed_commit_count < 1:
         raise ScheduledComparisonError('candidate is not ahead of the selected baseline')
+    source_dependencies = _resolve_source_dependencies(
+        profile['source_dependencies']
+    )
     return {
         'schema_version': PLAN_SCHEMA_VERSION,
         'profile': profile['name'],
@@ -247,6 +253,7 @@ def plan_comparison(profile, state, bootstrap_sha, github, now=None):
         'candidate_sha': candidate,
         'baseline_source': baseline_source,
         'missed_commit_count': missed_commit_count,
+        'source_dependencies': source_dependencies,
     }
 
 
@@ -259,6 +266,7 @@ def build_bundles(
     github_repository,
     run_id,
     run_attempt,
+    source_dependencies,
 ):
     """Validate completed evidence and add self-checking upload metadata."""
     evidence_dir = Path(evidence_dir)
@@ -268,6 +276,7 @@ def build_bundles(
         profile,
         reference_sha,
         candidate_sha,
+        source_dependencies,
     )
     if compact_dir.exists() and any(compact_dir.iterdir()):
         raise ScheduledComparisonError(f'compact bundle is not empty: {compact_dir}')
@@ -285,6 +294,7 @@ def build_bundles(
         'notice': profile['notice'],
         'reference_sha': reference_sha,
         'candidate_sha': candidate_sha,
+        'source_dependencies': identity['source_dependencies'],
         'experiment_id': identity['experiment_id'],
         'run_ids': identity['run_ids'],
         'comparison_exit_code': identity['comparison_exit_code'],
@@ -311,7 +321,8 @@ def validate_bundle(bundle_dir, profile):
     required = {
         'schema_version', 'profile', 'authoritative', 'notice', 'reference_sha',
         'candidate_sha', 'experiment_id', 'run_ids', 'comparison_exit_code',
-        'comparison_outcome', 'github', 'created_at', 'bundle_kind',
+        'comparison_outcome', 'source_dependencies', 'github', 'created_at',
+        'bundle_kind',
     }
     if set(manifest) != required or manifest['schema_version'] != BUNDLE_SCHEMA_VERSION:
         raise ScheduledComparisonError('producer manifest has an unsupported shape')
@@ -321,6 +332,10 @@ def validate_bundle(bundle_dir, profile):
         raise ScheduledComparisonError('bundle lost its non-authoritative notice')
     _full_sha(manifest['reference_sha'], 'bundle reference SHA')
     _full_sha(manifest['candidate_sha'], 'bundle candidate SHA')
+    _validate_exact_source_dependencies(
+        manifest['source_dependencies'],
+        profile['source_dependencies'],
+    )
     if manifest['comparison_exit_code'] not in COMPLETED_EXIT_CODES:
         raise ScheduledComparisonError('bundle did not contain a completed comparison')
     checksums = (root / CHECKSUM_FILENAME).read_text(encoding='utf-8').splitlines()
@@ -374,13 +389,24 @@ def build_state(bundle_dir, profile, artifact_name):
             'experiment_id': manifest['experiment_id'],
             'run_ids': manifest['run_ids'],
             'artifact': artifact_name,
+            'source_dependencies': manifest['source_dependencies'],
             **manifest['github'],
         },
         'advanced_at': _utc_now(),
     }
 
 
-def _validate_comparison_evidence(root, profile, reference_sha, candidate_sha):
+def _validate_comparison_evidence(
+    root,
+    profile,
+    reference_sha,
+    candidate_sha,
+    source_dependencies,
+):
+    expected_dependencies = _validate_exact_source_dependencies(
+        source_dependencies,
+        profile['source_dependencies'],
+    )
     for relative in _FULL_BUNDLE_FILES:
         if not (root / relative).is_file():
             raise ScheduledComparisonError(f'comparison evidence is missing {relative}')
@@ -402,6 +428,10 @@ def _validate_comparison_evidence(root, profile, reference_sha, candidate_sha):
             raise ScheduledComparisonError(f'plan is missing the {label} identity') from exc
         if client.get('resolved_commit') != expected_sha:
             raise ScheduledComparisonError(f'plan {label} SHA does not match discovery')
+        if identity.get('source_dependencies') != expected_dependencies:
+            raise ScheduledComparisonError(
+                f'plan {label} source dependencies do not match discovery'
+            )
         if benchmark != {
             'url': profile['benchmark_container']['repository'],
             'requested_ref': profile['benchmark_container']['ref'],
@@ -473,6 +503,7 @@ def _validate_comparison_evidence(root, profile, reference_sha, candidate_sha):
         'run_ids': run_ids,
         'comparison_exit_code': exit_code,
         'comparison_outcome': outcome,
+        'source_dependencies': expected_dependencies,
     }
 
 
@@ -496,6 +527,10 @@ def _validate_state(state, profile):
         or comparison.get('exit_code') not in COMPLETED_EXIT_CODES
     ):
         raise ScheduledComparisonError('last-successful state was not completed')
+    _validate_exact_source_dependencies(
+        comparison.get('source_dependencies'),
+        profile['source_dependencies'],
+    )
 
 
 def _validate_repository(repository, exact_ref, label):
@@ -506,6 +541,74 @@ def _validate_repository(repository, exact_ref, label):
         _full_sha(repository['ref'], f'{label} ref')
     elif repository['ref'] != 'rolling':
         raise ScheduledComparisonError('rclcpp producer must follow Rolling')
+
+
+def _validate_source_dependencies_profile(source_dependencies):
+    try:
+        repositories = source_dependencies['repositories']
+    except (KeyError, TypeError) as exc:
+        raise ScheduledComparisonError('source dependency settings are invalid') from exc
+    if set(source_dependencies) != {'repositories'} or not isinstance(
+        repositories, dict
+    ) or not repositories:
+        raise ScheduledComparisonError('source dependency settings are invalid')
+    for path, repository in repositories.items():
+        _safe_repository_path(path)
+        if not isinstance(repository, dict) or set(repository) != {
+            'type', 'url', 'version',
+        }:
+            raise ScheduledComparisonError('source dependency settings are invalid')
+        if repository['type'] != 'git' or repository['version'] != 'rolling':
+            raise ScheduledComparisonError(
+                'scheduled source dependencies must follow Rolling Git branches'
+            )
+        _github_repository(repository['url'])
+
+
+def _resolve_source_dependencies(source_dependencies):
+    repositories = {}
+    for path, repository in sorted(source_dependencies['repositories'].items()):
+        repositories[path] = {
+            'type': 'git',
+            'url': repository['url'],
+            'version': resolve_remote_commit(
+                repository['url'],
+                repository['version'],
+            ),
+        }
+    return {'repositories': repositories}
+
+
+def _validate_exact_source_dependencies(value, configured):
+    if not isinstance(value, dict) or set(value) != {'repositories'}:
+        raise ScheduledComparisonError('exact source dependency snapshot is invalid')
+    repositories = value['repositories']
+    configured_repositories = configured['repositories']
+    if not isinstance(repositories, dict) or set(repositories) != set(
+        configured_repositories
+    ):
+        raise ScheduledComparisonError('exact source dependency snapshot is invalid')
+    for path, repository in repositories.items():
+        expected = configured_repositories[path]
+        if not isinstance(repository, dict) or set(repository) != {
+            'type', 'url', 'version',
+        }:
+            raise ScheduledComparisonError('exact source dependency snapshot is invalid')
+        if repository['type'] != expected['type'] or repository['url'] != expected['url']:
+            raise ScheduledComparisonError('exact source dependency snapshot is invalid')
+        _full_sha(repository['version'], f'source dependency {path!r} version')
+    return value
+
+
+def _safe_repository_path(value):
+    if not isinstance(value, str) or not value or '\\' in value:
+        raise ScheduledComparisonError('source dependency path is unsafe')
+    path = PurePosixPath(value)
+    if path.is_absolute() or value != path.as_posix() or any(
+        part in ('', '.', '..', '.git') for part in path.parts
+    ):
+        raise ScheduledComparisonError('source dependency path is unsafe')
+    return value
 
 
 def _github_repository(repository_url):
@@ -559,6 +662,10 @@ def _sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def _canonical_json(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True)
+
+
 def _utc_now():
     return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
@@ -587,6 +694,7 @@ def _parser():
     bundle.add_argument('--github-repository', required=True)
     bundle.add_argument('--run-id', required=True)
     bundle.add_argument('--run-attempt', required=True)
+    bundle.add_argument('--source-dependencies', required=True)
     validate = subparsers.add_parser('validate')
     validate.add_argument('--profile', required=True)
     validate.add_argument('--bundle', required=True)
@@ -609,13 +717,24 @@ def main(argv=None):
             plan = plan_comparison(profile, state, args.bootstrap_sha, github)
             write_json(plan, args.output)
             if args.github_output:
-                _write_github_output(args.github_output, {
+                github_output = {
                     'should_run': not plan['skip'],
                     'reference_sha': plan['reference_sha'],
                     'candidate_sha': plan['candidate_sha'],
                     'baseline_source': plan['baseline_source'],
                     'missed_commit_count': plan['missed_commit_count'],
-                })
+                }
+                if not plan['skip']:
+                    serialized = _canonical_json(plan['source_dependencies'])
+                    github_output.update({
+                        'source_dependencies_b64': base64.b64encode(
+                            serialized.encode()
+                        ).decode(),
+                        'source_dependencies_sha256': hashlib.sha256(
+                            serialized.encode()
+                        ).hexdigest(),
+                    })
+                _write_github_output(args.github_output, github_output)
         elif args.command == 'bundle':
             build_bundles(
                 args.evidence_dir,
@@ -626,6 +745,10 @@ def main(argv=None):
                 args.github_repository,
                 args.run_id,
                 args.run_attempt,
+                _read_json(
+                    args.source_dependencies,
+                    'exact source dependency snapshot',
+                ),
             )
         elif args.command == 'validate':
             manifest = validate_bundle(args.bundle, profile)

@@ -26,11 +26,12 @@ PROFILE_PATH = (
     REPOSITORY_ROOT
     / '.github'
     / 'benchmark-profiles'
-    / 'rolling-workflow-smoke-v1.json'
+    / 'rolling-workflow-smoke-v2.json'
 )
 REFERENCE_SHA = 'a' * 40
 CANDIDATE_SHA = 'b' * 40
 BENCHMARK_SHA = '7980edb4781249398a9cf490f73f8985de5cb95a'
+DEPENDENCY_SHA = 'c' * 40
 
 
 class FakeGitHub:
@@ -68,10 +69,19 @@ class FakeResponse:
 def test_pinned_profile_is_non_authoritative_and_exact():
     profile = scheduled.load_profile(PROFILE_PATH)
 
-    assert profile['name'] == 'rolling-workflow-smoke-v1'
+    assert profile['name'] == 'rolling-workflow-smoke-v2'
     assert profile['authoritative'] is False
     assert 'not calibrated' in profile['notice']
     assert profile['benchmark_container']['ref'] == BENCHMARK_SHA
+    assert profile['source_dependencies'] == {
+        'repositories': {
+            'ros2/rcl': {
+                'type': 'git',
+                'url': 'https://github.com/ros2/rcl.git',
+                'version': 'rolling',
+            },
+        },
+    }
     assert profile['comparison'] == {
         'ros_distro': 'rolling',
         'suite': 'rclcpp-minimal',
@@ -117,7 +127,9 @@ def test_first_run_uses_candidate_parent_when_bootstrap_is_not_configured(
     monkeypatch.setattr(
         scheduled,
         'resolve_remote_commit',
-        lambda repository, ref: CANDIDATE_SHA,
+        lambda repository, ref: (
+            DEPENDENCY_SHA if repository.endswith('/rcl.git') else CANDIDATE_SHA
+        ),
     )
 
     plan = scheduled.plan_comparison(
@@ -129,8 +141,8 @@ def test_first_run_uses_candidate_parent_when_bootstrap_is_not_configured(
     )
 
     assert plan == {
-        'schema_version': 1,
-        'profile': 'rolling-workflow-smoke-v1',
+        'schema_version': 2,
+        'profile': 'rolling-workflow-smoke-v2',
         'discovered_at': '2026-08-21T00:00:00Z',
         'skip': False,
         'skip_reason': None,
@@ -138,6 +150,7 @@ def test_first_run_uses_candidate_parent_when_bootstrap_is_not_configured(
         'candidate_sha': CANDIDATE_SHA,
         'baseline_source': 'candidate-first-parent',
         'missed_commit_count': 1,
+        'source_dependencies': _exact_dependencies(),
     }
     assert github.parent_calls == [('ros2/rclcpp', CANDIDATE_SHA)]
 
@@ -149,6 +162,8 @@ def test_first_run_uses_and_verifies_explicit_bootstrap(monkeypatch):
 
     def resolve(repository, ref):
         resolved.append((repository, ref))
+        if repository.endswith('/rcl.git'):
+            return DEPENDENCY_SHA
         return CANDIDATE_SHA if ref == 'rolling' else REFERENCE_SHA
 
     monkeypatch.setattr(scheduled, 'resolve_remote_commit', resolve)
@@ -166,6 +181,7 @@ def test_first_run_uses_and_verifies_explicit_bootstrap(monkeypatch):
     assert resolved == [
         ('https://github.com/ros2/rclcpp.git', 'rolling'),
         ('https://github.com/ros2/rclcpp.git', REFERENCE_SHA),
+        ('https://github.com/ros2/rcl.git', 'rolling'),
     ]
     assert github.parent_calls == []
 
@@ -185,6 +201,7 @@ def test_unchanged_upstream_skips_before_comparison(monkeypatch):
     assert plan['skip'] is True
     assert plan['skip_reason'] == 'upstream SHA is unchanged'
     assert plan['missed_commit_count'] == 0
+    assert plan['source_dependencies'] is None
     assert github.parent_calls == []
     assert github.compare_calls == []
 
@@ -195,7 +212,9 @@ def test_last_successful_coalesces_all_missed_commits_into_one_plan(monkeypatch)
     monkeypatch.setattr(
         scheduled,
         'resolve_remote_commit',
-        lambda repository, ref: CANDIDATE_SHA,
+        lambda repository, ref: (
+            DEPENDENCY_SHA if repository.endswith('/rcl.git') else CANDIDATE_SHA
+        ),
     )
 
     plan = scheduled.plan_comparison(
@@ -210,6 +229,7 @@ def test_last_successful_coalesces_all_missed_commits_into_one_plan(monkeypatch)
     assert plan['baseline_source'] == 'last-successful'
     assert plan['missed_commit_count'] == 7
     assert 'commits' not in plan
+    assert plan['source_dependencies'] == _exact_dependencies()
     assert github.compare_calls == [('ros2/rclcpp', REFERENCE_SHA, CANDIDATE_SHA)]
 
 
@@ -228,6 +248,7 @@ def test_completed_comparison_bundles_validate_and_advance_state(tmp_path, exit_
         'owner/repository',
         '1234',
         '2',
+        _exact_dependencies(),
     )
     full_manifest = scheduled.validate_bundle(evidence, profile)
     compact_manifest = scheduled.validate_bundle(compact, profile)
@@ -242,6 +263,7 @@ def test_completed_comparison_bundles_validate_and_advance_state(tmp_path, exit_
     assert compact_manifest['bundle_kind'] == 'dashboard'
     assert compact_manifest['reference_sha'] == REFERENCE_SHA
     assert compact_manifest['candidate_sha'] == CANDIDATE_SHA
+    assert compact_manifest['source_dependencies'] == _exact_dependencies()
     assert compact_manifest['run_ids'] == ['candidate-run', 'reference-run']
     assert compact_manifest['github'] == {
         'repository': 'owner/repository',
@@ -251,6 +273,7 @@ def test_completed_comparison_bundles_validate_and_advance_state(tmp_path, exit_
     assert state['candidate_sha'] == CANDIDATE_SHA
     assert state['comparison']['exit_code'] == exit_code
     assert state['comparison']['artifact'] == f'rclcpp-dashboard-{CANDIDATE_SHA}'
+    assert state['comparison']['source_dependencies'] == _exact_dependencies()
     assert not (compact / 'measured_environment.json').exists()
 
 
@@ -275,6 +298,7 @@ def test_failed_or_invalid_comparison_never_produces_publishable_bundles(
             'owner/repository',
             '1234',
             '1',
+            _exact_dependencies(),
         )
 
     assert not (evidence / scheduled.MANIFEST_FILENAME).exists()
@@ -293,6 +317,7 @@ def test_downloaded_bundle_rejects_tampered_payload(tmp_path):
         'owner/repository',
         '1234',
         '1',
+        _exact_dependencies(),
     )
     (compact / 'comparison-report.json').write_text('{}\n', encoding='utf-8')
 
@@ -313,6 +338,7 @@ def test_downloaded_bundle_rejects_incomplete_checksum_coverage(tmp_path):
         'owner/repository',
         '1234',
         '1',
+        _exact_dependencies(),
     )
     checksum_path = compact / scheduled.CHECKSUM_FILENAME
     checksums = checksum_path.read_text(encoding='utf-8').splitlines()
@@ -334,6 +360,7 @@ def test_state_refuses_the_full_evidence_artifact(tmp_path):
         'owner/repository',
         '1234',
         '1',
+        _exact_dependencies(),
     )
 
     with pytest.raises(scheduled.ScheduledComparisonError, match='dashboard bundle'):
@@ -342,8 +369,8 @@ def test_state_refuses_the_full_evidence_artifact(tmp_path):
 
 def _state(candidate_sha):
     return {
-        'schema_version': 1,
-        'profile': 'rolling-workflow-smoke-v1',
+        'schema_version': 2,
+        'profile': 'rolling-workflow-smoke-v2',
         'repository': 'https://github.com/ros2/rclcpp.git',
         'upstream_ref': 'rolling',
         'candidate_sha': candidate_sha,
@@ -354,6 +381,7 @@ def _state(candidate_sha):
             'experiment_id': 'experiment-previous',
             'run_ids': ['previous-run'],
             'artifact': 'previous-artifact',
+            'source_dependencies': _exact_dependencies(),
             'repository': 'owner/repository',
             'run_id': '1000',
             'run_attempt': '1',
@@ -448,6 +476,19 @@ def _target(label, commit, profile):
                 'url': profile['benchmark_container']['repository'],
                 'requested_ref': BENCHMARK_SHA,
                 'resolved_commit': BENCHMARK_SHA,
+            },
+            'source_dependencies': _exact_dependencies(),
+        },
+    }
+
+
+def _exact_dependencies():
+    return {
+        'repositories': {
+            'ros2/rcl': {
+                'type': 'git',
+                'url': 'https://github.com/ros2/rcl.git',
+                'version': DEPENDENCY_SHA,
             },
         },
     }
