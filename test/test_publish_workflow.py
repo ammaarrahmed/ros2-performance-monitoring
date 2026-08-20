@@ -157,6 +157,10 @@ def test_build_inputs_and_context_exclude_sensitive_or_host_state():
     for ignored in (
         '.git',
         '.github',
+        '.docker',
+        '.ssh',
+        '.env',
+        '.env.*',
         '.pytest_cache',
         '.venv',
         'build',
@@ -165,5 +169,7 @@ def test_build_inputs_and_context_exclude_sensitive_or_host_state():
         'results',
         'test',
         '*.egg-info',
+        '*.key',
+        '*.pem',
     ):
         assert ignored in dockerignore
