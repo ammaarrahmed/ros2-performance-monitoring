@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "name": "rolling-workflow-smoke-v1",
+  "authoritative": false,
+  "notice": "Pipeline smoke evidence only; this profile is not calibrated for authoritative performance claims.",
+  "rclcpp": {
+    "repository": "https://github.com/ros2/rclcpp.git",
+    "ref": "rolling"
+  },
+  "benchmark_container": {
+    "repository": "https://github.com/ros2/ros2-benchmark-container.git",
+    "ref": "7980edb4781249398a9cf490f73f8985de5cb95a"
+  },
+  "comparison": {
+    "ros_distro": "rolling",
+    "suite": "rclcpp-minimal",
+    "executor": "EventsCBGExecutor",
+    "duration": 1,
+    "cpuset_cpus": null,
+    "warmups": 0,
+    "repeats": 3,
+    "order": "balanced",
+    "schedule_seed": 0,
+    "bootstrap_repeats": 100,
+    "bootstrap_seed": 0,
+    "minimum_trials": 3
+  }
+}
