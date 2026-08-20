@@ -89,8 +89,8 @@ jobs:
     outputs:
       comparison_exit_code: ${{ steps.bundle.outputs.comparison_exit_code }}
       comparison_outcome: ${{ steps.bundle.outputs.comparison_outcome }}
-      full_artifact_name: ${{ env.FULL_ARTIFACT_NAME }}
-      dashboard_artifact_name: ${{ env.DASHBOARD_ARTIFACT_NAME }}
+      full_artifact_name: ${{ steps.bundle.outputs.full_artifact_name }}
+      dashboard_artifact_name: ${{ steps.bundle.outputs.dashboard_artifact_name }}
       elapsed_seconds: ${{ steps.metrics.outputs.elapsed_seconds }}
       artifact_bytes: ${{ steps.metrics.outputs.artifact_bytes }}
     steps:
@@ -121,7 +121,7 @@ jobs:
           date +%s > "${RUNNER_TEMP}/comparison-started"
           uname -a
           free -h
-          df -h "${GITHUB_WORKSPACE}" /var/lib/docker
+          df -h "${GITHUB_WORKSPACE}"
           docker version
           docker buildx version
           docker system df
@@ -180,6 +180,8 @@ jobs:
             >> "${GITHUB_OUTPUT}"
           echo "comparison_outcome=$(jq -r .comparison_outcome "${manifest}")" \
             >> "${GITHUB_OUTPUT}"
+          echo "full_artifact_name=${FULL_ARTIFACT_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "dashboard_artifact_name=${DASHBOARD_ARTIFACT_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Measure producer cost
         id: metrics
