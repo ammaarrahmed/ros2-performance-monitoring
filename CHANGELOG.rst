@@ -2,7 +2,7 @@
 Changelog for package ros2_performance_monitoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.0.0 (unreleased)
+0.1.0 (unreleased)
 ------------------
 * Added a container-first workflow with shared CLI and exporter image targets,
   explicit controller-to-daemon path mapping, non-root ownership and socket

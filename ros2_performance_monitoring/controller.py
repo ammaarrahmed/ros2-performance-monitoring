@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version
 import json
 import os
 from pathlib import Path
 import subprocess
+
+from .version import project_version
 
 
 CONTROLLER_MODE_ENV = 'ROS2_PERFORMANCE_CONTROLLER_MODE'
@@ -29,7 +29,6 @@ CONTROLLER_CACHE_ROOT_ENV = 'ROS2_PERFORMANCE_CONTROLLER_CACHE_ROOT'
 HOST_UID_ENV = 'ROS2_PERFORMANCE_HOST_UID'
 HOST_GID_ENV = 'ROS2_PERFORMANCE_HOST_GID'
 CONTROLLER_IMAGE_ENV = 'ROS2_PERFORMANCE_CONTROLLER_IMAGE'
-PACKAGE_NAME = 'ros2-performance-monitoring'
 
 
 class ControllerConfigurationError(RuntimeError):
@@ -170,7 +169,7 @@ def collect_controller_provenance() -> dict:
         raise RuntimeError('Docker client did not report its version')
     return {
         'execution_mode': context.mode,
-        'project_version': _project_version(),
+        'project_version': project_version(),
         'image': _controller_image_identity() if context.mode == 'container' else None,
         'docker_client_version': client_version,
         'docker_server': docker_server_identity(),
@@ -208,13 +207,6 @@ def _non_negative_id(values, name):
     if identifier < 0:
         raise ControllerConfigurationError(f'{name} must not be negative')
     return identifier
-
-
-def _project_version():
-    try:
-        return version(PACKAGE_NAME)
-    except PackageNotFoundError:
-        return '0.0.0+source'
 
 
 def _controller_image_identity():

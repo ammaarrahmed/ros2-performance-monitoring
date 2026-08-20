@@ -17,12 +17,14 @@ RUN python -m pip wheel --no-deps --wheel-dir /wheels .
 
 FROM ${DOCKER_CLI_IMAGE} AS cli
 
-ARG PROJECT_VERSION=0.0.0
+ARG PROJECT_VERSION=source
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.title="ROS 2 Performance Monitoring CLI" \
+      org.opencontainers.image.description="Containerized orchestration tools for reproducible ROS 2 performance comparisons" \
       org.opencontainers.image.version="${PROJECT_VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.source="https://github.com/ammaarrahmed/ros2-performance-monitoring"
+      org.opencontainers.image.source="https://github.com/ammaarrahmed/ros2-performance-monitoring" \
+      org.opencontainers.image.licenses="Apache-2.0"
 
 RUN apk add --no-cache git python3 py3-pip && \
     python3 -m venv /opt/ros2-performance-monitoring
@@ -48,12 +50,14 @@ CMD ["help"]
 
 FROM ${PYTHON_IMAGE} AS exporter
 
-ARG PROJECT_VERSION=0.0.0
+ARG PROJECT_VERSION=source
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.title="ROS 2 Performance Monitoring Exporter" \
+      org.opencontainers.image.description="Minimal Prometheus exporter for ROS 2 performance comparison datasets" \
       org.opencontainers.image.version="${PROJECT_VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.source="https://github.com/ammaarrahmed/ros2-performance-monitoring"
+      org.opencontainers.image.source="https://github.com/ammaarrahmed/ros2-performance-monitoring" \
+      org.opencontainers.image.licenses="Apache-2.0"
 
 RUN python -m venv /opt/ros2-performance-monitoring
 COPY --from=wheel /wheels /wheels

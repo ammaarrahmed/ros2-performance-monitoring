@@ -107,6 +107,19 @@ def test_help_command_lists_all_command_usage(monkeypatch, capsys):
         assert f'ros2-performance-monitoring {command}' in output
 
 
+def test_version_option_uses_package_version(monkeypatch, capsys):
+    importlib.reload(cli)
+    monkeypatch.setattr(sys, 'argv', ['ros2-performance-monitoring', '--version'])
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out.strip() == (
+        f'ros2-performance-monitoring {cli.__version__}'
+    )
+
+
 def test_experiment_calibrate_forwards_controlled_profile_and_returns_success(
     tmp_path,
     monkeypatch,

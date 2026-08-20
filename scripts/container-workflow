@@ -24,6 +24,9 @@ export ROS2_PERFORMANCE_HOST_UID=${ROS2_PERFORMANCE_HOST_UID:-$(id -u)}
 export ROS2_PERFORMANCE_HOST_GID=${ROS2_PERFORMANCE_HOST_GID:-$(id -g)}
 export ROS2_PERFORMANCE_DOCKER_GID=${ROS2_PERFORMANCE_DOCKER_GID:-$(stat -c %g "${docker_socket}")}
 export ROS2_PERFORMANCE_VCS_REF=${ROS2_PERFORMANCE_VCS_REF:-$(git -C "${repository_root}" rev-parse HEAD)}
+export ROS2_PERFORMANCE_PROJECT_VERSION=${ROS2_PERFORMANCE_PROJECT_VERSION:-$(
+  sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' "${repository_root}/package.xml"
+)}
 export ROS2_PERFORMANCE_DASHBOARD_DATA_DIR=${ROS2_PERFORMANCE_DASHBOARD_DATA_DIR:-${results_dir}}
 
 action=${1:-help}
