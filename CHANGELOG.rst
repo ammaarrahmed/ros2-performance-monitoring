@@ -4,6 +4,9 @@ Changelog for package ros2_performance_monitoring
 
 0.0.0 (unreleased)
 ------------------
+* Added a controlled, resumable A/A calibration workflow with same-commit
+  balanced trial streams, versioned noise evidence, environment observations,
+  and non-gating exit semantics.
 * Hardened resumable experiment and comparison bundles with version 2
   completion manifests, measured-environment checksums, complete resume
   validation, and deterministic derived-report recovery.
