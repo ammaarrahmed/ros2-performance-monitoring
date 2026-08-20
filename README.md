@@ -501,6 +501,12 @@ bootstrap resamples, and no CPU-set requirement. Its exact benchmark-container
 commit and all analysis settings live in
 `.github/benchmark-profiles/rolling-workflow-smoke-v1.json`.
 
+The benchmark job pulls the released CLI controller by immutable registry
+digest and uses the host Docker socket. The controller and measured benchmark
+remain sibling containers on the runner's daemon, and the inspected controller
+digest is recorded in run provenance. A failed controller pull is retried three
+times before target preparation starts.
+
 > This profile produces non-authoritative pipeline smoke evidence only. It is
 > not calibrated for authoritative performance claims and its outcome is not a
 > CI gate.

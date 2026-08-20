@@ -25,6 +25,7 @@ WORKFLOW_PATH = (
 WORKFLOW_TEXT = WORKFLOW_PATH.read_text()
 WORKFLOW = yaml.load(WORKFLOW_TEXT, Loader=yaml.BaseLoader)
 PINNED_ACTION = re.compile(r'^[^\s@]+@[0-9a-f]{40}$')
+PINNED_IMAGE = re.compile(r'^ghcr\.io/[^\s@]+@sha256:[0-9a-f]{64}$')
 README_TEXT = (REPOSITORY_ROOT / 'README.md').read_text()
 ARCHITECTURE_TEXT = (REPOSITORY_ROOT / 'doc' / 'architecture.md').read_text()
 
@@ -84,9 +85,37 @@ def test_discovery_skips_unchanged_revisions_before_benchmark_setup():
     assert benchmark['needs'] == 'discover'
     assert benchmark['if'] == "needs.discover.outputs.should_run == 'true'"
     assert 'scheduled_comparison discover' in WORKFLOW_TEXT
-    assert 'The workflow stopped before installing dependencies or building images.' in (
+    assert 'The workflow stopped before pulling the controller or building benchmark images.' in (
         WORKFLOW_TEXT
     )
+
+
+def test_benchmark_uses_one_digest_pinned_container_controller():
+    benchmark = WORKFLOW['jobs']['benchmark']
+    steps = benchmark['steps']
+    pull = next(
+        step['run']
+        for step in steps
+        if step['name'] == 'Pull and verify the pinned controller image'
+    )
+    compare = next(
+        step['run']
+        for step in steps
+        if step['name'] == 'Run the exact-ref comparison'
+    )
+
+    assert PINNED_IMAGE.fullmatch(WORKFLOW['env']['CONTROLLER_IMAGE'])
+    assert 'docker pull "${CONTROLLER_IMAGE}"' in pull
+    assert 'for attempt in 1 2 3' in pull
+    assert 'docker image inspect' in pull
+    assert 'pip install' not in WORKFLOW_TEXT
+    assert 'docker run --rm' in compare
+    assert '--volume /var/run/docker.sock:/var/run/docker.sock' in compare
+    assert '--env ROS2_PERFORMANCE_CONTROLLER_MODE=container' in compare
+    assert '--env ROS2_PERFORMANCE_CONTROLLER_IMAGE="${CONTROLLER_IMAGE}"' in compare
+    assert '--volume "${GITHUB_WORKSPACE}/results:/results"' in compare
+    assert '--volume "${GITHUB_WORKSPACE}/.scheduled-cache:/cache"' in compare
+    assert '"${CONTROLLER_IMAGE}" experiment compare' in compare
 
 
 def test_smoke_command_uses_exact_refs_and_every_pinned_profile_setting():
@@ -139,7 +168,6 @@ def test_both_checksum_bound_bundles_are_short_lived_and_state_uses_compact_one(
     assert 'scheduled_comparison state' in WORKFLOW_TEXT
     assert 'scheduled_comparison validate' in WORKFLOW_TEXT
     assert 'docker push' not in WORKFLOW_TEXT
-    assert 'ghcr.io' not in WORKFLOW_TEXT
     assert benchmark['outputs']['dashboard_artifact_name'] == (
         '${{ steps.bundle.outputs.dashboard_artifact_name }}'
     )

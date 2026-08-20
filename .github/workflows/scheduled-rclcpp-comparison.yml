@@ -20,6 +20,7 @@ concurrency:
 env:
   PROFILE_NAME: rolling-workflow-smoke-v1
   PROFILE_PATH: .github/benchmark-profiles/rolling-workflow-smoke-v1.json
+  CONTROLLER_IMAGE: ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli@sha256:6e34ecb868fad2a45c89dd294c647c679cc274af9a46f61780c6a0a69d7c5624
   STATE_BRANCH: benchmark-state
   STATE_PATH: .benchmark-state/rclcpp-last-successful.json
 
@@ -67,7 +68,7 @@ jobs:
             echo '## rclcpp comparison skipped'
             echo
             echo "Rolling still resolves to \`${CANDIDATE_SHA}\`, the last successfully published SHA."
-            echo 'The workflow stopped before installing dependencies or building images.'
+            echo 'The workflow stopped before pulling the controller or building benchmark images.'
           } >> "${GITHUB_STEP_SUMMARY}"
 
   benchmark:
@@ -81,9 +82,10 @@ jobs:
     env:
       REFERENCE_SHA: ${{ needs.discover.outputs.reference_sha }}
       CANDIDATE_SHA: ${{ needs.discover.outputs.candidate_sha }}
-      BENCHMARK_CACHE: ${{ github.workspace }}/.scheduled-cache/benchmark
       RESULTS_DIR: ${{ github.workspace }}/results/scheduled-comparison
       COMPACT_DIR: ${{ github.workspace }}/results/dashboard-bundle
+      CONTROLLER_CACHE_DIR: benchmark
+      CONTROLLER_RESULTS_DIR: scheduled-comparison
       FULL_ARTIFACT_NAME: rclcpp-evidence-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
       DASHBOARD_ARTIFACT_NAME: rclcpp-dashboard-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
     outputs:
@@ -109,11 +111,26 @@ jobs:
           restore-keys: |
             rclcpp-producer-${{ runner.os }}-${{ env.PROFILE_NAME }}-
 
-      - name: Install the pinned controller dependencies
+      - name: Pull and verify the pinned controller image
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -r requirements-container.txt
-          python3 -m pip install --disable-pip-version-check --no-deps .
+          mkdir -p \
+            "${GITHUB_WORKSPACE}/results" \
+            "${GITHUB_WORKSPACE}/.scheduled-cache/home"
+          for attempt in 1 2 3; do
+            if docker pull "${CONTROLLER_IMAGE}"; then
+              break
+            fi
+            if [[ "${attempt}" == 3 ]]; then
+              echo "Failed to pull the pinned controller after ${attempt} attempts" >&2
+              exit 1
+            fi
+            sleep "$((attempt * 10))"
+          done
+          inspected=$(docker image inspect \
+            --format '{{index .RepoDigests 0}}' "${CONTROLLER_IMAGE}")
+          test "${inspected}" = "${CONTROLLER_IMAGE}"
+          docker run --rm "${CONTROLLER_IMAGE}" --version
 
       - name: Record initial runtime and storage diagnostics
         run: |
@@ -133,7 +150,24 @@ jobs:
           set -o pipefail
           benchmark_ref=$(jq -r '.benchmark_container.ref' "${PROFILE_PATH}")
           set +e
-          ros2-performance-monitoring experiment compare \
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --group-add "$(stat -c %g /var/run/docker.sock)" \
+            --read-only \
+            --tmpfs /tmp \
+            --env HOME=/cache/home \
+            --env ROS2_PERFORMANCE_CONTROLLER_MODE=container \
+            --env ROS2_PERFORMANCE_CONTROLLER_RESULTS_ROOT=/results \
+            --env ROS2_PERFORMANCE_HOST_RESULTS_ROOT="${GITHUB_WORKSPACE}/results" \
+            --env ROS2_PERFORMANCE_CONTROLLER_CACHE_ROOT=/cache \
+            --env ROS2_PERFORMANCE_HOST_CACHE_ROOT="${GITHUB_WORKSPACE}/.scheduled-cache" \
+            --env ROS2_PERFORMANCE_HOST_UID="$(id -u)" \
+            --env ROS2_PERFORMANCE_HOST_GID="$(id -g)" \
+            --env ROS2_PERFORMANCE_CONTROLLER_IMAGE="${CONTROLLER_IMAGE}" \
+            --volume "${GITHUB_WORKSPACE}/results:/results" \
+            --volume "${GITHUB_WORKSPACE}/.scheduled-cache:/cache" \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            "${CONTROLLER_IMAGE}" experiment compare \
             --reference-ref "${REFERENCE_SHA}" \
             --candidate-ref "${CANDIDATE_SHA}" \
             --rclcpp-repo-url https://github.com/ros2/rclcpp.git \
@@ -150,8 +184,8 @@ jobs:
             --bootstrap-repeats 100 \
             --bootstrap-seed 0 \
             --minimum-trials 3 \
-            --cache-dir "${BENCHMARK_CACHE}" \
-            --results-dir "${RESULTS_DIR}" \
+            --cache-dir "${CONTROLLER_CACHE_DIR}" \
+            --results-dir "${CONTROLLER_RESULTS_DIR}" \
             2>&1 | tee "${RUNNER_TEMP}/comparison.log"
           comparison_exit=${PIPESTATUS[0]}
           set -e

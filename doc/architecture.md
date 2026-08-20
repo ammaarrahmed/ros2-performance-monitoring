@@ -146,6 +146,13 @@ duration, trial schedule, analysis resamples, and the explicit
 non-authoritative label. The only moving input is the upstream Rolling branch,
 which discovery resolves to a full commit before any build begins.
 
+The producer runs the released CLI controller by immutable image digest. It
+mounts the runner's Docker socket so the controller and the measured benchmark
+remain siblings on one daemon rather than using Docker-in-Docker. Controller
+path mappings translate result and cache paths back to the runner, and runtime
+provenance verifies the exact controller image before measured output is
+accepted.
+
 Discovery reads the last successfully published candidate from a JSON file on
 the `benchmark-state` branch through the GitHub API. An unchanged SHA ends the
 workflow before dependency installation. Otherwise the state SHA becomes the
