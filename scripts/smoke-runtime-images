@@ -1,0 +1,108 @@
+#!/usr/bin/env sh
+
+set -eu
+
+if [ "$#" -ne 4 ]; then
+  echo "Usage: scripts/smoke-runtime-images CLI_IMAGE EXPORTER_IMAGE VERSION REVISION" >&2
+  exit 2
+fi
+
+cli_image=$1
+exporter_image=$2
+project_version=$3
+revision=$4
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repository_root=$(CDPATH= cd -- "${script_dir}/.." && pwd)
+fixture=${repository_root}/test/fixtures/release-smoke/dashboard-data.json
+temporary_root=$(mktemp -d)
+exporter_name=ros2-performance-exporter-smoke-$$
+
+cleanup() {
+  docker rm -f "${exporter_name}" >/dev/null 2>&1 || true
+  rm -rf "${temporary_root}"
+}
+trap cleanup EXIT INT TERM
+
+actual_version=$(docker run --rm "${cli_image}" --version)
+if [ "${actual_version}" != "ros2-performance-monitoring ${project_version}" ]; then
+  echo "CLI reported unexpected version: ${actual_version}" >&2
+  exit 1
+fi
+docker run --rm "${cli_image}" help >/dev/null
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "${fixture}:/input/dashboard-data.jsonl:ro" \
+  --volume "${temporary_root}:/output" \
+  "${cli_image}" dataset build \
+  /input/dashboard-data.jsonl \
+  --output /output/reprocessed.jsonl >/dev/null
+test -s "${temporary_root}/reprocessed.jsonl"
+
+assert_image() {
+  image=$1
+  expected_user=$2
+  expected_entrypoint=$3
+  actual_architecture=$(docker image inspect --format '{{.Architecture}}' "${image}")
+  actual_user=$(docker image inspect --format '{{.Config.User}}' "${image}")
+  actual_entrypoint=$(docker image inspect --format '{{json .Config.Entrypoint}}' "${image}")
+  actual_version_label=$(docker image inspect \
+    --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "${image}")
+  actual_revision_label=$(docker image inspect \
+    --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${image}")
+  test "${actual_architecture}" = amd64
+  test "${actual_user}" = "${expected_user}"
+  test "${actual_entrypoint}" = "[\"${expected_entrypoint}\"]"
+  test "${actual_version_label}" = "${project_version}"
+  test "${actual_revision_label}" = "${revision}"
+  test "$(docker image inspect --format '{{json .Config.Volumes}}' "${image}")" = null
+}
+
+assert_image "${cli_image}" controller ros2-performance-monitoring
+assert_image "${exporter_image}" exporter ros2-performance-exporter
+
+docker run --rm --entrypoint sh "${cli_image}" -c '
+  command -v docker >/dev/null &&
+  docker buildx version >/dev/null &&
+  docker compose version >/dev/null &&
+  command -v git >/dev/null &&
+  command -v vcs >/dev/null &&
+  ! command -v dockerd >/dev/null &&
+  test ! -e /.git &&
+  test ! -e /source &&
+  test ! -e /var/run/docker.sock &&
+  test ! -e /root/.docker/config.json &&
+  test ! -e /home/controller/.docker/config.json
+'
+docker run --rm --entrypoint sh "${exporter_image}" -c '
+  ! command -v docker >/dev/null &&
+  ! command -v git >/dev/null &&
+  ! command -v vcs >/dev/null &&
+  test ! -e /.git &&
+  test ! -e /source &&
+  test ! -e /workspace &&
+  test ! -e /var/run/docker.sock &&
+  test ! -e /root/.docker/config.json &&
+  test ! -e /home/exporter/.docker/config.json
+'
+
+docker run -d --name "${exporter_name}" \
+  --read-only \
+  --tmpfs /tmp \
+  --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  --volume "${fixture}:/data/dashboard-data.jsonl:ro" \
+  --publish 127.0.0.1::9108 \
+  "${exporter_image}" >/dev/null
+exporter_port=$(docker port "${exporter_name}" 9108/tcp | sed 's/.*://')
+attempt=0
+until curl --fail --silent "http://127.0.0.1:${exporter_port}/healthz" \
+  | grep -qx 'ok'; do
+  attempt=$((attempt + 1))
+  if [ "${attempt}" -ge 50 ]; then
+    docker logs "${exporter_name}" >&2
+    exit 1
+  fi
+  sleep 0.2
+done
+curl --fail --silent "http://127.0.0.1:${exporter_port}/metrics" \
+  | grep -q 'ros2_perf_latency_us'

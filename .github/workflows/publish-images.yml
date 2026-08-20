@@ -1,0 +1,290 @@
+name: Publish runtime images
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing MAJOR.MINOR.PATCH Git tag to publish
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: publish-runtime-images-${{ github.event.release.tag_name || inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build, verify, and publish both images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      CLI_IMAGE: ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli
+      EXPORTER_IMAGE: ghcr.io/ammaarrahmed/ros2-performance-monitoring-exporter
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      revision: ${{ steps.identity.outputs.revision }}
+      cli_digest: ${{ steps.publish_cli.outputs.digest }}
+      exporter_digest: ${{ steps.publish_exporter.outputs.digest }}
+      cli_seconds: ${{ steps.cli_metrics.outputs.seconds }}
+      exporter_seconds: ${{ steps.exporter_metrics.outputs.seconds }}
+      cli_bytes: ${{ steps.cli_metrics.outputs.bytes }}
+      exporter_bytes: ${{ steps.exporter_metrics.outputs.bytes }}
+    steps:
+      - name: Check out the immutable release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release identity
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD)
+          tagged_revision=$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")
+          test "${revision}" = "${tagged_revision}"
+          version=$(python3 -m ros2_performance_monitoring.release_contract \
+            --release-tag "${RELEASE_TAG}" \
+            --revision "${revision}")
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "revision=${revision}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up pinned Buildx and BuildKit
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        with:
+          version: v0.34.1
+          driver-opts: image=moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
+
+      - name: Build CLI release candidate
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          target: cli
+          platforms: linux/amd64
+          load: true
+          tags: ros2-performance-monitoring-cli:release-candidate
+          build-args: |
+            PROJECT_VERSION=${{ steps.identity.outputs.version }}
+            VCS_REF=${{ steps.identity.outputs.revision }}
+          cache-from: type=gha,scope=runtime-cli
+          cache-to: type=gha,mode=max,scope=runtime-cli
+
+      - name: Build exporter release candidate
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          target: exporter
+          platforms: linux/amd64
+          load: true
+          tags: ros2-performance-monitoring-exporter:release-candidate
+          build-args: |
+            PROJECT_VERSION=${{ steps.identity.outputs.version }}
+            VCS_REF=${{ steps.identity.outputs.revision }}
+          cache-from: type=gha,scope=runtime-exporter
+          cache-to: type=gha,mode=max,scope=runtime-exporter
+
+      - name: Smoke-test both release candidates
+        run: |
+          scripts/smoke-runtime-images \
+            ros2-performance-monitoring-cli:release-candidate \
+            ros2-performance-monitoring-exporter:release-candidate \
+            "${{ steps.identity.outputs.version }}" \
+            "${{ steps.identity.outputs.revision }}"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Protect immutable release tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          for image in "${CLI_IMAGE}" "${EXPORTER_IMAGE}"; do
+            for tag in \
+              "${{ steps.identity.outputs.version }}" \
+              "${{ steps.identity.outputs.revision }}"; do
+              if docker buildx imagetools inspect "${image}:${tag}" >/dev/null 2>&1; then
+                echo "Refusing to overwrite immutable image tag ${image}:${tag}" >&2
+                exit 1
+              fi
+            done
+          done
+
+      - name: Start CLI publication timer
+        run: date +%s > "${RUNNER_TEMP}/cli-publish-started"
+
+      - name: Publish CLI image
+        id: publish_cli
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          target: cli
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.CLI_IMAGE }}:${{ steps.identity.outputs.version }}
+            ${{ env.CLI_IMAGE }}:${{ steps.identity.outputs.revision }}
+          build-args: |
+            PROJECT_VERSION=${{ steps.identity.outputs.version }}
+            VCS_REF=${{ steps.identity.outputs.revision }}
+          cache-from: type=gha,scope=runtime-cli
+          cache-to: type=gha,mode=max,scope=runtime-cli
+          provenance: mode=max
+          sbom: true
+
+      - name: Record CLI publication cost
+        id: cli_metrics
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.publish_cli.outputs.digest }}
+        run: |
+          set -euo pipefail
+          started=$(<"${RUNNER_TEMP}/cli-publish-started")
+          echo "seconds=$(($(date +%s) - started))" >> "${GITHUB_OUTPUT}"
+          manifest=$(docker buildx imagetools inspect \
+            --raw "${CLI_IMAGE}@${IMAGE_DIGEST}")
+          image_manifest=$(jq -r '
+            .manifests[]
+            | select(.platform.os == "linux" and .platform.architecture == "amd64")
+            | .digest
+          ' <<<"${manifest}")
+          image_data=$(docker buildx imagetools inspect \
+            --raw "${CLI_IMAGE}@${image_manifest}")
+          bytes=$(jq '[.config.size, (.layers[].size)] | add' <<<"${image_data}")
+          echo "bytes=${bytes}" >> "${GITHUB_OUTPUT}"
+
+      - name: Start exporter publication timer
+        run: date +%s > "${RUNNER_TEMP}/exporter-publish-started"
+
+      - name: Publish exporter image
+        id: publish_exporter
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          target: exporter
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.EXPORTER_IMAGE }}:${{ steps.identity.outputs.version }}
+            ${{ env.EXPORTER_IMAGE }}:${{ steps.identity.outputs.revision }}
+          build-args: |
+            PROJECT_VERSION=${{ steps.identity.outputs.version }}
+            VCS_REF=${{ steps.identity.outputs.revision }}
+          cache-from: type=gha,scope=runtime-exporter
+          cache-to: type=gha,mode=max,scope=runtime-exporter
+          provenance: mode=max
+          sbom: true
+
+      - name: Record exporter publication cost
+        id: exporter_metrics
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.publish_exporter.outputs.digest }}
+        run: |
+          set -euo pipefail
+          started=$(<"${RUNNER_TEMP}/exporter-publish-started")
+          echo "seconds=$(($(date +%s) - started))" >> "${GITHUB_OUTPUT}"
+          manifest=$(docker buildx imagetools inspect \
+            --raw "${EXPORTER_IMAGE}@${IMAGE_DIGEST}")
+          image_manifest=$(jq -r '
+            .manifests[]
+            | select(.platform.os == "linux" and .platform.architecture == "amd64")
+            | .digest
+          ' <<<"${manifest}")
+          image_data=$(docker buildx imagetools inspect \
+            --raw "${EXPORTER_IMAGE}@${image_manifest}")
+          bytes=$(jq '[.config.size, (.layers[].size)] | add' <<<"${image_data}")
+          echo "bytes=${bytes}" >> "${GITHUB_OUTPUT}"
+
+      - name: Attest CLI manifest digest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.CLI_IMAGE }}
+          subject-digest: ${{ steps.publish_cli.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest exporter manifest digest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.EXPORTER_IMAGE }}
+          subject-digest: ${{ steps.publish_exporter.outputs.digest }}
+          push-to-registry: true
+
+      - name: Report completed two-image release
+        env:
+          CLI_DIGEST: ${{ steps.publish_cli.outputs.digest }}
+          EXPORTER_DIGEST: ${{ steps.publish_exporter.outputs.digest }}
+          CLI_SECONDS: ${{ steps.cli_metrics.outputs.seconds }}
+          EXPORTER_SECONDS: ${{ steps.exporter_metrics.outputs.seconds }}
+          CLI_BYTES: ${{ steps.cli_metrics.outputs.bytes }}
+          EXPORTER_BYTES: ${{ steps.exporter_metrics.outputs.bytes }}
+        run: |
+          {
+            echo "## Runtime image release ${{ steps.identity.outputs.version }}"
+            echo
+            echo "Revision: \`${{ steps.identity.outputs.revision }}\`"
+            echo
+            echo '| Image | Manifest digest | Build/push time | Compressed content |'
+            echo '| --- | --- | ---: | ---: |'
+            echo "| CLI | \`${CLI_DIGEST}\` | ${CLI_SECONDS}s | ${CLI_BYTES} bytes |"
+            echo "| Exporter | \`${EXPORTER_DIGEST}\` | ${EXPORTER_SECONDS}s | ${EXPORTER_BYTES} bytes |"
+            echo
+            echo 'Pin deployments with the image name followed by `@sha256:...`.'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  record_release:
+    name: Add verified digests to the GitHub release
+    if: github.event_name == 'release'
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_ID: ${{ github.event.release.id }}
+      VERSION: ${{ needs.publish.outputs.version }}
+      REVISION: ${{ needs.publish.outputs.revision }}
+      CLI_DIGEST: ${{ needs.publish.outputs.cli_digest }}
+      EXPORTER_DIGEST: ${{ needs.publish.outputs.exporter_digest }}
+      CLI_SECONDS: ${{ needs.publish.outputs.cli_seconds }}
+      EXPORTER_SECONDS: ${{ needs.publish.outputs.exporter_seconds }}
+      CLI_BYTES: ${{ needs.publish.outputs.cli_bytes }}
+      EXPORTER_BYTES: ${{ needs.publish.outputs.exporter_bytes }}
+    steps:
+      - name: Append immutable image identities to release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_body=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --jq .body)
+          if grep -q '^## Published runtime images$' <<<"${current_body}"; then
+            echo 'Release notes already contain published runtime image identities' >&2
+            exit 1
+          fi
+          release_info=$(printf '%s\n' \
+            '## Published runtime images' \
+            '' \
+            "Both linux/amd64 images were built from revision \`${REVISION}\`." \
+            '' \
+            "- \`ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli@${CLI_DIGEST}\` (${CLI_SECONDS}s, ${CLI_BYTES} compressed bytes)" \
+            "- \`ghcr.io/ammaarrahmed/ros2-performance-monitoring-exporter@${EXPORTER_DIGEST}\` (${EXPORTER_SECONDS}s, ${EXPORTER_BYTES} compressed bytes)" \
+            '' \
+            "The immutable version tag for both images is \`${VERSION}\`; use the digest references above for deployment and rollback.")
+          updated_body=$(printf '%s\n\n%s\n' "${current_body}" "${release_info}")
+          jq -n --arg body "${updated_body}" '{body: $body}' \
+            | gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+              --input - >/dev/null
