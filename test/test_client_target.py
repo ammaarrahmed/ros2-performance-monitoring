@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -91,6 +92,26 @@ def test_cache_fetches_updated_branch_without_changing_resolved_checkout(tmp_pat
     assert second_resolution.resolved_commit == third_commit
     assert first_resolution.checkout_path != second_resolution.checkout_path
     assert _git(first_resolution.checkout_path, 'rev-parse', 'HEAD').stdout.strip() == (
+        commits['second']
+    )
+
+
+def test_cache_repairs_worktree_links_after_cache_root_moves(tmp_path):
+    remote, commits = _make_remote(tmp_path)
+    original_cache = tmp_path / 'original' / 'benchmark'
+    target = resolve_rclcpp_target(str(remote), 'rolling', str(original_cache))
+    original_managed = original_cache.with_name('benchmark-targets')
+    moved_cache = tmp_path / 'moved' / 'benchmark'
+    moved_managed = moved_cache.with_name('benchmark-targets')
+    moved_managed.parent.mkdir()
+    shutil.move(original_managed, moved_managed)
+
+    repaired = resolve_rclcpp_target(str(remote), 'rolling', str(moved_cache))
+
+    assert target.resolved_commit == commits['second']
+    assert repaired.resolved_commit == commits['second']
+    assert moved_managed in repaired.checkout_path.parents
+    assert _git(repaired.checkout_path, 'rev-parse', 'HEAD').stdout.strip() == (
         commits['second']
     )
 

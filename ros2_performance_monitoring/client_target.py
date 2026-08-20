@@ -173,12 +173,18 @@ def _matching_refs(mirror_path: Path, possible_refs: tuple[str, ...]) -> tuple[s
 
 def _prepare_checkout(mirror_path: Path, checkout_path: Path, commit: str) -> None:
     if checkout_path.exists():
-        result = subprocess.run(
-            ['git', '-C', str(checkout_path), 'rev-parse', '--verify', 'HEAD'],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        result = _checkout_revision(checkout_path)
+        if result.returncode != 0:
+            subprocess.run(
+                [
+                    'git', '-C', str(mirror_path), 'worktree', 'repair',
+                    str(checkout_path),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            result = _checkout_revision(checkout_path)
         if result.returncode != 0 or result.stdout.strip() != commit:
             raise RuntimeError(
                 f'Cached rclcpp checkout at {checkout_path} does not match {commit}'
@@ -192,4 +198,13 @@ def _prepare_checkout(mirror_path: Path, checkout_path: Path, commit: str) -> No
             str(checkout_path), commit,
         ],
         check=True,
+    )
+
+
+def _checkout_revision(checkout_path: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ['git', '-C', str(checkout_path), 'rev-parse', '--verify', 'HEAD'],
+        check=False,
+        capture_output=True,
+        text=True,
     )
