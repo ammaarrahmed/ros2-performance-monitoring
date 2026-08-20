@@ -291,6 +291,46 @@ def test_runner_rejects_retained_container_with_different_results_root(
         )
 
 
+def test_container_runner_uses_daemon_path_and_explicit_host_owner(tmp_path, monkeypatch):
+    calls = []
+    controller_results = tmp_path / 'controller-results'
+    host_results = tmp_path / 'host-results'
+    controller_cache = tmp_path / 'controller-cache'
+    host_cache = tmp_path / 'host-cache'
+    for name, value in {
+        'ROS2_PERFORMANCE_CONTROLLER_MODE': 'container',
+        'ROS2_PERFORMANCE_CONTROLLER_RESULTS_ROOT': controller_results,
+        'ROS2_PERFORMANCE_HOST_RESULTS_ROOT': host_results,
+        'ROS2_PERFORMANCE_CONTROLLER_CACHE_ROOT': controller_cache,
+        'ROS2_PERFORMANCE_HOST_CACHE_ROOT': host_cache,
+        'ROS2_PERFORMANCE_HOST_UID': '2345',
+        'ROS2_PERFORMANCE_HOST_GID': '3456',
+    }.items():
+        monkeypatch.setenv(name, str(value))
+
+    def fake_run(cmd, check, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, 'run', fake_run)
+    benchmark_runner(
+        results_dir='trial with spaces',
+        benchmark_option='service-rclcpp-minimal',
+        duration=1,
+        image_spec=_image_spec(),
+        executor='EventsCBGExecutor',
+    )
+
+    run_command = next(cmd for cmd in calls if cmd[:3] == ['docker', 'run', '-d'])
+    expected_mount = host_results / 'trial with spaces' / 'benchmark' / 'lyrical'
+    assert f'{expected_mount}:/benchmark_results' in run_command
+    assert f'ros2-performance-monitoring.results-root={expected_mount}' in run_command
+    assert [
+        'docker', 'exec', _image_spec().container_name,
+        'chown', '-R', '2345:3456', '/benchmark_results',
+    ] in calls
+
+
 def _image_spec():
     return BenchmarkImageSpec(
         ros_distro='lyrical',

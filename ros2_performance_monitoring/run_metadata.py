@@ -20,6 +20,8 @@ import sys
 
 from .benchmark_image import BenchmarkImageSpec
 from .benchmark_image import VerifiedImage
+from .controller import collect_controller_provenance
+from .controller import resolve_results_path
 from .writers.jsonl import write_json
 
 
@@ -30,6 +32,7 @@ def generation_rundata(
     verified_image: VerifiedImage,
     metadata_filename: str | None = None,
     run_id: str | None = None,
+    controller_provenance: dict | None = None,
 ) -> Path:
     run_timestamp = datetime.now(timezone.utc)
     file_timestamp = run_timestamp.strftime('%Y%m%d_%H%M%S')
@@ -39,6 +42,11 @@ def generation_rundata(
     os_name = platform.system()
     client_target = image_spec.client_target
     run_data = {
+        'controller': (
+            controller_provenance
+            if controller_provenance is not None
+            else collect_controller_provenance()
+        ),
         'host_environment': {
             'timestamp': iso_format,
             'Python version': py_ver,
@@ -75,7 +83,7 @@ def generation_rundata(
     if run_id is not None:
         run_data['run_id'] = run_id
 
-    output_dir = Path(results_dir).expanduser().resolve()
+    output_dir = resolve_results_path(results_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     filename = metadata_filename or f'metadata_{file_timestamp}.json'
     if Path(filename).name != filename:

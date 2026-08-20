@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 
+from .controller import resolve_cache_path
 from .remote_ref import resolve_remote_commit
 
 
@@ -113,7 +114,7 @@ def resolve_remote_rclcpp_target(
 
 
 def _target_cache_root(cache_dir: str, repository_url: str) -> Path:
-    benchmark_cache = Path(cache_dir).expanduser().resolve()
+    benchmark_cache = resolve_cache_path(cache_dir)
     managed_cache = benchmark_cache.with_name(f'{benchmark_cache.name}-targets')
     repository_key = hashlib.sha256(repository_url.encode()).hexdigest()[:16]
     return managed_cache / 'rclcpp' / repository_key

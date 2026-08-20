@@ -20,6 +20,8 @@ import socket
 import subprocess
 
 from .benchmark_image import detect_architecture
+from .controller import controller_context
+from .controller import docker_server_identity
 from .experiment import validate_cpuset_cpus
 
 
@@ -36,7 +38,8 @@ class PreflightResult:
     """Record the host properties used while planning a comparison."""
 
     architecture: str
-    docker_root: Path
+    docker_root: str
+    docker_server: dict
     result_filesystem_free_bytes: int
     docker_filesystem_free_bytes: int
 
@@ -58,14 +61,11 @@ def run_comparison_preflight(
             'Docker Compose is not available',
         )
 
-    docker_root_result = _check_command(
-        ['docker', 'info', '--format', '{{.DockerRootDir}}'],
-        'Docker daemon is not accessible',
-    )
-    docker_root_text = docker_root_result.stdout.strip()
-    if not docker_root_text:
-        raise PreflightError('Docker did not report its data-root directory')
-    docker_root = Path(docker_root_text).expanduser().resolve()
+    try:
+        docker_server = docker_server_identity()
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+        raise PreflightError(f'Docker daemon is not accessible: {exc}') from exc
+    docker_root = docker_server['docker_root_dir']
 
     _check_command(
         ['docker', 'buildx', 'version'],
@@ -87,14 +87,21 @@ def run_comparison_preflight(
     except RuntimeError as exc:
         raise PreflightError(str(exc)) from exc
 
-    results_path = Path(results_dir).expanduser().resolve()
+    context = controller_context()
+    results_path = context.resolve_results(results_dir)
     _check_results_access(results_path)
     results_filesystem = _existing_ancestor(results_path)
-    docker_filesystem = _existing_ancestor(docker_root)
     result_free = shutil.disk_usage(results_filesystem).free
-    docker_free = shutil.disk_usage(docker_filesystem).free
+    if context.mode == 'container':
+        docker_free = _daemon_filesystem_free_bytes(docker_root)
+        docker_filesystem = docker_root
+        same_filesystem = False
+    else:
+        docker_filesystem = _existing_ancestor(Path(docker_root).expanduser().resolve())
+        docker_free = shutil.disk_usage(docker_filesystem).free
+        same_filesystem = docker_filesystem.stat().st_dev == results_filesystem.stat().st_dev
     _check_free_space('result', results_filesystem, result_free, minimum_free_bytes)
-    if docker_filesystem.stat().st_dev != results_filesystem.stat().st_dev:
+    if not same_filesystem:
         _check_free_space('Docker', docker_filesystem, docker_free, minimum_free_bytes)
 
     if dashboard_requested:
@@ -105,9 +112,31 @@ def run_comparison_preflight(
     return PreflightResult(
         architecture=architecture,
         docker_root=docker_root,
+        docker_server=docker_server,
         result_filesystem_free_bytes=result_free,
         docker_filesystem_free_bytes=docker_free,
     )
+
+
+def _daemon_filesystem_free_bytes(docker_root):
+    probe_path = f'/host{docker_root}'
+    result = _check_command(
+        [
+            'docker', 'run', '--rm', '--network=none', '--read-only',
+            '--pull=missing', '--volume', '/:/host:ro',
+            'busybox:1.36.1', 'df', '-Pk', probe_path,
+        ],
+        'Cannot inspect free space on the Docker host filesystem',
+    )
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    if len(lines) < 2:
+        raise PreflightError('Docker host filesystem probe returned no disk usage')
+    fields = lines[-1].split()
+    try:
+        available_kib = int(fields[-3])
+    except (IndexError, ValueError) as exc:
+        raise PreflightError('Docker host filesystem probe returned invalid disk usage') from exc
+    return available_kib * 1024
 
 
 def _require_executable(executable):

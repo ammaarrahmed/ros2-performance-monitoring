@@ -43,6 +43,8 @@ from .comparison_workflow import run_comparison_workflow
 from .config import RunDefaults
 from .config import SUPPORTED_ROS_DISTROS
 from .container_provider import get_default_container_repo, setup_container_repo
+from .controller import controller_context
+from .controller import resolve_results_path
 from .dashboard import dashboard_down
 from .dashboard import dashboard_up
 from .dataset import build_dataset
@@ -138,6 +140,9 @@ def run_command(args: argparse.Namespace) -> None:
 
 
 def parse_command(args: argparse.Namespace) -> None:
+    if controller_context().mode == 'container':
+        args.results_dir = str(resolve_results_path(args.results_dir))
+        args.output = resolve_results_path(args.output)
     try:
         run_metadata = latest_run_metadata(args.results_dir)
         ros_distro = run_metadata.get('run_configuration', {}).get('ros_distro')

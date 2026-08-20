@@ -52,7 +52,13 @@ def test_run_metadata_uses_resolved_and_verified_target(tmp_path):
         cpuset_cpus='0-1',
     )
 
-    generation_rundata(args, str(tmp_path / 'results'), image_spec, verified_image)
+    generation_rundata(
+        args,
+        str(tmp_path / 'results'),
+        image_spec,
+        verified_image,
+        controller_provenance=_controller_provenance(),
+    )
 
     metadata_path = next((tmp_path / 'results').glob('metadata_*.json'))
     metadata = json.loads(metadata_path.read_text())
@@ -74,6 +80,7 @@ def test_run_metadata_uses_resolved_and_verified_target(tmp_path):
         'digest': verified_image.image_digest,
         'target_key': verified_image.target_key,
     }
+    assert metadata['controller'] == _controller_provenance()
 
 
 def test_packaged_metadata_is_explicit(tmp_path):
@@ -99,7 +106,13 @@ def test_packaged_metadata_is_explicit(tmp_path):
         cpuset_cpus=None,
     )
 
-    generation_rundata(args, str(tmp_path), image_spec, verified_image)
+    generation_rundata(
+        args,
+        str(tmp_path),
+        image_spec,
+        verified_image,
+        controller_provenance=_controller_provenance(),
+    )
 
     metadata_path = next(tmp_path.glob('metadata_*.json'))
     client_metadata = json.loads(metadata_path.read_text())['client_library_under_test']
@@ -143,9 +156,24 @@ def test_experiment_metadata_uses_stable_filename_and_trial_id(tmp_path):
         verified_image,
         metadata_filename='metadata.json',
         run_id='candidate-measured-001',
+        controller_provenance=_controller_provenance(),
     )
 
     assert metadata_path == tmp_path / 'metadata.json'
     metadata = latest_run_metadata(tmp_path)
     assert metadata['run_id'] == 'candidate-measured-001'
     assert metadata['run_configuration']['suite'] == 'service-rclcpp-minimal'
+
+
+def _controller_provenance():
+    return {
+        'execution_mode': 'host',
+        'project_version': '0.0.0',
+        'image': None,
+        'docker_client_version': '27.5.1',
+        'docker_server': {
+            'id': 'daemon-id',
+            'name': 'benchmark-host',
+            'version': '27.5.1',
+        },
+    }

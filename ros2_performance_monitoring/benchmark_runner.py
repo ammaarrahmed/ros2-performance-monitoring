@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from pathlib import Path
 import subprocess
 
@@ -20,6 +19,7 @@ from ros2_performance_monitoring import benchmark_layout
 from ros2_performance_monitoring.benchmark_image import benchmark_container_exists
 from ros2_performance_monitoring.benchmark_image import BenchmarkImageSpec
 from ros2_performance_monitoring.benchmark_image import verify_benchmark_container
+from ros2_performance_monitoring.controller import controller_context
 
 
 FASTDDS_PROFILE = 'shared_memory_fastdds_preallocated_w_realloc.xml'
@@ -140,7 +140,8 @@ def benchmark_runner(
     log_path: str | Path | None = None,
 ) -> None:
     ros_distro = image_spec.ros_distro
-    results_absolute_path = Path(results_dir).expanduser().resolve()
+    context = controller_context()
+    results_absolute_path = context.resolve_results(results_dir)
 
     selected_benchmarks = BENCHMARK_SUITES.get(benchmark_option)
     if selected_benchmarks is None:
@@ -152,10 +153,10 @@ def benchmark_runner(
     config_dir = benchmark_results_dir / '.ros2_performance_monitoring'
     config_dir.mkdir(parents=True, exist_ok=True)
     container_name = image_spec.container_name
-    host_owner = f'{os.getuid()}:{os.getgid()}'
+    host_owner = f'{context.host_uid}:{context.host_gid}'
 
     if keep_container:
-        results_mount = results_absolute_path.parent
+        controller_results_mount = results_absolute_path.parent
         container_results_dir = (
             Path('/benchmark_results')
             / results_absolute_path.name
@@ -163,19 +164,21 @@ def benchmark_runner(
             / ros_distro
         )
     else:
-        results_mount = benchmark_results_dir
+        controller_results_mount = benchmark_results_dir
         container_results_dir = Path('/benchmark_results')
+
+    daemon_results_mount = context.daemon_results_path(controller_results_mount)
 
     cmd = [
         'docker', 'run', '-d',
         '--network=host',
         '--privileged',
         '--shm-size=1000mb',
-        '-v', f'{results_mount}:/benchmark_results',
+        '-v', f'{daemon_results_mount}:/benchmark_results',
         '-v', '/var/run/docker.sock:/var/run/docker.sock',
         '-e', 'ROS_DOMAIN_ID=28',
         '-e', f'SYSTEM_EXECUTOR={executor}',
-        '--label', f'ros2-performance-monitoring.results-root={results_mount}',
+        '--label', f'ros2-performance-monitoring.results-root={daemon_results_mount}',
         '--name', container_name,
         image_spec.image_name,
         'sleep', 'infinity',
@@ -194,7 +197,7 @@ def benchmark_runner(
     if reuse_container:
         _validate_retained_container(
             container_name,
-            results_mount,
+            daemon_results_mount,
             cpuset_cpus,
         )
         _run_subprocess(
