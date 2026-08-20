@@ -13,7 +13,7 @@
       "gridPos": {"h": 3, "w": 24, "x": 0, "y": 0},
       "id": 1,
       "options": {
-        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;height:100%;padding:4px 10px;box-sizing:border-box\"><div><div style=\"font-size:20px;font-weight:650\">Scenario comparability</div><div style=\"margin-top:5px;color:#a8b3cf;font-size:13px\">Exact workload, process-mode, payload, RMW, transport, executor, and node-role combinations in the two runs. Automatic regression conclusions are complete only when both lists are empty.</div></div><a href=\"/d/ros2-regression-overview/default-views?var-library=$library&var-platform=$platform&var-baseline_distro=$baseline_distro&var-candidate_distro=$candidate_distro&var-client_source=$client_source&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"white-space:nowrap;margin-left:20px;padding:8px 12px;background:#3274d9;color:white;text-decoration:none;border-radius:5px;font-weight:600\">← Back to default views</a></div>",
+        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;height:100%;padding:4px 10px;box-sizing:border-box\"><div><div style=\"font-size:20px;font-weight:650\">Scenario comparability</div><div style=\"margin-top:5px;color:#a8b3cf;font-size:13px\">Exact workload, process-mode, payload, RMW, transport, executor, and node-role combinations in the two runs. Automatic regression conclusions are complete only when both lists are empty.</div></div><a href=\"/d/ros2-regression-overview/default-views?var-history_bundle=$history_bundle&var-library=$library&var-platform=$platform&var-baseline_distro=$baseline_distro&var-candidate_distro=$candidate_distro&var-client_source=$client_source&var-topology=$topology&var-baseline_run=$baseline_run&var-candidate_run=$candidate_run\" style=\"white-space:nowrap;margin-left:20px;padding:8px 12px;background:#3274d9;color:white;text-decoration:none;border-radius:5px;font-weight:600\">← Back to default views</a></div>",
         "mode": "html"
       },
       "title": "",
@@ -38,7 +38,7 @@
       "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
       "targets": [
         {
-          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"}))) or vector(0)",
+          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"}))) or vector(0)",
           "instant": true,
           "legendFormat": "Missing from new run",
           "refId": "A"
@@ -65,7 +65,7 @@
       "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "vertical", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
       "targets": [
         {
-          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"}))) or vector(0)",
+          "expr": "count((count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"}))) or vector(0)",
           "instant": true,
           "legendFormat": "Added in new run",
           "refId": "A"
@@ -91,7 +91,7 @@
       "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
       "targets": [
         {
-          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"}))",
+          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"}))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -122,7 +122,7 @@
       "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
       "targets": [
         {
-          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"}))",
+          "expr": "(count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",run_id=\"$candidate_run\",topology=\"$topology\"})) unless on (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (count by (topology,process_mode,payload_bytes,rmw,comm,executor,node_role) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",run_id=\"$baseline_run\",topology=\"$topology\"}))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -144,16 +144,42 @@
   "templating": {
     "list": [
       {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": ".*"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(ros2_perf_bundle_info, bundle_id)",
+        "description": "Select one indexed evidence bundle, or All for legacy single-input mode.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "History bundle",
+        "multi": false,
+        "name": "history_bundle",
+        "options": [],
+        "query": {
+          "query": "label_values(ros2_perf_bundle_info, bundle_id)",
+          "refId": "Prometheus-history_bundle-Variable-Query"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
         "current": {"selected": true, "text": "rclcpp", "value": "rclcpp"},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info, client_library)",
+        "definition": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\"}, client_library)",
         "hide": 0,
         "includeAll": false,
         "label": "Client library",
         "multi": false,
         "name": "library",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info, client_library)", "refId": "Prometheus-library-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\"}, client_library)", "refId": "Prometheus-library-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -163,7 +189,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\"}, platform)",
+        "definition": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\"}, platform)",
         "description": "Compare runs recorded on the same CPU architecture.",
         "hide": 0,
         "includeAll": false,
@@ -171,7 +197,7 @@
         "multi": false,
         "name": "platform",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\"}, platform)", "refId": "Prometheus-platform-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\"}, platform)", "refId": "Prometheus-platform-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -181,7 +207,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)",
+        "definition": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\"}, ros_distro)",
         "description": "Select the ROS distribution used by the reference run.",
         "hide": 0,
         "includeAll": false,
@@ -189,7 +215,7 @@
         "multi": false,
         "name": "baseline_distro",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)", "refId": "Prometheus-baseline-distro-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\"}, ros_distro)", "refId": "Prometheus-baseline-distro-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -199,7 +225,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)",
+        "definition": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\"}, ros_distro)",
         "description": "Select the ROS distribution used by the candidate run.",
         "hide": 0,
         "includeAll": false,
@@ -207,7 +233,7 @@
         "multi": false,
         "name": "candidate_distro",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\"}, ros_distro)", "refId": "Prometheus-candidate-distro-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\"}, ros_distro)", "refId": "Prometheus-candidate-distro-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -217,7 +243,7 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=~\"$baseline_distro|$candidate_distro\"}, client_source)",
+        "definition": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=~\"$baseline_distro|$candidate_distro\"}, client_source)",
         "description": "Choose locally built or distribution-packaged client libraries.",
         "hide": 0,
         "includeAll": false,
@@ -225,7 +251,7 @@
         "multi": false,
         "name": "client_source",
         "options": [],
-        "query": {"query": "label_values(ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=~\"$baseline_distro|$candidate_distro\"}, client_source)", "refId": "Prometheus-client-source-Variable-Query"},
+        "query": {"query": "label_values(ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=~\"$baseline_distro|$candidate_distro\"}, client_source)", "refId": "Prometheus-client-source-Variable-Query"},
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -251,14 +277,14 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",topology=\"$topology\"}))",
+        "definition": "query_result(max by (run_display,run_id) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",topology=\"$topology\"} and on (run_id) label_replace(ros2_perf_comparison_analysis{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",client_source=\"$client_source\"}, \"run_id\", \"$1\", \"baseline_run\", \"(.*)\")))",
         "hide": 0,
         "includeAll": false,
         "label": "Before run",
         "multi": false,
         "name": "baseline_run",
         "options": [],
-        "query": {"query": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",topology=\"$topology\"}))", "refId": "Prometheus-baseline-run-Variable-Query"},
+        "query": {"query": "query_result(max by (run_display,run_id) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$baseline_distro\",client_source=\"$client_source\",topology=\"$topology\"} and on (run_id) label_replace(ros2_perf_comparison_analysis{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",client_source=\"$client_source\"}, \"run_id\", \"$1\", \"baseline_run\", \"(.*)\")))", "refId": "Prometheus-baseline-run-Variable-Query"},
         "refresh": 1,
         "regex": "/.*run_display=\"(?<text>[^\"]+)\".*run_id=\"(?<value>[^\"]+)\".*/",
         "skipUrlSync": false,
@@ -268,14 +294,14 @@
       {
         "current": {},
         "datasource": "Prometheus",
-        "definition": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",topology=\"$topology\",run_id!=\"$baseline_run\"}))",
+        "definition": "query_result(max by (run_display,run_id) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",topology=\"$topology\",run_id!=\"$baseline_run\"} and on (run_id) label_replace(ros2_perf_comparison_analysis{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",client_source=\"$client_source\",baseline_run=\"$baseline_run\"}, \"run_id\", \"$1\", \"candidate_run\", \"(.*)\")))",
         "hide": 0,
         "includeAll": false,
         "label": "After run",
         "multi": false,
         "name": "candidate_run",
         "options": [],
-        "query": {"query": "query_result(max by (run_display,run_id) (ros2_perf_run_info{client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",topology=\"$topology\",run_id!=\"$baseline_run\"}))", "refId": "Prometheus-candidate-run-Variable-Query"},
+        "query": {"query": "query_result(max by (run_display,run_id) (ros2_perf_run_info{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",ros_distro=\"$candidate_distro\",client_source=\"$client_source\",topology=\"$topology\",run_id!=\"$baseline_run\"} and on (run_id) label_replace(ros2_perf_comparison_analysis{bundle_id=~\"$history_bundle\",client_library=\"$library\",platform=\"$platform\",baseline_distro=\"$baseline_distro\",candidate_distro=\"$candidate_distro\",client_source=\"$client_source\",baseline_run=\"$baseline_run\"}, \"run_id\", \"$1\", \"candidate_run\", \"(.*)\")))", "refId": "Prometheus-candidate-run-Variable-Query"},
         "refresh": 1,
         "regex": "/.*run_display=\"(?<text>[^\"]+)\".*run_id=\"(?<value>[^\"]+)\".*/",
         "skipUrlSync": false,
