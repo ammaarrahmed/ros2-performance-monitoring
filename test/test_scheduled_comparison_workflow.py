@@ -25,6 +25,8 @@ WORKFLOW_PATH = (
 WORKFLOW_TEXT = WORKFLOW_PATH.read_text()
 WORKFLOW = yaml.load(WORKFLOW_TEXT, Loader=yaml.BaseLoader)
 PINNED_ACTION = re.compile(r'^[^\s@]+@[0-9a-f]{40}$')
+README_TEXT = (REPOSITORY_ROOT / 'README.md').read_text()
+ARCHITECTURE_TEXT = (REPOSITORY_ROOT / 'doc' / 'architecture.md').read_text()
 
 
 def test_manual_and_gated_off_hours_triggers_never_include_pull_requests():
@@ -169,3 +171,14 @@ def test_every_external_action_is_pinned_to_a_full_commit():
 
     assert action_steps
     assert all(PINNED_ACTION.fullmatch(step['uses']) for step in action_steps)
+
+
+def test_documentation_keeps_smoke_results_non_authoritative_and_schedule_gated():
+    normalized_readme = ' '.join(README_TEXT.split())
+    for text in (README_TEXT, ARCHITECTURE_TEXT):
+        assert 'non-authoritative' in text
+        assert 'benchmark-state' in text
+        assert '14' in text
+    assert 'not calibrated for authoritative performance claims' in README_TEXT
+    assert 'ENABLE_RCLCPP_SCHEDULE' in README_TEXT
+    assert 'exit codes `3` or `4` fail without changing the baseline' in normalized_readme

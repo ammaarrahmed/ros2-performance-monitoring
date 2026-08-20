@@ -22,12 +22,14 @@ This keeps the project focused on:
 - Repeat-aware local statistical comparison reports.
 - Controlled same-target calibration evidence for local benchmark noise.
 - End-to-end local per-commit workflow orchestration and completion evidence.
+- Short-lived scheduled comparison artifacts for latest-versus-last-successful
+  rclcpp revisions.
 
 It avoids taking ownership of:
 
 - Ownership or vendoring of benchmark topology implementations.
 - Hosted statistical analysis or CI-gating policy.
-- Long-running hosted infrastructure.
+- Long-running hosted monitoring infrastructure.
 
 ## Bridge Shape
 
@@ -131,6 +133,41 @@ benchmark target images. Exact `ros2-benchmark-container` and rclcpp targets
 remain content-addressed outputs in the benchmark host's Docker daemon. They
 are neither tagged as project releases nor pushed by the runtime publication
 workflow.
+
+## Scheduled Producer Boundary
+
+The scheduled rclcpp workflow is a thin hosted producer around the same exact
+target resolver, comparison coordinator, and version 2 completion graph used
+locally. A versioned JSON profile pins the benchmark-container commit, suite,
+duration, trial schedule, analysis resamples, and the explicit
+non-authoritative label. The only moving input is the upstream Rolling branch,
+which discovery resolves to a full commit before any build begins.
+
+Discovery reads the last successfully published candidate from a JSON file on
+the `benchmark-state` branch through the GitHub API. An unchanged SHA ends the
+workflow before dependency installation. Otherwise the state SHA becomes the
+single reference and the newest Rolling SHA becomes the single candidate,
+coalescing every missed commit into one experiment. On the first run, an exact
+operator-provided bootstrap SHA takes precedence; without one, the candidate's
+first parent is recorded as the bootstrap source.
+
+The benchmark job has read-only repository permission and is the only job with
+Docker access. Comparison outcomes 0, 1, and 2 represent completed evidence and
+continue to packaging; outcomes 3 and 4 stop before publication or state
+mutation. The full evidence artifact and compact dashboard artifact each add a
+producer manifest and checksum list over their uploaded contents. The manifest
+binds exact reference and candidate SHAs, profile, experiment and benchmark run
+IDs, workflow run identity, comparison outcome, and the non-authoritative
+notice.
+
+State mutation is isolated in a default-branch-only job with `contents: write`.
+It downloads the compact artifact, verifies every checksum and completed exit
+code, derives the next state from that verified manifest, and updates the
+transparent state branch. Workflow concurrency serializes discovery through
+state advancement. There is no pull-request trigger, artifact retention is 14
+days, and derived benchmark images remain runner-local and unpublished. The
+off-hours trigger is additionally gated by an opt-in repository variable until
+the manual integration pilot succeeds.
 
 The comparison workflow is a thin coordinator over the target resolver and
 builder, immutable experiment runner, dataset builder, statistical comparison
