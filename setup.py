@@ -35,7 +35,13 @@ setup(
     },
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml', 'compose.dashboard.yml']),
+        ('share/' + package_name, [
+            'package.xml',
+            'compose.dashboard.yml',
+            'compose.yml',
+            'Dockerfile',
+            'requirements-container.txt',
+        ]),
         (os.path.join('share', package_name, 'doc'), glob('doc/*.md')),
         (os.path.join('share', package_name, 'grafana'), glob('grafana/*.md')),
         (os.path.join('share', package_name, 'config', 'prometheus'),
@@ -56,6 +62,7 @@ setup(
     entry_points={
         'console_scripts': [
             'ros2-performance-monitoring=ros2_performance_monitoring.cli:main',
+            'ros2-performance-exporter=ros2_performance_monitoring.exporter:main',
         ],
     },
 )

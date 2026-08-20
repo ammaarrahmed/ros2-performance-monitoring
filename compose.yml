@@ -1,0 +1,104 @@
+name: ros2-performance-monitoring
+
+services:
+  cli:
+    profiles: [cli]
+    image: ${ROS2_PERFORMANCE_CLI_IMAGE:-ros2-performance-monitoring-cli:local}
+    build:
+      context: .
+      target: cli
+      args:
+        PROJECT_VERSION: ${ROS2_PERFORMANCE_PROJECT_VERSION:-0.0.0}
+        VCS_REF: ${ROS2_PERFORMANCE_VCS_REF:-unknown}
+    user: ${ROS2_PERFORMANCE_HOST_UID:-1000}:${ROS2_PERFORMANCE_HOST_GID:-1000}
+    group_add:
+      - ${ROS2_PERFORMANCE_DOCKER_GID:-65534}
+    environment:
+      HOME: /cache/home
+      ROS2_PERFORMANCE_CONTROLLER_MODE: container
+      ROS2_PERFORMANCE_CONTROLLER_RESULTS_ROOT: /results
+      ROS2_PERFORMANCE_HOST_RESULTS_ROOT: ${ROS2_PERFORMANCE_RESULTS_DIR:-./results}
+      ROS2_PERFORMANCE_CONTROLLER_CACHE_ROOT: /cache
+      ROS2_PERFORMANCE_HOST_CACHE_ROOT: ${ROS2_PERFORMANCE_CACHE_DIR:-./.container-cache}
+      ROS2_PERFORMANCE_HOST_UID: ${ROS2_PERFORMANCE_HOST_UID:-1000}
+      ROS2_PERFORMANCE_HOST_GID: ${ROS2_PERFORMANCE_HOST_GID:-1000}
+      ROS2_PERFORMANCE_CONTROLLER_IMAGE: ${ROS2_PERFORMANCE_CLI_IMAGE:-ros2-performance-monitoring-cli:local}
+    volumes:
+      - type: bind
+        source: ${ROS2_PERFORMANCE_RESULTS_DIR:-./results}
+        target: /results
+      - type: bind
+        source: ${ROS2_PERFORMANCE_CACHE_DIR:-./.container-cache}
+        target: /cache
+      - type: bind
+        source: ${ROS2_PERFORMANCE_DOCKER_SOCKET:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  exporter:
+    profiles: [dashboard]
+    image: ${ROS2_PERFORMANCE_EXPORTER_IMAGE:-ros2-performance-monitoring-exporter:local}
+    build:
+      context: .
+      target: exporter
+      args:
+        PROJECT_VERSION: ${ROS2_PERFORMANCE_PROJECT_VERSION:-0.0.0}
+        VCS_REF: ${ROS2_PERFORMANCE_VCS_REF:-unknown}
+    environment:
+      ROS2_PERFORMANCE_EXPORTER_INPUT: /data/${ROS2_PERFORMANCE_DATASET_PATH:-dashboard-data.jsonl}
+      ROS2_PERFORMANCE_EXPORTER_REPORT: ${ROS2_PERFORMANCE_REPORT_PATH:-}
+      ROS2_PERFORMANCE_EXPORTER_PORT: 9108
+    volumes:
+      - type: bind
+        source: ${ROS2_PERFORMANCE_DASHBOARD_DATA_DIR:-./results}
+        target: /data
+        read_only: true
+    ports:
+      - 127.0.0.1:${ROS2_PERFORMANCE_EXPORTER_PORT:-9108}:9108
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:9108/healthz')
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  prometheus:
+    profiles: [dashboard]
+    image: ${ROS2_PERFORMANCE_PROMETHEUS_IMAGE:-prom/prometheus:v3.13.0}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./config/prometheus/prometheus.container.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - 127.0.0.1:${ROS2_PERFORMANCE_PROMETHEUS_PORT:-9090}:9090
+    depends_on:
+      exporter:
+        condition: service_healthy
+
+  grafana:
+    profiles: [dashboard]
+    image: ${ROS2_PERFORMANCE_GRAFANA_IMAGE:-grafana/grafana:13.1.0}
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/regression_overview.json
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - 127.0.0.1:${ROS2_PERFORMANCE_GRAFANA_PORT:-3000}:3000
+    depends_on:
+      - prometheus

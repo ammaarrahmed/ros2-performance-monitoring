@@ -1,0 +1,53 @@
+#!/usr/bin/env sh
+
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repository_root=$(CDPATH= cd -- "${script_dir}/.." && pwd)
+results_dir=${ROS2_PERFORMANCE_RESULTS_DIR:-"${repository_root}/results"}
+cache_dir=${ROS2_PERFORMANCE_CACHE_DIR:-"${repository_root}/.container-cache"}
+docker_socket=${ROS2_PERFORMANCE_DOCKER_SOCKET:-/var/run/docker.sock}
+
+mkdir -p "${results_dir}" "${cache_dir}" "${cache_dir}/home"
+results_dir=$(CDPATH= cd -- "${results_dir}" && pwd -P)
+cache_dir=$(CDPATH= cd -- "${cache_dir}" && pwd -P)
+
+if [ ! -S "${docker_socket}" ]; then
+  echo "Docker socket is missing or is not a socket: ${docker_socket}" >&2
+  exit 1
+fi
+
+export ROS2_PERFORMANCE_RESULTS_DIR=${results_dir}
+export ROS2_PERFORMANCE_CACHE_DIR=${cache_dir}
+export ROS2_PERFORMANCE_DOCKER_SOCKET=${docker_socket}
+export ROS2_PERFORMANCE_HOST_UID=${ROS2_PERFORMANCE_HOST_UID:-$(id -u)}
+export ROS2_PERFORMANCE_HOST_GID=${ROS2_PERFORMANCE_HOST_GID:-$(id -g)}
+export ROS2_PERFORMANCE_DOCKER_GID=${ROS2_PERFORMANCE_DOCKER_GID:-$(stat -c %g "${docker_socket}")}
+export ROS2_PERFORMANCE_VCS_REF=${ROS2_PERFORMANCE_VCS_REF:-$(git -C "${repository_root}" rev-parse HEAD)}
+export ROS2_PERFORMANCE_DASHBOARD_DATA_DIR=${ROS2_PERFORMANCE_DASHBOARD_DATA_DIR:-${results_dir}}
+
+action=${1:-help}
+if [ "$#" -gt 0 ]; then
+  shift
+fi
+
+case "${action}" in
+  build)
+    exec docker compose -f "${repository_root}/compose.yml" build cli exporter
+    ;;
+  dashboard)
+    exec docker compose -f "${repository_root}/compose.yml" up -d exporter prometheus grafana
+    ;;
+  down)
+    exec docker compose -f "${repository_root}/compose.yml" down
+    ;;
+  cli)
+    exec docker compose -f "${repository_root}/compose.yml" run --rm cli "$@"
+    ;;
+  help)
+    echo "Usage: scripts/container-workflow {build|dashboard|down|cli <arguments>}" >&2
+    ;;
+  *)
+    exec docker compose -f "${repository_root}/compose.yml" run --rm cli "${action}" "$@"
+    ;;
+esac
