@@ -321,6 +321,36 @@ against that overlay, and verifies the active package prefix and linked
 `librclcpp` before writing run metadata or starting a benchmark. There is no
 option to supply a claimed commit separately from the resolved source.
 
+Rolling commits can depend on APIs that have merged into another ROS repository
+but have not reached binary packages yet. Supply those sources with an exact
+[`vcstool`](https://github.com/dirk-thomas/vcstool) manifest:
+
+```yaml
+repositories:
+  ros2/rcl:
+    type: git
+    url: https://github.com/ros2/rcl.git
+    version: <full-40-character-rcl-commit>
+```
+
+```bash
+ros2-performance-monitoring experiment compare \
+  --reference-ref <reference-rclcpp-commit> \
+  --candidate-ref <candidate-rclcpp-commit> \
+  --source-dependencies ./rolling-source-dependencies.repos \
+  --results-dir ./experiments/rclcpp-change
+```
+
+Dependency manifests accept Git repositories and full lowercase commit SHAs
+only. The command validates the standard `.repos` structure, verifies every
+commit, creates managed immutable worktrees, and builds the dependency workspace
+before rclcpp. Both comparison targets use the same snapshot, so dependency
+movement cannot be mistaken for the candidate's effect inside a comparison.
+Repository paths, URLs, and exact commits are included in the target key, Docker
+labels, `plan.json`, and the in-image target manifest. The same option is
+available on `run`, `build-container`, `experiment run`, and `experiment
+calibrate`; it cannot be combined with packaged rclcpp targets.
+
 Without `--client-library-source build`, the normal ROS package installation is
 used and recorded explicitly as `packaged`. Packaged images receive the same
 label, manifest, prefix, and dynamic-library checks. The benchmark repository
@@ -387,9 +417,9 @@ The real invocation publishes the immutable `plan.json` only after both refs
 resolve and both target images are verified. Run the identical command again to
 resume. Verified images, completed trials, the dataset, and a matching report
 are reused only when their complete checksum chain remains valid. A changed
-target, ROS distribution, suite, executor, duration, CPU set, benchmark commit,
-trial count, order, or scheduling seed is rejected with an instruction to use a
-new result directory.
+target, source dependency snapshot, ROS distribution, suite, executor, duration,
+CPU set, benchmark commit, trial count, order, or scheduling seed is rejected
+with an instruction to use a new result directory.
 
 Warm-ups run through the same benchmark path but are omitted automatically from
 the dataset and median lineage. Failed builds and workflow stages are recorded
@@ -1032,12 +1062,13 @@ docker version
 docker buildx version
 ```
 
-It uses `vcstool` to fetch the external benchmark container repository and Git
-to resolve optional rclcpp source targets. For pip installs, `vcstool` is
-installed as a Python package dependency. For ROS 2 workspace installs,
-`rosdep` installs it from the `python3-vcstool` package. The Docker build pulls
-and exports a large ROS 2 base image, so make sure Docker has several GB of free
-disk space available.
+It uses `vcstool` to fetch the external benchmark container repository and to
+validate optional exact source dependency manifests. Git resolves rclcpp and
+dependency source targets. For pip installs, `vcstool` and PyYAML are Python
+package dependencies. For ROS 2 workspace installs, `rosdep` installs
+`python3-vcstool` and `python3-yaml`. The Docker build pulls and exports a large
+ROS 2 base image, so make sure Docker has several GB of free disk space
+available.
 
 The upstream benchmark Dockerfile remains in the external repository. The
 command fetches or updates that checkout before starting Docker. By default it
@@ -1047,17 +1078,17 @@ is stored at:
 ~/.cache/ros2-performance-monitoring
 ```
 
-Managed rclcpp mirrors, immutable worktrees, and prepared benchmark script
-contexts are stored beside it under:
+Managed rclcpp and source dependency mirrors, immutable worktrees, and prepared
+benchmark script contexts are stored beside it under:
 
 ```text
 ~/.cache/ros2-performance-monitoring-targets
 ```
 
 The final image identity includes the ROS distribution, Docker architecture,
-benchmark-container commit, rclcpp source and commit, and build configuration.
-The image tag and retained-container name contain a prefix of that identity
-key. Full inputs are recorded in Docker labels and in
+benchmark-container commit, rclcpp source and commit, exact source dependency
+snapshot, and build configuration. The image tag and retained-container name
+contain a prefix of that identity key. Full inputs are recorded in Docker labels and in
 `/etc/ros2-performance-monitoring/target-manifest.json` inside the image.
 
 On a fresh machine, `build-container` can be run directly:

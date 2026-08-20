@@ -33,7 +33,11 @@ pytestmark = [
     ),
 ]
 
-ROLLING_REFERENCE_COMMIT = '20536064aac0d547e128d95337867b473c3efa85'
+ROLLING_REFERENCE_COMMIT = '329abd884470b2693da0127604eb3cf1066c4112'
+ROLLING_CANDIDATE_COMMIT = 'b48b3a3d93d492f730ac3d1ca3580df0a6ac80eb'
+ROLLING_SOURCE_DEPENDENCIES = (
+    Path(__file__).resolve().parent / 'fixtures' / 'rolling-source-dependencies.repos'
+)
 
 
 def test_two_source_targets_produce_a_complete_validated_bundle(tmp_path):
@@ -47,7 +51,7 @@ def test_two_source_targets_produce_a_complete_validated_bundle(tmp_path):
     )
     candidate_ref = os.environ.get(
         'ROS2_PERFORMANCE_INTEGRATION_CANDIDATE_REF',
-        'rolling',
+        ROLLING_CANDIDATE_COMMIT,
     )
     root = tmp_path / 'comparison'
     result = run_comparison_workflow(ComparisonWorkflowOptions(
@@ -64,6 +68,10 @@ def test_two_source_targets_produce_a_complete_validated_bundle(tmp_path):
         order='balanced',
         schedule_seed=0,
         cache_dir=cache_dir,
+        source_dependencies_file=os.environ.get(
+            'ROS2_PERFORMANCE_INTEGRATION_SOURCE_DEPENDENCIES',
+            str(ROLLING_SOURCE_DEPENDENCIES),
+        ),
         bootstrap_repeats=100,
     ))
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from pathlib import Path
 
 import pytest
 from ros2_performance_monitoring.benchmark_image import BenchmarkImageSpec
@@ -22,6 +23,7 @@ from ros2_performance_monitoring.client_target import DEFAULT_RCLCPP_REPOSITORY
 from ros2_performance_monitoring.client_target import resolve_rclcpp_target
 from ros2_performance_monitoring.container_provider import get_default_container_repo
 from ros2_performance_monitoring.container_provider import setup_container_repo
+from ros2_performance_monitoring.source_dependencies import resolve_source_dependency_snapshot
 
 
 pytestmark = [
@@ -32,7 +34,11 @@ pytestmark = [
     ),
 ]
 
-ROLLING_INTEGRATION_RCLCPP_COMMIT = '20536064aac0d547e128d95337867b473c3efa85'
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+ROLLING_INTEGRATION_RCLCPP_COMMIT = 'b48b3a3d93d492f730ac3d1ca3580df0a6ac80eb'
+ROLLING_SOURCE_DEPENDENCIES = (
+    REPOSITORY_ROOT / 'test' / 'fixtures' / 'rolling-source-dependencies.repos'
+)
 
 
 def test_source_target_builds_and_verifies_inside_image():
@@ -51,6 +57,13 @@ def test_source_target_builds_and_verifies_inside_image():
         rclcpp_ref,
         cache_dir,
     )
+    source_dependencies = resolve_source_dependency_snapshot(
+        os.environ.get(
+            'ROS2_PERFORMANCE_INTEGRATION_SOURCE_DEPENDENCIES',
+            str(ROLLING_SOURCE_DEPENDENCIES),
+        ),
+        cache_dir,
+    )
     benchmark_commit = setup_container_repo(
         benchmark_url,
         benchmark_ref,
@@ -63,6 +76,7 @@ def test_source_target_builds_and_verifies_inside_image():
         benchmark_requested_ref=benchmark_ref,
         benchmark_resolved_commit=benchmark_commit,
         client_target=target,
+        source_dependencies=source_dependencies,
     )
 
     verified = build_benchmark_image(spec, cache_dir)
