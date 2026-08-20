@@ -224,8 +224,11 @@ image ID, active rclcpp package prefix, and the benchmark executable's dynamic
 library resolution are checked before execution.
 
 Source-built rclcpp targets are resolved through a managed Git mirror and
-immutable worktree. The derived image builds that checkout as an overlay, then
-rebuilds the benchmark workspace against it. Packaged targets retain the ROS
+immutable worktree. Optional exact vcstool manifests resolve additional Git
+repositories into one content-addressed dependency workspace. The derived image
+builds that workspace first, builds rclcpp over it, then rebuilds the benchmark
+workspace. Dependency paths, URLs, and commits are part of the target identity;
+two comparison targets must share them. Packaged targets retain the ROS
 installation underlay and are labelled explicitly as packaged. Run metadata is
 created from the verified target rather than from user-provided commit claims.
 
