@@ -54,6 +54,24 @@ def test_workflow_rejects_interleaved_schedule_before_preflight(
     assert not root.exists()
 
 
+def test_normal_comparison_still_rejects_identical_resolved_targets(tmp_path):
+    options = _options(tmp_path)
+    target = _target(REFERENCE_COMMIT)
+
+    with pytest.raises(
+        workflow.ComparisonWorkflowError,
+        match='resolve to the same target',
+    ):
+        workflow._image_specs(
+            options,
+            'amd64',
+            {'reference': target, 'candidate': target},
+            CONTAINER_REPOSITORY,
+            'rolling',
+            BENCHMARK_COMMIT,
+        )
+
+
 def test_mocked_end_to_end_workflow_composes_stages_and_reuses_completed_work(
     tmp_path,
     monkeypatch,
