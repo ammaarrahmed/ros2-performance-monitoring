@@ -1,0 +1,319 @@
+name: Produce latest rclcpp comparison
+
+on:
+  workflow_dispatch:
+    inputs:
+      bootstrap_sha:
+        description: Optional exact first-run rclcpp baseline SHA
+        required: false
+        type: string
+  schedule:
+    # The discover job remains gated by ENABLE_RCLCPP_SCHEDULE until the manual pilot passes.
+    - cron: '37 2 * * 1'
+
+permissions: {}
+
+concurrency:
+  group: scheduled-rclcpp-comparison
+  cancel-in-progress: false
+
+env:
+  PROFILE_NAME: rolling-workflow-smoke-v1
+  PROFILE_PATH: .github/benchmark-profiles/rolling-workflow-smoke-v1.json
+  STATE_BRANCH: benchmark-state
+  STATE_PATH: .benchmark-state/rclcpp-last-successful.json
+
+jobs:
+  discover:
+    name: Discover latest and last successful SHAs
+    if: github.event_name != 'schedule' || vars.ENABLE_RCLCPP_SCHEDULE == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      should_run: ${{ steps.plan.outputs.should_run }}
+      reference_sha: ${{ steps.plan.outputs.reference_sha }}
+      candidate_sha: ${{ steps.plan.outputs.candidate_sha }}
+      baseline_source: ${{ steps.plan.outputs.baseline_source }}
+      missed_commit_count: ${{ steps.plan.outputs.missed_commit_count }}
+    steps:
+      - name: Check out the producer revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve one coalesced comparison plan
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOOTSTRAP_SHA: ${{ inputs.bootstrap_sha }}
+        run: |
+          set -euo pipefail
+          python3 -m ros2_performance_monitoring.scheduled_comparison discover \
+            --profile "${PROFILE_PATH}" \
+            --github-repository "${GITHUB_REPOSITORY}" \
+            --bootstrap-sha "${BOOTSTRAP_SHA}" \
+            --output "${RUNNER_TEMP}/producer-plan.json" \
+            --github-output "${GITHUB_OUTPUT}"
+          cat "${RUNNER_TEMP}/producer-plan.json"
+
+      - name: Explain an unchanged upstream skip
+        if: steps.plan.outputs.should_run == 'false'
+        env:
+          CANDIDATE_SHA: ${{ steps.plan.outputs.candidate_sha }}
+        run: |
+          {
+            echo '## rclcpp comparison skipped'
+            echo
+            echo "Rolling still resolves to \`${CANDIDATE_SHA}\`, the last successfully published SHA."
+            echo 'The workflow stopped before installing dependencies or building images.'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  benchmark:
+    name: Run pinned non-authoritative smoke comparison
+    needs: discover
+    if: needs.discover.outputs.should_run == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      REFERENCE_SHA: ${{ needs.discover.outputs.reference_sha }}
+      CANDIDATE_SHA: ${{ needs.discover.outputs.candidate_sha }}
+      BENCHMARK_CACHE: ${{ github.workspace }}/.scheduled-cache/benchmark
+      RESULTS_DIR: ${{ github.workspace }}/results/scheduled-comparison
+      COMPACT_DIR: ${{ github.workspace }}/results/dashboard-bundle
+      FULL_ARTIFACT_NAME: rclcpp-evidence-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
+      DASHBOARD_ARTIFACT_NAME: rclcpp-dashboard-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
+    outputs:
+      comparison_exit_code: ${{ steps.bundle.outputs.comparison_exit_code }}
+      comparison_outcome: ${{ steps.bundle.outputs.comparison_outcome }}
+      full_artifact_name: ${{ env.FULL_ARTIFACT_NAME }}
+      dashboard_artifact_name: ${{ env.DASHBOARD_ARTIFACT_NAME }}
+      elapsed_seconds: ${{ steps.metrics.outputs.elapsed_seconds }}
+      artifact_bytes: ${{ steps.metrics.outputs.artifact_bytes }}
+    steps:
+      - name: Check out the producer revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore source repository caches
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .scheduled-cache/benchmark
+            .scheduled-cache/benchmark-targets
+          key: rclcpp-producer-${{ runner.os }}-${{ env.PROFILE_NAME }}-${{ needs.discover.outputs.candidate_sha }}
+          restore-keys: |
+            rclcpp-producer-${{ runner.os }}-${{ env.PROFILE_NAME }}-
+
+      - name: Install the pinned controller dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r requirements-container.txt
+          python3 -m pip install --disable-pip-version-check --no-deps .
+
+      - name: Record initial runtime and storage diagnostics
+        run: |
+          set -euo pipefail
+          date +%s > "${RUNNER_TEMP}/comparison-started"
+          uname -a
+          free -h
+          df -h "${GITHUB_WORKSPACE}" /var/lib/docker
+          docker version
+          docker buildx version
+          docker system df
+
+      - name: Run the exact-ref comparison
+        id: compare
+        shell: bash
+        run: |
+          set -o pipefail
+          benchmark_ref=$(jq -r '.benchmark_container.ref' "${PROFILE_PATH}")
+          set +e
+          ros2-performance-monitoring experiment compare \
+            --reference-ref "${REFERENCE_SHA}" \
+            --candidate-ref "${CANDIDATE_SHA}" \
+            --rclcpp-repo-url https://github.com/ros2/rclcpp.git \
+            --container-repo-url https://github.com/ros2/ros2-benchmark-container.git \
+            --container-ref "${benchmark_ref}" \
+            --ros-distro rolling \
+            --suite rclcpp-minimal \
+            --executor EventsCBGExecutor \
+            --duration 1 \
+            --warmups 0 \
+            --repeats 3 \
+            --order balanced \
+            --seed 0 \
+            --bootstrap-repeats 100 \
+            --bootstrap-seed 0 \
+            --minimum-trials 3 \
+            --cache-dir "${BENCHMARK_CACHE}" \
+            --results-dir "${RESULTS_DIR}" \
+            2>&1 | tee "${RUNNER_TEMP}/comparison.log"
+          comparison_exit=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${comparison_exit}" >> "${GITHUB_OUTPUT}"
+          case "${comparison_exit}" in
+            0|1|2) ;;
+            3|4) exit "${comparison_exit}" ;;
+            *) echo "Unexpected comparison exit code: ${comparison_exit}" >&2; exit 4 ;;
+          esac
+
+      - name: Validate and assemble both publication bundles
+        id: bundle
+        run: |
+          set -euo pipefail
+          python3 -m ros2_performance_monitoring.scheduled_comparison bundle \
+            --profile "${PROFILE_PATH}" \
+            --evidence-dir "${RESULTS_DIR}" \
+            --compact-dir "${COMPACT_DIR}" \
+            --reference-sha "${REFERENCE_SHA}" \
+            --candidate-sha "${CANDIDATE_SHA}" \
+            --github-repository "${GITHUB_REPOSITORY}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}"
+          manifest="${COMPACT_DIR}/producer-manifest.json"
+          echo "comparison_exit_code=$(jq -r .comparison_exit_code "${manifest}")" \
+            >> "${GITHUB_OUTPUT}"
+          echo "comparison_outcome=$(jq -r .comparison_outcome "${manifest}")" \
+            >> "${GITHUB_OUTPUT}"
+
+      - name: Measure producer cost
+        id: metrics
+        run: |
+          set -euo pipefail
+          started=$(<"${RUNNER_TEMP}/comparison-started")
+          echo "elapsed_seconds=$(($(date +%s) - started))" >> "${GITHUB_OUTPUT}"
+          echo "artifact_bytes=$(du -sb "${RESULTS_DIR}" "${COMPACT_DIR}" | awk '{sum += $1} END {print sum}')" \
+            >> "${GITHUB_OUTPUT}"
+
+      - name: Upload complete evidence bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.FULL_ARTIFACT_NAME }}
+          path: ${{ env.RESULTS_DIR }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload compact dashboard bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.DASHBOARD_ARTIFACT_NAME }}
+          path: ${{ env.COMPACT_DIR }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report exact artifact identity and inspection command
+        env:
+          EXIT_CODE: ${{ steps.bundle.outputs.comparison_exit_code }}
+          OUTCOME: ${{ steps.bundle.outputs.comparison_outcome }}
+          ELAPSED_SECONDS: ${{ steps.metrics.outputs.elapsed_seconds }}
+          ARTIFACT_BYTES: ${{ steps.metrics.outputs.artifact_bytes }}
+          BASELINE_SOURCE: ${{ needs.discover.outputs.baseline_source }}
+          MISSED_COMMITS: ${{ needs.discover.outputs.missed_commit_count }}
+        run: |
+          {
+            echo "## ${PROFILE_NAME} producer result"
+            echo
+            echo '> Pipeline smoke evidence only; this profile is not calibrated for authoritative performance claims.'
+            echo
+            echo "Reference: \`${REFERENCE_SHA}\` (${BASELINE_SOURCE})"
+            echo
+            echo "Candidate: \`${CANDIDATE_SHA}\` (${MISSED_COMMITS} upstream commit(s) coalesced)"
+            echo
+            echo "Outcome: **${OUTCOME}** (completed exit code ${EXIT_CODE})"
+            echo
+            echo "Artifacts: \`${FULL_ARTIFACT_NAME}\`, \`${DASHBOARD_ARTIFACT_NAME}\`"
+            echo
+            echo "Elapsed: ${ELAPSED_SECONDS}s; uncompressed upload inputs: ${ARTIFACT_BYTES} bytes"
+            echo
+            echo 'Inspect the compact artifact locally:'
+            echo '```bash'
+            echo "gh run download ${GITHUB_RUN_ID} --repo ${GITHUB_REPOSITORY} --name ${DASHBOARD_ARTIFACT_NAME} --dir ./rclcpp-dashboard"
+            echo "python3 -m ros2_performance_monitoring.scheduled_comparison validate --profile ${PROFILE_PATH} --bundle ./rclcpp-dashboard"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Collect failure diagnostics
+        if: failure()
+        run: |
+          free -h || true
+          df -h "${GITHUB_WORKSPACE}" /var/lib/docker || true
+          docker system df -v || true
+          docker ps -a --size || true
+          test ! -f "${RUNNER_TEMP}/comparison.log" || tail -n 500 "${RUNNER_TEMP}/comparison.log"
+
+      - name: Clean runner containers and temporary images
+        if: always()
+        run: |
+          docker container prune --force || true
+          docker image prune --force || true
+
+  advance_state:
+    name: Advance durable last-successful state
+    needs: [discover, benchmark]
+    if: >-
+      needs.benchmark.result == 'success' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Check out the exact trusted producer revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download compact dashboard bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.benchmark.outputs.dashboard_artifact_name }}
+          path: ${{ runner.temp }}/dashboard-bundle
+
+      - name: Validate completion and prepare new state
+        env:
+          DASHBOARD_ARTIFACT_NAME: ${{ needs.benchmark.outputs.dashboard_artifact_name }}
+        run: |
+          set -euo pipefail
+          python3 -m ros2_performance_monitoring.scheduled_comparison state \
+            --profile "${PROFILE_PATH}" \
+            --bundle "${RUNNER_TEMP}/dashboard-bundle" \
+            --artifact-name "${DASHBOARD_ARTIFACT_NAME}" \
+            --output "${RUNNER_TEMP}/next-state.json"
+
+      - name: Update the transparent state branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${STATE_BRANCH}" >/dev/null 2>&1; then
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f "ref=refs/heads/${STATE_BRANCH}" \
+              -f "sha=${GITHUB_SHA}" >/dev/null
+          fi
+          existing_sha=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/contents/${STATE_PATH}?ref=${STATE_BRANCH}" \
+            --jq .sha 2>/dev/null || true)
+          content=$(base64 -w0 "${RUNNER_TEMP}/next-state.json")
+          if [[ -n "${existing_sha}" ]]; then
+            jq -n \
+              --arg message "Advance ${PROFILE_NAME} last-successful state" \
+              --arg content "${content}" \
+              --arg branch "${STATE_BRANCH}" \
+              --arg sha "${existing_sha}" \
+              '{message: $message, content: $content, branch: $branch, sha: $sha}'
+          else
+            jq -n \
+              --arg message "Initialize ${PROFILE_NAME} last-successful state" \
+              --arg content "${content}" \
+              --arg branch "${STATE_BRANCH}" \
+              '{message: $message, content: $content, branch: $branch}'
+          fi > "${RUNNER_TEMP}/state-update.json"
+          gh api --method PUT \
+            "repos/${GITHUB_REPOSITORY}/contents/${STATE_PATH}" \
+            --input "${RUNNER_TEMP}/state-update.json" >/dev/null
