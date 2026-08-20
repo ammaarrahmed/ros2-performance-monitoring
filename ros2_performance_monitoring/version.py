@@ -21,13 +21,20 @@ import xml.etree.ElementTree as ET
 
 
 PACKAGE_DISTRIBUTION = 'ros2-performance-monitoring'
+PACKAGE_NAME = 'ros2_performance_monitoring'
 
 
 def project_version() -> str:
     """Return the package.xml version in source or installed metadata."""
-    source_manifest = Path(__file__).resolve().parents[1] / 'package.xml'
-    if source_manifest.is_file():
-        return package_xml_version(source_manifest)
+    module_path = Path(__file__).resolve()
+    manifests = [module_path.parents[1] / 'package.xml']
+    manifests.extend(
+        parent / 'share' / PACKAGE_NAME / 'package.xml'
+        for parent in module_path.parents
+    )
+    for manifest in manifests:
+        if manifest.is_file():
+            return package_xml_version(manifest)
     try:
         return version(PACKAGE_DISTRIBUTION)
     except PackageNotFoundError as exc:

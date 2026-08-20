@@ -23,6 +23,7 @@ from ros2_performance_monitoring import __version__
 import ros2_performance_monitoring.cli as cli
 from ros2_performance_monitoring.release_contract import ReleaseContractError
 from ros2_performance_monitoring.release_contract import validate_release_contract
+import ros2_performance_monitoring.version as version_module
 from ros2_performance_monitoring.version import package_xml_version
 
 
@@ -59,6 +60,26 @@ def test_release_contract_accepts_matching_identity():
         PROJECT_VERSION,
         REVISION,
     )
+
+
+def test_installed_version_prefers_installed_package_xml(tmp_path, monkeypatch):
+    install_root = tmp_path / 'install' / 'ros2_performance_monitoring'
+    module = (
+        install_root
+        / 'lib/python3.14/site-packages/ros2_performance_monitoring/version.py'
+    )
+    manifest = install_root / 'share/ros2_performance_monitoring/package.xml'
+    module.parent.mkdir(parents=True)
+    manifest.parent.mkdir(parents=True)
+    module.touch()
+    manifest.write_text(
+        '<package><version>2.3.4</version></package>',
+        encoding='utf-8',
+    )
+    monkeypatch.setattr(version_module, '__file__', str(module))
+    monkeypatch.setattr(version_module, 'version', lambda distribution: '0.0.0')
+
+    assert version_module.project_version() == '2.3.4'
 
 
 @pytest.mark.parametrize(
