@@ -73,6 +73,117 @@ class StatisticalComparisonError(ValueError):
     """Report an invalid analysis configuration or malformed experiment plan."""
 
 
+def load_paired_metric_samples(
+    plan,
+    trial_records,
+    *,
+    reference='reference',
+    candidate='candidate',
+    calibration=False,
+):
+    """Load validated paired KPI samples from a balanced experiment plan."""
+    targets = _target_map(plan)
+    if reference == candidate:
+        raise StatisticalComparisonError('paired streams must use different labels')
+    if reference not in targets or candidate not in targets:
+        raise StatisticalComparisonError(
+            'selected paired stream is not present in the experiment plan'
+        )
+    same_target = targets[reference].get('target_key') == targets[candidate].get(
+        'target_key'
+    )
+    if calibration:
+        if plan.get('purpose') != 'calibration':
+            raise StatisticalComparisonError(
+                'identical-target samples require an explicit calibration plan'
+            )
+        if not same_target:
+            raise StatisticalComparisonError(
+                'calibration streams must resolve to the same target identity'
+            )
+        if targets[reference].get('identity') != targets[candidate].get('identity'):
+            raise StatisticalComparisonError(
+                'calibration streams have inconsistent target provenance'
+            )
+    else:
+        compatibility_error = _target_compatibility_error(
+            targets[reference],
+            targets[candidate],
+        )
+        if compatibility_error:
+            raise StatisticalComparisonError(compatibility_error)
+
+    pairs, pairing_error = _paired_trials(plan, reference, candidate)
+    if pairing_error:
+        raise StatisticalComparisonError(pairing_error)
+    loaded_pairs = []
+    for pair in pairs:
+        reference_records = _measured_records(
+            trial_records.get(pair['reference']['trial_id']),
+            pair['reference']['trial_id'],
+        )
+        candidate_records = _measured_records(
+            trial_records.get(pair['candidate']['trial_id']),
+            pair['candidate']['trial_id'],
+        )
+        if reference_records is None or candidate_records is None:
+            raise StatisticalComparisonError(
+                f'measured trial block {pair["sequence"]} is not complete'
+            )
+        loaded_pairs.append((pair, reference_records, candidate_records))
+    validation_error = _validate_records(
+        loaded_pairs,
+        targets,
+        reference,
+        candidate,
+    )
+    if validation_error:
+        _status, reason = validation_error
+        raise StatisticalComparisonError(reason)
+    metric_pairs = _metric_pairs(loaded_pairs)
+    if not metric_pairs:
+        raise StatisticalComparisonError(
+            'the experiment contains no supported KPI metrics'
+        )
+    return targets, pairs, metric_pairs
+
+
+def analyse_paired_metric(
+    pairs,
+    direction,
+    *,
+    confidence_level=DEFAULT_CONFIDENCE_LEVEL,
+    bootstrap_repeats=DEFAULT_BOOTSTRAP_REPEATS,
+    seed=DEFAULT_SEED,
+):
+    """Calculate paired effects and the comparison engine's bootstrap interval."""
+    _validate_analysis_options(
+        confidence_level,
+        bootstrap_repeats,
+        seed,
+        MINIMUM_MEASURED_TRIALS,
+    )
+    if not pairs:
+        raise StatisticalComparisonError('paired metric samples must not be empty')
+    effects = tuple(
+        _adverse_effect(reference, candidate, direction)
+        for reference, candidate in pairs
+    )
+    point = _effect_for_pairs(pairs, direction)
+    distribution = _bootstrap_distribution(
+        pairs,
+        direction,
+        bootstrap_repeats,
+        seed,
+    )
+    lower, upper = _interval(distribution, confidence_level)
+    return {
+        'paired_effects': effects,
+        'point_estimate': point,
+        'confidence_interval': (lower, upper),
+    }
+
+
 def comparison_exit_code(report):
     """Map the report's overall evidence status to the documented CLI outcome."""
     status = report.get('overall', {}).get('status')
