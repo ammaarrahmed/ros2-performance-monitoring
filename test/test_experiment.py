@@ -47,6 +47,29 @@ def test_same_plan_and_seed_produce_same_balanced_order():
     assert measured[2:4] == list(reversed(measured[4:6]))
 
 
+def test_identical_targets_are_allowed_only_for_calibration():
+    specs, images = _targets()
+    specs['candidate'] = specs['reference']
+    images['candidate'] = images['reference']
+
+    with pytest.raises(ExperimentError, match='targets must be different'):
+        _plan(specs, images, warmups=0, repeats=2)
+
+    plan = _plan(
+        specs,
+        images,
+        warmups=0,
+        repeats=2,
+        calibration=True,
+    )
+
+    assert plan['purpose'] == 'calibration'
+    assert plan['targets'][0]['target_key'] == plan['targets'][1]['target_key']
+    assert len({trial['trial_id'] for trial in plan['schedule']['trials']}) == 4
+    measured = [trial['target'] for trial in plan['schedule']['trials']]
+    assert measured[0:2] == list(reversed(measured[2:4]))
+
+
 def test_different_targets_have_unique_trial_ids_images_and_directories(tmp_path):
     specs, images = _targets()
     plan = _plan(specs, images, warmups=0, repeats=1)
@@ -464,6 +487,18 @@ def test_changed_immutable_configuration_prevents_resume(tmp_path, field, value)
         run_experiment(root, changed, specs, images)
 
 
+def test_calibration_purpose_is_part_of_immutable_resume_plan(tmp_path):
+    specs, images = _targets()
+    plan = _plan(specs, images, warmups=0, repeats=1)
+    root = tmp_path / 'experiment'
+    write_json(plan, root / 'plan.json')
+    changed = deepcopy(plan)
+    changed['purpose'] = 'calibration'
+
+    with pytest.raises(ExperimentError, match='immutable configuration'):
+        run_experiment(root, changed, specs, images)
+
+
 def test_changed_target_or_benchmark_commit_prevents_resume(tmp_path):
     specs, images = _targets()
     plan = _plan(specs, images, warmups=0, repeats=1)
@@ -541,7 +576,7 @@ def test_trial_publication_failure_never_exposes_completion_marker(
     assert not (root / 'experiment.complete.json').exists()
 
 
-def _plan(specs, images, warmups=1, repeats=2, seed=42):
+def _plan(specs, images, warmups=1, repeats=2, seed=42, calibration=False):
     return build_experiment_plan(
         specs,
         images,
@@ -555,6 +590,7 @@ def _plan(specs, images, warmups=1, repeats=2, seed=42):
         seed=seed,
         experiment_id='experiment-test',
         created_at='2026-08-18T00:00:00+00:00',
+        calibration=calibration,
     )
 
 
