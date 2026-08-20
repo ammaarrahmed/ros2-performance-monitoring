@@ -4,6 +4,9 @@ Changelog for package ros2_performance_monitoring
 
 0.0.0 (unreleased)
 ------------------
+* Added a container-first workflow with shared CLI and exporter image targets,
+  explicit controller-to-daemon path mapping, non-root ownership and socket
+  access, verified controller provenance, and a complete Compose dashboard.
 * Added a controlled, resumable A/A calibration workflow with same-commit
   balanced trial streams, versioned noise evidence, environment observations,
   and non-gating exit semantics.

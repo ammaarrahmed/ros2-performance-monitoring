@@ -49,6 +49,56 @@ focused host preflight
         -> calibration.complete.json (never a dashboard or gate input)
 ```
 
+## Controller Execution Boundary
+
+The host-installed and containerized commands share the same Python
+orchestration code. Container mode changes only the controller boundary. It
+uses Docker-outside-of-Docker through the mounted host socket; it does not add
+a nested daemon, storage driver, network, cgroup hierarchy, or ROS runtime:
+
+```text
+Linux host Docker daemon
+  +-- non-root CLI controller (or host-installed CLI)
+  +-- privileged benchmark container using host networking and shared memory
+  +-- optional helper containers started by the external benchmark
+  +-- non-root exporter without Docker access
+```
+
+The measured ROS process stays in `ros2/ros2-benchmark-container`. The
+controller resolves inputs, sends build contexts through the Docker client,
+starts the verified benchmark sibling, invokes the existing workload through
+`docker exec`, and waits for it. Host networking, privilege, shared-memory
+size, CPU-set selection, result mount, Docker socket, and governor behavior are
+unchanged for the benchmark container.
+
+Container and daemon paths are separate types at the orchestration boundary.
+The controller validates a results mapping and a cache mapping supplied by
+Compose. Filesystem operations and Buildx client contexts use controller paths;
+daemon bind mounts and retained-container labels use translated absolute host
+paths. Relative paths resolve below the declared controller root, and absolute
+paths outside it are rejected. This keeps paths containing spaces safe and
+prevents resume or container reuse from accidentally comparing one namespace
+with another.
+
+The controller process runs with the invoking host UID and GID. Compose adds
+only the host Docker socket group, and the benchmark container restores raw
+result ownership to the explicitly supplied host IDs. Results and source caches
+are bind-mounted and persist independently of the controller image.
+
+Preflight verifies the connected daemon identity through `docker info`. In
+container mode it measures Docker-root free space with a read-only, networkless
+BusyBox sibling that mounts the host root; it never treats the daemon's
+`DockerRootDir` as a controller-local directory. Trial evidence records the
+controller mode, project version, inspected controller image identity, Docker
+client version, and verified server identity. Container image claims are
+accepted only when they match inspection of the running container and image.
+
+The `exporter` image is built from the same source wheel as the `cli` image but
+contains no Docker client, `vcstool`, socket, or benchmark runtime. Compose runs
+it as non-root with a read-only evidence mount and root filesystem, dropped
+capabilities, and `no-new-privileges`. Prometheus reaches it over the Compose
+network rather than through a host-installed Python process.
+
 The comparison workflow is a thin coordinator over the target resolver and
 builder, immutable experiment runner, dataset builder, statistical comparison
 engine, report validator, and dashboard command. It does not reimplement their
