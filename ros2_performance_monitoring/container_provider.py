@@ -18,6 +18,7 @@ import shutil
 import subprocess
 from typing import Optional, Tuple
 
+from .controller import resolve_cache_path
 from .remote_ref import resolve_remote_commit
 
 CONTAINER_REPOS_FILE: Path = Path(__file__).with_name('ros2_benchmark_container.repos')
@@ -70,8 +71,7 @@ def setup_container_repo(container_repo_url: str, container_ref: str, cache_dir:
     if shutil.which('vcs') is None:
         raise RuntimeError('vcstool executable "vcs" was not found on PATH')
 
-    relative_path = Path(cache_dir)
-    absolute_path = relative_path.expanduser().resolve()
+    absolute_path = resolve_cache_path(cache_dir)
     absolute_path.mkdir(parents=True, exist_ok=True)
     update_existing_cache_remote(absolute_path, container_repo_url)
     default_container_repo_url, default_container_ref = get_default_container_repo()

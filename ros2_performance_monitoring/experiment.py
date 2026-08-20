@@ -27,6 +27,8 @@ import uuid
 
 from .artifacts import discover_benchmark_artifacts
 from .benchmark_runner import benchmark_runner
+from .controller import collect_controller_provenance
+from .controller import resolve_results_path
 from .dataset import build_dataset
 from .dataset import DatasetError
 from .dataset import manifest_path_for
@@ -184,7 +186,7 @@ def run_experiment(
     environment_collector=None,
 ):
     """Execute or safely resume an immutable local experiment bundle."""
-    root = Path(experiment_dir).expanduser().resolve()
+    root = resolve_results_path(experiment_dir)
     plan = prepare_experiment(
         root,
         requested_plan,
@@ -280,7 +282,7 @@ def prepare_experiment(
     verified_images,
 ):
     """Publish or validate a plan and its verified runtime target identities."""
-    root = Path(experiment_dir).expanduser().resolve()
+    root = resolve_results_path(experiment_dir)
     plan = _publish_or_validate_plan(root, requested_plan)
     _validate_runtime_targets(plan, image_specs, verified_images)
     return plan
@@ -288,7 +290,7 @@ def prepare_experiment(
 
 def load_experiment_evidence(experiment_dir):
     """Load checksum-verified measured trials without accepting failed attempts."""
-    root = Path(experiment_dir).expanduser().resolve()
+    root = resolve_results_path(experiment_dir)
     plan_path = root / PLAN_FILENAME
     try:
         plan = json.loads(plan_path.read_text(encoding='utf-8'))
@@ -372,6 +374,7 @@ def collect_environment_evidence(plan, trial, image_spec, verified_image):
     ).stdout.strip()
     return {
         'captured_at': _utc_now(),
+        'controller': collect_controller_provenance(),
         'host': {
             'architecture': platform.machine(),
             'cpu_model': _cpu_model(),

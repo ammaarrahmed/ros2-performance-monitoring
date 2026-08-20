@@ -23,11 +23,11 @@ def test_preflight_checks_requirements_without_dashboard_ports(tmp_path, monkeyp
 
     def fake_run(command, **kwargs):
         commands.append(command)
-        output = str(tmp_path) if command[1] == 'info' else 'Platforms: linux/amd64'
-        return argparse.Namespace(returncode=0, stdout=output, stderr='')
+        return argparse.Namespace(returncode=0, stdout='Platforms: linux/amd64', stderr='')
 
     monkeypatch.setattr(preflight.shutil, 'which', lambda executable: f'/usr/bin/{executable}')
     monkeypatch.setattr(preflight.subprocess, 'run', fake_run)
+    monkeypatch.setattr(preflight, 'docker_server_identity', lambda: _docker_server(tmp_path))
     monkeypatch.setattr(preflight, 'detect_architecture', lambda: 'amd64')
     monkeypatch.setattr(
         preflight.shutil,
@@ -44,7 +44,6 @@ def test_preflight_checks_requirements_without_dashboard_ports(tmp_path, monkeyp
 
     assert result.architecture == 'amd64'
     assert commands == [
-        ['docker', 'info', '--format', '{{.DockerRootDir}}'],
         ['docker', 'buildx', 'version'],
         ['docker', 'buildx', 'inspect'],
     ]
@@ -56,11 +55,11 @@ def test_preflight_checks_compose_and_requested_dashboard_ports(tmp_path, monkey
 
     def fake_run(command, **kwargs):
         commands.append(command)
-        output = str(tmp_path) if command[1] == 'info' else 'Platforms: linux/amd64'
-        return argparse.Namespace(returncode=0, stdout=output, stderr='')
+        return argparse.Namespace(returncode=0, stdout='Platforms: linux/amd64', stderr='')
 
     monkeypatch.setattr(preflight.shutil, 'which', lambda executable: f'/usr/bin/{executable}')
     monkeypatch.setattr(preflight.subprocess, 'run', fake_run)
+    monkeypatch.setattr(preflight, 'docker_server_identity', lambda: _docker_server(tmp_path))
     monkeypatch.setattr(preflight, 'detect_architecture', lambda: 'amd64')
     monkeypatch.setattr(
         preflight.shutil,
@@ -100,11 +99,11 @@ def test_preflight_fails_before_subprocesses_when_executable_is_missing(
 
 def test_preflight_reports_invalid_cpuset(tmp_path, monkeypatch):
     def fake_run(command, **kwargs):
-        output = str(tmp_path) if command[1] == 'info' else 'Platforms: linux/amd64'
-        return argparse.Namespace(returncode=0, stdout=output, stderr='')
+        return argparse.Namespace(returncode=0, stdout='Platforms: linux/amd64', stderr='')
 
     monkeypatch.setattr(preflight.shutil, 'which', lambda executable: f'/usr/bin/{executable}')
     monkeypatch.setattr(preflight.subprocess, 'run', fake_run)
+    monkeypatch.setattr(preflight, 'docker_server_identity', lambda: _docker_server(tmp_path))
     monkeypatch.setattr(preflight, 'detect_architecture', lambda: 'amd64')
 
     with pytest.raises(preflight.PreflightError, match='invalid CPU-set'):
@@ -113,11 +112,11 @@ def test_preflight_reports_invalid_cpuset(tmp_path, monkeypatch):
 
 def test_preflight_reports_insufficient_result_disk_space(tmp_path, monkeypatch):
     def fake_run(command, **kwargs):
-        output = str(tmp_path) if command[1] == 'info' else 'Platforms: linux/amd64'
-        return argparse.Namespace(returncode=0, stdout=output, stderr='')
+        return argparse.Namespace(returncode=0, stdout='Platforms: linux/amd64', stderr='')
 
     monkeypatch.setattr(preflight.shutil, 'which', lambda executable: f'/usr/bin/{executable}')
     monkeypatch.setattr(preflight.subprocess, 'run', fake_run)
+    monkeypatch.setattr(preflight, 'docker_server_identity', lambda: _docker_server(tmp_path))
     monkeypatch.setattr(preflight, 'detect_architecture', lambda: 'amd64')
     monkeypatch.setattr(
         preflight.shutil,
@@ -127,3 +126,65 @@ def test_preflight_reports_insufficient_result_disk_space(tmp_path, monkeypatch)
 
     with pytest.raises(preflight.PreflightError, match='Insufficient free space'):
         preflight.run_comparison_preflight(tmp_path / 'experiment')
+
+
+def test_container_preflight_probes_docker_storage_on_daemon_host(tmp_path, monkeypatch):
+    commands = []
+
+    def fake_check(command, message):
+        commands.append(command)
+        if command[:2] == ['docker', 'run']:
+            return argparse.Namespace(
+                stdout='Filesystem 1024-blocks Used Available Capacity Mounted on\n'
+                '/dev/root 100000 10 20000000 1% /host\n',
+                stderr='',
+            )
+        return argparse.Namespace(stdout='Platforms: linux/amd64', stderr='')
+
+    environment = {
+        'ROS2_PERFORMANCE_CONTROLLER_MODE': 'container',
+        'ROS2_PERFORMANCE_CONTROLLER_RESULTS_ROOT': str(tmp_path / 'results'),
+        'ROS2_PERFORMANCE_HOST_RESULTS_ROOT': '/host/results',
+        'ROS2_PERFORMANCE_CONTROLLER_CACHE_ROOT': str(tmp_path / 'cache'),
+        'ROS2_PERFORMANCE_HOST_CACHE_ROOT': '/host/cache',
+        'ROS2_PERFORMANCE_HOST_UID': '1000',
+        'ROS2_PERFORMANCE_HOST_GID': '1000',
+    }
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    (tmp_path / 'results').mkdir()
+    monkeypatch.setattr(preflight.shutil, 'which', lambda executable: f'/usr/bin/{executable}')
+    monkeypatch.setattr(preflight, '_check_command', fake_check)
+    monkeypatch.setattr(
+        preflight,
+        'docker_server_identity',
+        lambda: _docker_server('/var/lib/docker'),
+    )
+    monkeypatch.setattr(preflight, 'detect_architecture', lambda: 'amd64')
+    monkeypatch.setattr(
+        preflight.shutil,
+        'disk_usage',
+        lambda path: argparse.Namespace(free=20 * 1024 ** 3),
+    )
+
+    result = preflight.run_comparison_preflight('experiment')
+
+    assert result.docker_filesystem_free_bytes == 20000000 * 1024
+    assert any(
+        command[:7] == [
+            'docker', 'run', '--rm', '--network=none', '--read-only',
+            '--pull=missing', '--volume',
+        ]
+        for command in commands
+    )
+
+
+def _docker_server(root):
+    return {
+        'id': 'daemon-id',
+        'name': 'benchmark-host',
+        'version': '27.5.1',
+        'operating_system': 'Linux',
+        'architecture': 'x86_64',
+        'docker_root_dir': str(root),
+    }

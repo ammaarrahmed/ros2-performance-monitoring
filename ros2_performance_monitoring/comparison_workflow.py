@@ -35,6 +35,7 @@ from .comparison_report import validate_comparison_report
 from .container_provider import get_default_container_repo
 from .container_provider import resolve_container_repo_ref
 from .container_provider import setup_container_repo
+from .controller import resolve_results_path
 from .dataset import manifest_path_for
 from .dataset import verify_dataset_bundle
 from .experiment import build_experiment_plan
@@ -197,7 +198,7 @@ def _run_workflow(options, calibration):
         raise ComparisonWorkflowError(
             'end-to-end workflow requires balanced scheduling'
         )
-    root = Path(options.results_dir).expanduser().resolve()
+    root = resolve_results_path(options.results_dir)
     stage = 'preflight'
     try:
         preflight = run_comparison_preflight(

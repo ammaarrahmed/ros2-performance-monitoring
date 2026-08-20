@@ -23,6 +23,7 @@ import shutil
 import subprocess
 
 from .client_target import ClientLibraryTarget
+from .controller import resolve_cache_path
 
 
 LABEL_PREFIX = 'ros2-performance-monitoring'
@@ -206,7 +207,7 @@ def build_benchmark_image(spec: BenchmarkImageSpec, cache_dir: str) -> VerifiedI
     """Build an exact packaged or source-overlay benchmark image and verify it."""
     if shutil.which('docker') is None:
         raise RuntimeError('Docker executable was not found on PATH')
-    benchmark_context = Path(cache_dir).expanduser().resolve()
+    benchmark_context = resolve_cache_path(cache_dir)
     if not (benchmark_context / 'Dockerfile').is_file():
         raise RuntimeError(
             f'Benchmark repository at {benchmark_context} has no Dockerfile'
