@@ -100,11 +100,11 @@ removed automatically. Release-version and full 40-character commit tags are
 also published for discovery, but deployments should use digests. There is no
 `latest` release contract.
 
-Before the first publication, a repository owner must open each package's
-settings in GitHub Container Registry and change its visibility to **Public**.
-This is a one-time setting that allows the `docker pull` commands above to work
-without registry credentials. The OCI source label links each package to this
-repository. See GitHub's
+After the first successful workflow creates both package entries, a repository
+owner must open each package's settings in GitHub Container Registry and change
+its visibility to **Public**. This is a one-time setting required before the
+`docker pull` commands above work without registry credentials. The OCI source
+label links each package to this repository. See GitHub's
 [package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
 
 To test unreleased changes or a non-`amd64` host, build the targets locally as
