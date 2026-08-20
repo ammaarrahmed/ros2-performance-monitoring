@@ -19,9 +19,9 @@ from .exporters.prometheus import serve_metrics
 
 def main():
     """Run the environment-configured container exporter."""
-    input_path = os.environ.get(
-        'ROS2_PERFORMANCE_EXPORTER_INPUT',
-        '/data/dashboard-data.jsonl',
+    history_index_path = os.environ.get('ROS2_PERFORMANCE_EXPORTER_HISTORY_INDEX') or None
+    input_path = None if history_index_path else os.environ.get(
+        'ROS2_PERFORMANCE_EXPORTER_INPUT', '/data/dashboard-data.jsonl'
     )
     report_path = os.environ.get('ROS2_PERFORMANCE_EXPORTER_REPORT') or None
     port_text = os.environ.get('ROS2_PERFORMANCE_EXPORTER_PORT', '9108')
@@ -31,8 +31,10 @@ def main():
         raise SystemExit(
             f'ROS2_PERFORMANCE_EXPORTER_PORT must be an integer, got {port_text!r}'
         ) from exc
-    serve_metrics(
-        input_path,
-        port=port,
-        comparison_report_path=report_path,
-    )
+    options = {
+        'port': port,
+        'comparison_report_path': report_path,
+    }
+    if history_index_path is not None:
+        options['history_index_path'] = history_index_path
+    serve_metrics(input_path, **options)

@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import subprocess
 
+from ros2_performance_monitoring.exporters.prometheus import history_to_prometheus
 from ros2_performance_monitoring.exporters.prometheus import load_export_data
 from ros2_performance_monitoring.exporters.prometheus import serve_metrics
 
@@ -23,9 +24,23 @@ from ros2_performance_monitoring.exporters.prometheus import serve_metrics
 PACKAGE_NAME = 'ros2_performance_monitoring'
 
 
-def dashboard_up(input_path, port=9108, comparison_report_path=None):
-    input_path = _validate_input(input_path)
-    load_export_data(input_path, comparison_report_path)
+def dashboard_up(
+    input_path=None,
+    port=9108,
+    comparison_report_path=None,
+    history_index_path=None,
+):
+    if (input_path is None) == (history_index_path is None):
+        raise ValueError('exactly one normalized input or history index is required')
+    if history_index_path is not None:
+        if comparison_report_path is not None:
+            raise ValueError('a comparison report cannot be combined with a history index')
+        from ros2_performance_monitoring.exporters.history import load_active_history
+        history_index_path = _validate_file(history_index_path, 'history index')
+        history_to_prometheus(load_active_history(history_index_path))
+    else:
+        input_path = _validate_file(input_path, 'normalized metrics file')
+        load_export_data(input_path, comparison_report_path)
     compose_file = _compose_file()
     _compose(compose_file, 'up', '-d')
     print('Grafana: http://localhost:3000')
@@ -37,6 +52,7 @@ def dashboard_up(input_path, port=9108, comparison_report_path=None):
         input_path,
         port=port,
         comparison_report_path=comparison_report_path,
+        history_index_path=history_index_path,
     )
 
 
@@ -44,12 +60,12 @@ def dashboard_down():
     _compose(_compose_file(), 'down')
 
 
-def _validate_input(input_path):
+def _validate_file(input_path, label):
     path = Path(input_path).expanduser().resolve()
     if not path.exists():
-        raise FileNotFoundError(f'normalized metrics file does not exist: {path}')
+        raise FileNotFoundError(f'{label} does not exist: {path}')
     if not path.is_file():
-        raise ValueError(f'normalized metrics path is not a file: {path}')
+        raise ValueError(f'{label} path is not a file: {path}')
     return path
 
 
