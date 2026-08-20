@@ -25,9 +25,9 @@ benchmark container run
 The dashboard compares runs and reports separate latency, throughput, resource,
 reliability, and overall statuses. Missing required results and non-applicable
 service metrics are explicit rather than treated as passing measurements. The
-project does not enforce a CI-gating regression policy or run hosted
-infrastructure. Comparisons can be scoped by ROS client library ref, ROS distro,
-RMW implementation, communication mode, and payload size.
+project does not enforce a CI-gating regression policy or run a long-lived
+hosted monitoring stack. Comparisons can be scoped by ROS client library ref,
+ROS distro, RMW implementation, communication mode, and payload size.
 
 ## Prerequisites
 
@@ -469,6 +469,76 @@ method, scenario coverage, and dataset SHA-256 before starting Docker. A stale
 or unrelated report therefore fails instead of being displayed beside a
 different dataset. Add `--start-dashboard` to the comparison invocation to run
 that command automatically after successful validation.
+
+### Pilot The Latest rclcpp Producer
+
+The `Produce latest rclcpp comparison` GitHub Actions workflow is the hosted
+producer for issue-driven history. It resolves the exact current
+`ros2/rclcpp` Rolling SHA, compares it with the last successfully published
+candidate, and skips before dependency installation or image builds when the
+SHA is unchanged. If several upstream commits arrive between runs, it produces
+one latest-versus-last-successful comparison instead of benchmarking every
+missed commit.
+
+The pinned `rolling-workflow-smoke-v1` profile runs `rclcpp-minimal` with
+one-second samples, no warm-ups, three measured pairs, balanced ordering, 100
+bootstrap resamples, and no CPU-set requirement. Its exact benchmark-container
+commit and all analysis settings live in
+`.github/benchmark-profiles/rolling-workflow-smoke-v1.json`.
+
+> This profile produces non-authoritative pipeline smoke evidence only. It is
+> not calibrated for authoritative performance claims and its outcome is not a
+> CI gate.
+
+Run the required first end-to-end pilot manually on the default branch. Supply
+an exact bootstrap SHA when a specific initial baseline is required; otherwise
+the workflow records and uses the candidate's first parent:
+
+```bash
+gh workflow run scheduled-rclcpp-comparison.yml --ref main
+
+# Explicit first-run baseline alternative:
+gh workflow run scheduled-rclcpp-comparison.yml \
+  --ref main \
+  -f bootstrap_sha=<exact-rclcpp-commit>
+```
+
+The off-hours Monday schedule is present but gated. After a successful manual
+pilot, a repository administrator can enable it by setting the repository
+Actions variable `ENABLE_RCLCPP_SCHEDULE` to `true`. A single concurrency group
+serializes manual and scheduled producers, so two runs cannot race while
+advancing the baseline.
+
+Completed comparison outcomes with exit codes `0`, `1`, or `2` publish two
+14-day artifacts and advance state. Invalid or operational outcomes with exit
+codes `3` or `4` fail without changing the baseline:
+
+- `rclcpp-evidence-<candidate-sha>-<run-id>` contains the full resumable
+  evidence bundle.
+- `rclcpp-dashboard-<candidate-sha>-<run-id>` contains the compact dashboard
+  dataset, report, manifests, and completion chain.
+
+Both artifacts include `producer-manifest.json` and `SHA256SUMS`, binding the
+profile, exact rclcpp SHAs, benchmark run IDs, workflow run identity, outcome,
+and every uploaded file. Download and validate the compact artifact with the
+exact command printed in the workflow summary:
+
+```bash
+gh run download <run-id> \
+  --repo ammaarrahmed/ros2-performance-monitoring \
+  --name rclcpp-dashboard-<candidate-sha>-<run-id> \
+  --dir ./rclcpp-dashboard
+python3 -m ros2_performance_monitoring.scheduled_comparison validate \
+  --profile .github/benchmark-profiles/rolling-workflow-smoke-v1.json \
+  --bundle ./rclcpp-dashboard
+```
+
+The durable baseline is the reviewable
+`.benchmark-state/rclcpp-last-successful.json` file on the `benchmark-state`
+branch. Only a completed default-branch producer may update it. The benchmark
+job has read-only repository permission; the separate state job downloads and
+revalidates the compact artifact before receiving `contents: write`. The
+workflow never runs for pull requests and does not publish benchmark images.
 
 ### Calibrate Same-Commit Benchmark Noise
 
