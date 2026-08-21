@@ -157,7 +157,7 @@ def _load_exact_manifest(manifest_path: str | Path) -> tuple[SourceDependency, .
         raise SourceDependencyError('source dependency manifest has no repositories')
 
     dependencies = []
-    for repository_path, repository in sorted(repositories.items()):
+    for repository_path, repository in repositories.items():
         path_value = _safe_repository_path(repository_path)
         if not isinstance(repository, dict) or set(repository) != {
             'type', 'url', 'version',
@@ -175,6 +175,10 @@ def _load_exact_manifest(manifest_path: str | Path) -> tuple[SourceDependency, .
             raise SourceDependencyError(
                 f'source dependency {path_value!r} has an invalid URL'
             )
+        if repository_url.startswith('-'):
+            raise SourceDependencyError(
+                f'source dependency {path_value!r} has an invalid URL'
+            )
         if not isinstance(version, str) or not _FULL_COMMIT_PATTERN.fullmatch(version):
             raise SourceDependencyError(
                 f'source dependency {path_value!r} must use a full lowercase commit SHA'
@@ -185,6 +189,7 @@ def _load_exact_manifest(manifest_path: str | Path) -> tuple[SourceDependency, .
             requested_ref=version,
             resolved_commit=version,
         ))
+    dependencies.sort(key=lambda dependency: dependency.path)
     _validate_vcstool_manifest(repositories)
     return tuple(dependencies)
 

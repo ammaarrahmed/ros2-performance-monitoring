@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from pathlib import Path
 import subprocess
 
@@ -22,6 +21,7 @@ from ros2_performance_monitoring.source_dependencies import (
 )
 from ros2_performance_monitoring.source_dependencies import resolve_source_dependency_snapshot
 from ros2_performance_monitoring.source_dependencies import SourceDependencyError
+import yaml
 
 
 def test_exact_manifest_resolves_to_verified_managed_workspace(tmp_path):
@@ -142,9 +142,48 @@ def test_manifest_must_pass_vcstool_validation(tmp_path, monkeypatch):
         resolve_remote_source_dependency_snapshot(manifest)
 
 
+@pytest.mark.parametrize(
+    'repositories',
+    (
+        {
+            1: {
+                'type': 'git',
+                'url': 'https://github.com/ros2/rcl.git',
+                'version': 'a' * 40,
+            },
+            'ros2/rcl': {
+                'type': 'git',
+                'url': 'https://github.com/ros2/rcl.git',
+                'version': 'a' * 40,
+            },
+        },
+        {
+            'ros2/rcl': {
+                'type': 'git',
+                'url': '--upload-pack=unsafe',
+                'version': 'a' * 40,
+            },
+        },
+    ),
+)
+def test_manifest_rejects_invalid_paths_and_option_like_urls(
+    tmp_path,
+    monkeypatch,
+    repositories,
+):
+    manifest = _manifest(tmp_path, repositories)
+    monkeypatch.setattr(
+        'ros2_performance_monitoring.source_dependencies.subprocess.run',
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0),
+    )
+
+    with pytest.raises(SourceDependencyError):
+        resolve_remote_source_dependency_snapshot(manifest)
+
+
 def _manifest(tmp_path, repositories):
     path = tmp_path / 'source-dependencies.repos'
-    path.write_text(json.dumps({'repositories': repositories}))
+    path.write_text(yaml.safe_dump({'repositories': repositories}))
     return path
 
 
