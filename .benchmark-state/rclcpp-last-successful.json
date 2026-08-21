@@ -1,0 +1,35 @@
+{
+  "advanced_at": "2026-08-21T13:17:23.869732Z",
+  "candidate_sha": "5cda40123062ecfb023e6267ed3464e1b4f09216",
+  "comparison": {
+    "artifact": "rclcpp-dashboard-5cda40123062ecfb023e6267ed3464e1b4f09216-32481690014",
+    "exit_code": 1,
+    "experiment_id": "experiment-d11b65871a5e45119d6273740ff36c0a",
+    "outcome": "Regression",
+    "reference_sha": "b48b3a3d93d492f730ac3d1ca3580df0a6ac80eb",
+    "repository": "ammaarrahmed/ros2-performance-monitoring",
+    "run_attempt": "1",
+    "run_id": "32481690014",
+    "run_ids": [
+      "candidate-measured-001-25925fb7d1bc",
+      "candidate-measured-002-25925fb7d1bc",
+      "candidate-measured-003-25925fb7d1bc",
+      "reference-measured-001-99d28df4610f",
+      "reference-measured-002-99d28df4610f",
+      "reference-measured-003-99d28df4610f"
+    ],
+    "source_dependencies": {
+      "repositories": {
+        "ros2/rcl": {
+          "type": "git",
+          "url": "https://github.com/ros2/rcl.git",
+          "version": "db3d1c8ea6eb22235494cfc03249155e35c47511"
+        }
+      }
+    }
+  },
+  "profile": "rolling-workflow-smoke-v2",
+  "repository": "https://github.com/ros2/rclcpp.git",
+  "schema_version": 2,
+  "upstream_ref": "rolling"
+}
