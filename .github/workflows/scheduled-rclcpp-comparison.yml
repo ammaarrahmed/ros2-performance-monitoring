@@ -21,7 +21,7 @@ env:
   PROFILE_NAME: rolling-workflow-smoke-v2
   PROFILE_PATH: .github/benchmark-profiles/rolling-workflow-smoke-v2.json
   CONTROLLER_VERSION: 0.1.1
-  CONTROLLER_IMAGE: ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli@sha256:6e34ecb868fad2a45c89dd294c647c679cc274af9a46f61780c6a0a69d7c5624
+  CONTROLLER_IMAGE: ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli@sha256:67324c21ee19c55fbd971b1aeef69214c7aeef35156367a55ef776b6f4a47bbc
   STATE_BRANCH: benchmark-state
   STATE_PATH: .benchmark-state/rclcpp-last-successful.json
 
