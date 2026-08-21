@@ -2,13 +2,21 @@
 Changelog for package ros2_performance_monitoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.1.0 (unreleased)
+0.1.1 (2026-08-21)
 ------------------
 * Added provider-neutral transactional dashboard publication with safe archive
   extraction, immutable accepted bundles, locked atomic history activation,
   idempotency, configurable retention and reload hooks, exact-index health
   rollback, audit records, a pull-based GitHub Actions adapter, and generic
   Linux deployment examples.
+* Added exact source dependency snapshots for source-built rclcpp targets,
+  including strict vcstool manifest validation, shared comparison provenance,
+  managed checkouts, and dependency-first image builds.
+* Updated the scheduled rclcpp producer to run through an immutable published
+  controller image instead of installing the repository checkout at runtime.
+
+0.1.0 (2026-08-20)
+------------------
 * Added a versioned, explicitly ordered active-history index for bounded,
   checksum-verified comparison bundles, atomic startup validation, cached
   multi-bundle metrics, profile authority metadata, and bundle-scoped Grafana
