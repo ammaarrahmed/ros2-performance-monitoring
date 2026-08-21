@@ -56,8 +56,10 @@ from .experiment import load_experiment_evidence
 from .experiment import run_experiment
 from .exporters.prometheus import load_records
 from .exporters.prometheus import serve_metrics
+from .github_artifacts import pull_and_publish_dashboard_bundle
 from .parsers.ros2_benchmark_container import latest_run_metadata
 from .parsers.ros2_benchmark_container import parse_artifact
+from .publication import publish_dashboard_bundle
 from .run_metadata import generation_rundata
 from .source_dependencies import resolve_source_dependency_snapshot
 from .statistical_comparison import build_comparison_report
@@ -174,6 +176,51 @@ def bring_down_dashboard(args: argparse.Namespace) -> None:
         dashboard_down()
     except (FileNotFoundError, RuntimeError) as exc:
         raise SystemExit(str(exc)) from exc
+
+
+def publish_dashboard(args: argparse.Namespace) -> None:
+    result = publish_dashboard_bundle(
+        args.bundle,
+        args.profile,
+        args.deployment_root,
+        **_publication_options(args),
+    )
+    _print_publication_result(result)
+
+
+def pull_and_publish_dashboard(args: argparse.Namespace) -> None:
+    result = pull_and_publish_dashboard_bundle(
+        args.repository,
+        args.workflow,
+        args.artifact_prefix,
+        args.token_file,
+        args.profile,
+        args.deployment_root,
+        run_id=args.run_id,
+        api_url=args.github_api_url,
+        **_publication_options(args),
+    )
+    _print_publication_result(result)
+
+
+def _publication_options(args: argparse.Namespace) -> dict:
+    return {
+        'history_limit': args.history_limit,
+        'inactive_retention': args.inactive_retention,
+        'restart_hook': args.restart_hook,
+        'exporter_health_url': args.exporter_health_url,
+        'prometheus_health_url': args.prometheus_health_url,
+        'health_timeout': args.health_timeout,
+        'audit_log': args.audit_log,
+        'delete_source': getattr(args, 'delete_source', False),
+    }
+
+
+def _print_publication_result(result) -> None:
+    print(f'Dashboard publication {result.outcome}: {result.bundle_id}')
+    print(f'Active history: {result.index_path}')
+    if result.removed_bundle_ids:
+        print(f'Removed inactive bundles: {", ".join(result.removed_bundle_ids)}')
 
 
 def serve_prometheus(args: argparse.Namespace) -> None:
@@ -578,6 +625,49 @@ def _confidence_level(value):
     return parsed
 
 
+def _add_publication_arguments(parser):
+    parser.add_argument('--profile', required=True, help='Pinned producer profile path')
+    parser.add_argument(
+        '--deployment-root',
+        required=True,
+        help='Directory containing active-history.json and immutable bundles',
+    )
+    parser.add_argument(
+        '--history-limit',
+        type=_positive_integer,
+        default=10,
+        help='Maximum active bundles, oldest first (default: 10)',
+    )
+    parser.add_argument(
+        '--inactive-retention',
+        type=_non_negative_integer,
+        default=20,
+        help='Accepted inactive bundles to retain (default: 20)',
+    )
+    parser.add_argument(
+        '--restart-hook',
+        help='Executable called after activation and rollback',
+    )
+    parser.add_argument(
+        '--exporter-health-url',
+        default='http://127.0.0.1:9108/healthz',
+    )
+    parser.add_argument(
+        '--prometheus-health-url',
+        default='http://127.0.0.1:9090/-/healthy',
+    )
+    parser.add_argument(
+        '--health-timeout',
+        type=float,
+        default=30.0,
+        help='Activation health timeout in seconds (default: 30)',
+    )
+    parser.add_argument(
+        '--audit-log',
+        help='Audit JSONL path (default: DEPLOYMENT_ROOT/publication-audit.jsonl)',
+    )
+
+
 def main() -> Any:
     defaults = RunDefaults()
     parser = CommandArgumentParser(prog='ros2-performance-monitoring')
@@ -612,6 +702,34 @@ def main() -> Any:
     dashboard_up_parser.set_defaults(func=bring_up_dashboard)
     dashboard_down_parser = dashboard_subparsers.add_parser('down', help='Stop local dashboard')
     dashboard_down_parser.set_defaults(func=bring_down_dashboard)
+    dashboard_publish_parser = dashboard_subparsers.add_parser(
+        'publish',
+        help='Atomically publish a local dashboard bundle',
+    )
+    dashboard_publish_parser.add_argument('--bundle', required=True)
+    _add_publication_arguments(dashboard_publish_parser)
+    dashboard_publish_parser.add_argument(
+        '--delete-source',
+        action='store_true',
+        help='Delete the input bundle only after a successful publication',
+    )
+    dashboard_publish_parser.set_defaults(func=publish_dashboard)
+    dashboard_pull_parser = dashboard_subparsers.add_parser(
+        'pull-github',
+        help='Pull a completed GitHub Actions artifact and publish it locally',
+    )
+    dashboard_pull_parser.add_argument('--repository', required=True)
+    dashboard_pull_parser.add_argument('--workflow', required=True)
+    dashboard_pull_parser.add_argument('--artifact-prefix', required=True)
+    dashboard_pull_parser.add_argument('--token-file', required=True)
+    dashboard_pull_parser.add_argument('--run-id')
+    dashboard_pull_parser.add_argument(
+        '--github-api-url',
+        default='https://api.github.com',
+        help='GitHub or GitHub Enterprise API base URL',
+    )
+    _add_publication_arguments(dashboard_pull_parser)
+    dashboard_pull_parser.set_defaults(func=pull_and_publish_dashboard)
 
     dataset_parser = subparsers.add_parser(
         'dataset',
@@ -1151,6 +1269,8 @@ def main() -> Any:
             experiment_report_parser,
             dashboard_up_parser,
             dashboard_down_parser,
+            dashboard_publish_parser,
+            dashboard_pull_parser,
             serve_prometheus_parser,
             help_parser,
         ),
