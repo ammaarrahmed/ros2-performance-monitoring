@@ -269,6 +269,58 @@ def test_export_commands_accept_history_index(
     }
 
 
+def test_dashboard_publish_forwards_transactional_options(tmp_path, monkeypatch):
+    importlib.reload(cli)
+    received = {}
+    result = type('Result', (), {
+        'outcome': 'activated',
+        'bundle_id': 'bundle-id',
+        'index_path': tmp_path / 'deployment' / 'active-history.json',
+        'removed_bundle_ids': (),
+    })()
+
+    def publish(source, profile, deployment, **options):
+        received.update({
+            'source': source,
+            'profile': profile,
+            'deployment': deployment,
+            'options': options,
+        })
+        return result
+
+    monkeypatch.setattr(cli, 'publish_dashboard_bundle', publish)
+    monkeypatch.setattr(sys, 'argv', [
+        'ros2-performance-monitoring',
+        'dashboard',
+        'publish',
+        '--bundle', str(tmp_path / 'bundle.zip'),
+        '--profile', str(tmp_path / 'profile.json'),
+        '--deployment-root', str(tmp_path / 'deployment'),
+        '--history-limit', '4',
+        '--inactive-retention', '7',
+        '--restart-hook', str(tmp_path / 'restart'),
+        '--health-timeout', '12.5',
+        '--delete-source',
+    ])
+
+    assert cli.main() is None
+    assert received == {
+        'source': str(tmp_path / 'bundle.zip'),
+        'profile': str(tmp_path / 'profile.json'),
+        'deployment': str(tmp_path / 'deployment'),
+        'options': {
+            'history_limit': 4,
+            'inactive_retention': 7,
+            'restart_hook': str(tmp_path / 'restart'),
+            'exporter_health_url': 'http://127.0.0.1:9108/healthz',
+            'prometheus_health_url': 'http://127.0.0.1:9090/-/healthy',
+            'health_timeout': 12.5,
+            'audit_log': None,
+            'delete_source': True,
+        },
+    }
+
+
 @pytest.mark.parametrize(
     'arguments',
     (
