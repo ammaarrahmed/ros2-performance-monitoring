@@ -64,6 +64,11 @@ _COMPACT_BUNDLE_FILES = (
     'comparison-report.json',
     'comparison.complete.json',
 )
+DASHBOARD_BUNDLE_FILES = frozenset((
+    *_COMPACT_BUNDLE_FILES,
+    MANIFEST_FILENAME,
+    CHECKSUM_FILENAME,
+))
 
 
 class ScheduledComparisonError(RuntimeError):

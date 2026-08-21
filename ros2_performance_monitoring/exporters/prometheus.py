@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import json
@@ -564,6 +565,7 @@ def create_metrics_server(
         from ros2_performance_monitoring.exporters.history import load_active_history
         bundles = load_active_history(history_index_path)
         metrics_body = history_to_prometheus(bundles).encode()
+        source_revision = _file_sha256(history_index_path)
     else:
         path = Path(input_path).expanduser().resolve()
         if not path.exists():
@@ -572,6 +574,7 @@ def create_metrics_server(
             raise ValueError(f'normalized metrics path is not a file: {path}')
         records, report = load_export_data(path, comparison_report_path)
         metrics_body = records_to_prometheus(records, report).encode()
+        source_revision = _file_sha256(path)
 
     class MetricsHandler(BaseHTTPRequestHandler):
 
@@ -580,6 +583,10 @@ def create_metrics_server(
                 body = b'ok\n'
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.send_header(
+                    'X-ROS2-Performance-Source-SHA256',
+                    source_revision,
+                )
                 self.send_header('Content-Length', str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -600,3 +607,11 @@ def create_metrics_server(
             return
 
     return HTTPServer((host, port), MetricsHandler)
+
+
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as source:
+        for block in iter(lambda: source.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
