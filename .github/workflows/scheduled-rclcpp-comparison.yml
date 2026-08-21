@@ -20,6 +20,7 @@ concurrency:
 env:
   PROFILE_NAME: rolling-workflow-smoke-v2
   PROFILE_PATH: .github/benchmark-profiles/rolling-workflow-smoke-v2.json
+  CONTROLLER_VERSION: 0.1.1
   CONTROLLER_IMAGE: ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli@sha256:6e34ecb868fad2a45c89dd294c647c679cc274af9a46f61780c6a0a69d7c5624
   STATE_BRANCH: benchmark-state
   STATE_PATH: .benchmark-state/rclcpp-last-successful.json
@@ -135,7 +136,9 @@ jobs:
           inspected=$(docker image inspect \
             --format '{{index .RepoDigests 0}}' "${CONTROLLER_IMAGE}")
           test "${inspected}" = "${CONTROLLER_IMAGE}"
-          docker run --rm "${CONTROLLER_IMAGE}" --version
+          reported_version=$(docker run --rm "${CONTROLLER_IMAGE}" --version)
+          test "${reported_version}" = \
+            "ros2-performance-monitoring ${CONTROLLER_VERSION}"
 
       - name: Materialize the exact Rolling dependency snapshot
         run: |
