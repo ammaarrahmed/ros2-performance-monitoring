@@ -145,9 +145,9 @@ workflow.
 The scheduled rclcpp workflow is a thin hosted producer around the same exact
 target resolver, comparison coordinator, and version 2 completion graph used
 locally. A versioned JSON profile pins the benchmark-container commit, suite,
-duration, trial schedule, analysis resamples, and the explicit
-non-authoritative label. The only moving input is the upstream Rolling branch,
-which discovery resolves to a full commit before any build begins.
+duration, trial schedule, analysis resamples, explicit non-authoritative label,
+and the Rolling dependency repositories. Discovery freezes the moving rclcpp and
+dependency branches to full commits before any build begins.
 
 The producer runs the released CLI controller by immutable image digest. It
 mounts the runner's Docker socket so the controller and the measured benchmark
@@ -158,20 +158,21 @@ accepted.
 
 Discovery reads the last successfully published candidate from a JSON file on
 the `benchmark-state` branch through the GitHub API. An unchanged SHA ends the
-workflow before dependency installation. Otherwise the state SHA becomes the
-single reference and the newest Rolling SHA becomes the single candidate,
-coalescing every missed commit into one experiment. On the first run, an exact
-operator-provided bootstrap SHA takes precedence; without one, the candidate's
-first parent is recorded as the bootstrap source.
+workflow before dependency resolution or installation. Otherwise the state SHA
+becomes the single reference and the newest Rolling SHA becomes the single
+candidate, coalescing every missed commit into one experiment. Discovery then
+resolves one exact vcstool dependency snapshot used below both targets. On the
+first run, an exact operator-provided bootstrap SHA takes precedence; without
+one, the candidate's first parent is recorded as the bootstrap source.
 
 The benchmark job has read-only repository permission and is the only job with
 Docker access. Comparison outcomes 0, 1, and 2 represent completed evidence and
 continue to packaging; outcomes 3 and 4 stop before publication or state
 mutation. The full evidence artifact and compact dashboard artifact each add a
 producer manifest and checksum list over their uploaded contents. The manifest
-binds exact reference and candidate SHAs, profile, experiment and benchmark run
-IDs, workflow run identity, comparison outcome, and the non-authoritative
-notice.
+binds exact reference, candidate, and dependency SHAs, profile, experiment and
+benchmark run IDs, workflow run identity, comparison outcome, and the
+non-authoritative notice.
 
 State mutation is isolated in a default-branch-only job with `contents: write`.
 It downloads the compact artifact, verifies every checksum and completed exit

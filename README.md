@@ -544,11 +544,18 @@ SHA is unchanged. If several upstream commits arrive between runs, it produces
 one latest-versus-last-successful comparison instead of benchmarking every
 missed commit.
 
-The pinned `rolling-workflow-smoke-v1` profile runs `rclcpp-minimal` with
+The pinned `rolling-workflow-smoke-v2` profile runs `rclcpp-minimal` with
 one-second samples, no warm-ups, three measured pairs, balanced ordering, 100
 bootstrap resamples, and no CPU-set requirement. Its exact benchmark-container
-commit and all analysis settings live in
-`.github/benchmark-profiles/rolling-workflow-smoke-v1.json`.
+commit, Rolling source dependency repositories, and all analysis settings live
+in `.github/benchmark-profiles/rolling-workflow-smoke-v2.json`.
+
+When a changed rclcpp SHA needs a comparison, discovery resolves the configured
+`ros2/rcl` Rolling branch once and converts it to an exact `.repos` snapshot.
+Reference and candidate images build against that same rcl commit. The snapshot
+is checksum-verified before the controller starts, becomes part of both target
+identities, and is recorded in the producer manifest and durable state. An
+unchanged rclcpp SHA still skips before resolving rcl or pulling the controller.
 
 The benchmark job pulls the released CLI controller by immutable registry
 digest and uses the host Docker socket. The controller and measured benchmark
@@ -589,9 +596,9 @@ codes `3` or `4` fail without changing the baseline:
   dataset, report, manifests, and completion chain.
 
 Both artifacts include `producer-manifest.json` and `SHA256SUMS`, binding the
-profile, exact rclcpp SHAs, benchmark run IDs, workflow run identity, outcome,
-and every uploaded file. Download and validate the compact artifact with the
-exact command printed in the workflow summary:
+profile, exact rclcpp and dependency SHAs, benchmark run IDs, workflow run
+identity, outcome, and every uploaded file. Download and validate the compact
+artifact with the exact command printed in the workflow summary:
 
 ```bash
 gh run download <run-id> \
@@ -599,7 +606,7 @@ gh run download <run-id> \
   --name rclcpp-dashboard-<candidate-sha>-<run-id> \
   --dir ./rclcpp-dashboard
 python3 -m ros2_performance_monitoring.scheduled_comparison validate \
-  --profile .github/benchmark-profiles/rolling-workflow-smoke-v1.json \
+  --profile .github/benchmark-profiles/rolling-workflow-smoke-v2.json \
   --bundle ./rclcpp-dashboard
 ```
 
