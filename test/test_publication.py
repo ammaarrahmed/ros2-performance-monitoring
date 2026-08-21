@@ -34,8 +34,9 @@ PROFILE_PATH = (
     REPOSITORY_ROOT
     / '.github'
     / 'benchmark-profiles'
-    / 'rolling-workflow-smoke-v1.json'
+    / 'rolling-workflow-smoke-v2.json'
 )
+DEPENDENCY_SHA = 'c' * 40
 
 
 def test_valid_bundle_activates_only_after_candidate_validation(tmp_path, monkeypatch):
@@ -87,7 +88,7 @@ def test_tampered_checksum_is_rejected_without_changing_active_state(
 @pytest.mark.parametrize(
     ('change', 'message'),
     (
-        ({'schema_version': 2}, 'unsupported shape'),
+        ({'schema_version': 1}, 'unsupported shape'),
         ({'reference_sha': 'short'}, 'full lowercase commit SHA'),
         ({'comparison_exit_code': 3}, 'completed comparison'),
     ),
@@ -344,8 +345,8 @@ def test_interprocess_lock_rejects_overlapping_publishers(tmp_path):
 def _bundle(root, *, run_id, experiment, candidate='b' * 40):
     root.mkdir()
     manifest = {
-        'schema_version': 1,
-        'profile': 'rolling-workflow-smoke-v1',
+        'schema_version': 2,
+        'profile': 'rolling-workflow-smoke-v2',
         'authoritative': False,
         'notice': (
             'Pipeline smoke evidence only; this profile is not calibrated for '
@@ -353,6 +354,15 @@ def _bundle(root, *, run_id, experiment, candidate='b' * 40):
         ),
         'reference_sha': 'a' * 40,
         'candidate_sha': candidate,
+        'source_dependencies': {
+            'repositories': {
+                'ros2/rcl': {
+                    'type': 'git',
+                    'url': 'https://github.com/ros2/rcl.git',
+                    'version': DEPENDENCY_SHA,
+                },
+            },
+        },
         'experiment_id': experiment,
         'run_ids': [f'{experiment}-reference', f'{experiment}-candidate'],
         'comparison_exit_code': 0,

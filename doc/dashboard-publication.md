@@ -8,7 +8,7 @@ is accepted through the same command:
 ```bash
 ros2-performance-monitoring dashboard publish \
   --bundle /var/spool/ros2-dashboard/rclcpp-dashboard.zip \
-  --profile .github/benchmark-profiles/rolling-workflow-smoke-v1.json \
+  --profile .github/benchmark-profiles/rolling-workflow-smoke-v2.json \
   --deployment-root /srv/ros2-performance-monitoring/dashboard \
   --history-limit 10 \
   --inactive-retention 20 \
@@ -66,7 +66,7 @@ The deployment layout is:
   .publish.lock
   .staging/
   bundles/
-    rolling-workflow-smoke-v1-<candidate>-<run>-<identity>/
+    rolling-workflow-smoke-v2-<candidate>-<run>-<identity>/
 ```
 
 Point the long-running exporter at
@@ -96,7 +96,7 @@ ros2-performance-monitoring dashboard pull-github \
   --workflow scheduled-rclcpp-comparison.yml \
   --artifact-prefix rclcpp-dashboard- \
   --token-file /etc/ros2-performance-monitoring/github-actions.token \
-  --profile /opt/ros2-performance-monitoring/.github/benchmark-profiles/rolling-workflow-smoke-v1.json \
+  --profile /opt/ros2-performance-monitoring/.github/benchmark-profiles/rolling-workflow-smoke-v2.json \
   --deployment-root /srv/ros2-performance-monitoring/dashboard \
   --restart-hook /usr/local/libexec/ros2-performance-restart-dashboard
 ```
