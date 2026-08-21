@@ -259,6 +259,7 @@ jobs:
           name: ${{ env.FULL_ARTIFACT_NAME }}
           path: ${{ env.RESULTS_DIR }}
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
 
       - name: Upload compact dashboard bundle
@@ -267,6 +268,7 @@ jobs:
           name: ${{ env.DASHBOARD_ARTIFACT_NAME }}
           path: ${{ env.COMPACT_DIR }}
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
 
       - name: Report exact artifact identity and inspection command

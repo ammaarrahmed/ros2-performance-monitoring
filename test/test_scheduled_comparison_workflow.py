@@ -198,6 +198,7 @@ def test_both_checksum_bound_bundles_are_short_lived_and_state_uses_compact_one(
     }
     assert all(step['with']['retention-days'] == '14' for step in uploads)
     assert all(step['with']['if-no-files-found'] == 'error' for step in uploads)
+    assert all(step['with']['include-hidden-files'] == 'true' for step in uploads)
     assert 'scheduled_comparison bundle' in WORKFLOW_TEXT
     assert 'scheduled_comparison state' in WORKFLOW_TEXT
     assert 'scheduled_comparison validate' in WORKFLOW_TEXT
