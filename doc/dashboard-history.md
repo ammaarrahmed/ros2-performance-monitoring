@@ -23,7 +23,7 @@ declared limit must be between 1 and 100, and the active list cannot exceed it.
       "checksums_sha256": "<sha256-of-bundle-SHA256SUMS>",
       "evidence": "statistical-report",
       "profile": {
-        "name": "rolling-workflow-smoke-v1",
+        "name": "rolling-workflow-smoke-v2",
         "authoritative": false,
         "notice": "Pipeline smoke evidence only; this profile is not calibrated for authoritative performance claims."
       }
@@ -42,7 +42,7 @@ and the bundle checksum list does not satisfy the active deployment contract.
 
 `statistical-report` entries consume the compact dashboard bundle produced by
 the scheduled comparison workflow. Each bundle must include the complete
-version 1 producer contract from issue #66, including:
+version 2 producer contract from issue #66, including:
 
 ```text
 bundle/
