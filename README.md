@@ -216,7 +216,7 @@ use the provider-neutral transactional publisher:
 ```bash
 ros2-performance-monitoring dashboard publish \
   --bundle ./rclcpp-dashboard.zip \
-  --profile .github/benchmark-profiles/rolling-workflow-smoke-v1.json \
+  --profile .github/benchmark-profiles/rolling-workflow-smoke-v2.json \
   --deployment-root /srv/ros2-performance-monitoring/dashboard \
   --restart-hook /usr/local/libexec/ros2-performance-restart-dashboard
 ```
