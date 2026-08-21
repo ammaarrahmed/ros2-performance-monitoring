@@ -108,9 +108,11 @@ def test_benchmark_uses_one_digest_pinned_container_controller():
     )
 
     assert PINNED_IMAGE.fullmatch(WORKFLOW['env']['CONTROLLER_IMAGE'])
+    assert WORKFLOW['env']['CONTROLLER_VERSION'] == '0.1.1'
     assert 'docker pull "${CONTROLLER_IMAGE}"' in pull
     assert 'for attempt in 1 2 3' in pull
     assert 'docker image inspect' in pull
+    assert '"ros2-performance-monitoring ${CONTROLLER_VERSION}"' in pull
     assert 'pip install' not in WORKFLOW_TEXT
     assert 'docker run --rm' in compare
     assert '--volume /var/run/docker.sock:/var/run/docker.sock' in compare
