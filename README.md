@@ -210,6 +210,25 @@ rendered metrics for normal scrapes. See
 [`doc/dashboard-history.md`](doc/dashboard-history.md) for the index, checksum,
 compact report bundle, and legacy threshold-only bundle contracts.
 
+To publish a completed compact bundle to a long-running Linux dashboard host,
+use the provider-neutral transactional publisher:
+
+```bash
+ros2-performance-monitoring dashboard publish \
+  --bundle ./rclcpp-dashboard.zip \
+  --profile .github/benchmark-profiles/rolling-workflow-smoke-v1.json \
+  --deployment-root /srv/ros2-performance-monitoring/dashboard \
+  --restart-hook /usr/local/libexec/ros2-performance-restart-dashboard
+```
+
+The publisher safely extracts and validates the bundle, serializes concurrent
+updates, activates a bounded history atomically, rolls back failed hook or
+health checks, applies inactive retention, and records an audit trail. A
+separate pull adapter can retrieve completed GitHub Actions artifacts without
+coupling the core publisher to GitHub. See
+[`doc/dashboard-publication.md`](doc/dashboard-publication.md) for the full
+contract and generic systemd/container examples.
+
 The exporter target runs as a non-root user with a read-only root filesystem,
 a read-only evidence mount, all capabilities dropped, and no Docker tooling or
 socket. Ports, host directories, data paths, image references, and dashboard

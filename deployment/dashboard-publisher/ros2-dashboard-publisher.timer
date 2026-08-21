@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for a completed ROS 2 dashboard artifact every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

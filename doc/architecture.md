@@ -25,6 +25,7 @@ This keeps the project focused on:
 - Short-lived scheduled comparison artifacts for latest-versus-last-successful
   rclcpp revisions.
 - Explicit bounded activation of checksum-verified dashboard history.
+- Transactional provider-neutral publication to remote Linux dashboard hosts.
 
 It avoids taking ownership of:
 
@@ -50,6 +51,8 @@ focused host preflight
      -> legacy threshold-only comparison -> Prometheus -> Grafana
      -> active-history index -> atomic bundle validation -> cached Prometheus
         history -> bundle-scoped Grafana views
+     -> safe local extraction -> locked atomic history publication
+        -> hook + exact-index exporter health -> rollback or retention
      -> same-target paired noise analysis -> calibration-report.json
         -> calibration.complete.json (never a dashboard or gate input)
 ```
@@ -189,6 +192,19 @@ Prometheus-series collisions, and renders the accepted window once before the
 HTTP server starts. Compact report bundles retain their exact producer,
 comparison, target, topology, and run identities; legacy dataset bundles are
 labelled threshold-only and cannot carry report-backed evidence.
+
+The remote publication boundary treats every local directory or archive as
+untrusted. Safe extraction, producer validation, dataset/report binding, and a
+prospective complete-history load happen before active state changes. An
+interprocess lock serializes publishers. Accepted bundles move into
+deterministic read-only directories and are never overwritten; the bounded
+index is synced and atomically replaced only after every entry validates. A
+service-manager-neutral executable hook reloads the cached exporter, whose
+health response identifies the exact index SHA-256 it loaded. Prometheus must
+also become healthy. Hook or health failure restores the previous index and
+runs the hook again for rollback. GitHub Actions retrieval remains a separate
+outbound-only adapter that feeds a temporary local ZIP through the same core
+publication path.
 
 The comparison workflow is a thin coordinator over the target resolver and
 builder, immutable experiment runner, dataset builder, statistical comparison
