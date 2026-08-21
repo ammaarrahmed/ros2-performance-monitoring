@@ -109,6 +109,9 @@ def test_benchmark_uses_one_digest_pinned_container_controller():
 
     assert PINNED_IMAGE.fullmatch(WORKFLOW['env']['CONTROLLER_IMAGE'])
     assert WORKFLOW['env']['CONTROLLER_VERSION'] == '0.1.1'
+    assert benchmark['env']['SOURCE_DEPENDENCIES_FILE'] == (
+        '${{ github.workspace }}/.rolling-source-dependencies.repos'
+    )
     assert 'docker pull "${CONTROLLER_IMAGE}"' in pull
     assert 'for attempt in 1 2 3' in pull
     assert 'docker image inspect' in pull

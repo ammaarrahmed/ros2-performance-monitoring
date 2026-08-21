@@ -93,7 +93,7 @@ jobs:
       DASHBOARD_ARTIFACT_NAME: rclcpp-dashboard-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
       SOURCE_DEPENDENCIES_B64: ${{ needs.discover.outputs.source_dependencies_b64 }}
       SOURCE_DEPENDENCIES_SHA256: ${{ needs.discover.outputs.source_dependencies_sha256 }}
-      SOURCE_DEPENDENCIES_FILE: ${{ runner.temp }}/rolling-source-dependencies.repos
+      SOURCE_DEPENDENCIES_FILE: ${{ github.workspace }}/.rolling-source-dependencies.repos
     outputs:
       comparison_exit_code: ${{ steps.bundle.outputs.comparison_exit_code }}
       comparison_outcome: ${{ steps.bundle.outputs.comparison_outcome }}
