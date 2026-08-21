@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -24,7 +25,6 @@ from urllib.request import urlopen
 import uuid
 
 import pytest
-
 from ros2_performance_monitoring import exporter
 from ros2_performance_monitoring.exporters.prometheus import create_metrics_server
 from ros2_performance_monitoring.version import project_version
@@ -77,6 +77,25 @@ def test_compose_configuration_is_valid():
     if 'compose is not a docker command' in result.stderr:
         pytest.skip('Docker Compose plugin is not installed')
     assert result.returncode == 0, result.stderr
+
+
+def test_dashboard_publisher_templates_are_provider_neutral_and_shell_valid():
+    example_root = REPOSITORY_ROOT / 'deployment' / 'dashboard-publisher'
+    service = (example_root / 'ros2-dashboard-publisher.service').read_text()
+    environment = (example_root / 'publisher.env.example').read_text()
+    hook = example_root / 'restart-dashboard-compose'
+
+    assert 'dashboard pull-github' in service
+    assert '--token-file ${GITHUB_TOKEN_FILE}' in service
+    assert 'ReadWritePaths=/srv/ros2-performance-monitoring' in service
+    assert 'GITHUB_TOKEN_FILE=' in environment
+    assert 'TOKEN=' not in environment
+    assert all(
+        provider not in (service + environment).lower()
+        for provider in ('amazon resource', 'aws_', 'azure', 'digitalocean', 'gcp_')
+    )
+    assert os.access(hook, os.X_OK)
+    subprocess.run(['sh', '-n', str(hook)], check=True)
 
 
 def test_exporter_entrypoint_reads_environment(monkeypatch):
@@ -137,6 +156,9 @@ def test_exporter_serves_health_and_metrics(tmp_path):
         with urlopen(f'http://127.0.0.1:{port}/healthz') as response:
             assert response.status == 200
             assert response.read() == b'ok\n'
+            assert response.headers['X-ROS2-Performance-Source-SHA256'] == (
+                hashlib.sha256(dataset.read_bytes()).hexdigest()
+            )
         with urlopen(f'http://127.0.0.1:{port}/metrics') as response:
             assert response.status == 200
             assert b'ros2_perf_latency_us' in response.read()

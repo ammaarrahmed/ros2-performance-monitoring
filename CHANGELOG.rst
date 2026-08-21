@@ -4,6 +4,11 @@ Changelog for package ros2_performance_monitoring
 
 0.1.0 (unreleased)
 ------------------
+* Added provider-neutral transactional dashboard publication with safe archive
+  extraction, immutable accepted bundles, locked atomic history activation,
+  idempotency, configurable retention and reload hooks, exact-index health
+  rollback, audit records, a pull-based GitHub Actions adapter, and generic
+  Linux deployment examples.
 * Added a versioned, explicitly ordered active-history index for bounded,
   checksum-verified comparison bundles, atomic startup validation, cached
   multi-bundle metrics, profile authority metadata, and bundle-scoped Grafana

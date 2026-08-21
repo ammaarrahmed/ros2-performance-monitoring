@@ -1,0 +1,17 @@
+[Unit]
+Description=Pull and publish the latest verified ROS 2 dashboard bundle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ros2-dashboard
+Group=ros2-dashboard
+SupplementaryGroups=docker
+EnvironmentFile=/etc/ros2-performance-monitoring/publisher.env
+ExecStart=/usr/local/bin/ros2-performance-monitoring dashboard pull-github --repository ${GITHUB_REPOSITORY} --workflow ${GITHUB_WORKFLOW} --artifact-prefix ${GITHUB_ARTIFACT_PREFIX} --token-file ${GITHUB_TOKEN_FILE} --github-api-url ${GITHUB_API_URL} --profile ${PRODUCER_PROFILE} --deployment-root ${DEPLOYMENT_ROOT} --history-limit ${HISTORY_LIMIT} --inactive-retention ${INACTIVE_RETENTION} --restart-hook ${RESTART_HOOK} --exporter-health-url ${EXPORTER_HEALTH_URL} --prometheus-health-url ${PROMETHEUS_HEALTH_URL} --health-timeout ${HEALTH_TIMEOUT}
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/ros2-performance-monitoring
