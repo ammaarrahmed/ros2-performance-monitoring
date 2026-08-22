@@ -23,9 +23,41 @@ declared limit must be between 1 and 100, and the active list cannot exceed it.
       "checksums_sha256": "<sha256-of-bundle-SHA256SUMS>",
       "evidence": "statistical-report",
       "profile": {
+        "schema_version": 2,
         "name": "rolling-workflow-smoke-v2",
         "authoritative": false,
-        "notice": "Pipeline smoke evidence only; this profile is not calibrated for authoritative performance claims."
+        "notice": "Pipeline smoke evidence only; this profile is not calibrated for authoritative performance claims.",
+        "rclcpp": {
+          "repository": "https://github.com/ros2/rclcpp.git",
+          "ref": "rolling"
+        },
+        "source_dependencies": {
+          "repositories": {
+            "ros2/rcl": {
+              "type": "git",
+              "url": "https://github.com/ros2/rcl.git",
+              "version": "rolling"
+            }
+          }
+        },
+        "benchmark_container": {
+          "repository": "https://github.com/ros2/ros2-benchmark-container.git",
+          "ref": "7980edb4781249398a9cf490f73f8985de5cb95a"
+        },
+        "comparison": {
+          "ros_distro": "rolling",
+          "suite": "rclcpp-minimal",
+          "executor": "EventsCBGExecutor",
+          "duration": 1,
+          "cpuset_cpus": null,
+          "warmups": 0,
+          "repeats": 3,
+          "order": "balanced",
+          "schedule_seed": 0,
+          "bootstrap_repeats": 100,
+          "bootstrap_seed": 0,
+          "minimum_trials": 3
+        }
       }
     }
   ]
@@ -58,8 +90,12 @@ bundle/
   SHA256SUMS
 ```
 
-The indexed profile must match `producer-manifest.json`. Startup revalidates
-the compact bundle, dataset manifest, normalized records, report schema,
+Statistical entries embed the complete pinned producer profile, not only its
+display fields. Threshold-only entries retain the smaller `name`,
+`authoritative`, and `notice` object because they have no producer contract to
+revalidate. The indexed statistical profile must match
+`producer-manifest.json`. Startup revalidates the compact bundle, dataset
+manifest, normalized records, report schema,
 dataset SHA-256 binding, experiment identity, exact reference and candidate
 commits, selected runs, topology coverage, outcome, and producer run IDs.
 Every report is checked against the dataset inside the same bundle.

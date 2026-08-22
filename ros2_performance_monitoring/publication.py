@@ -472,11 +472,7 @@ def _history_entry(deployment_root, bundle, bundle_id, profile):
         'path': bundle.relative_to(deployment_root).as_posix(),
         'checksums_sha256': _sha256(bundle / CHECKSUM_FILENAME),
         'evidence': REPORT_EVIDENCE,
-        'profile': {
-            'name': profile['name'],
-            'authoritative': profile['authoritative'],
-            'notice': profile['notice'],
-        },
+        'profile': profile,
     }
 
 

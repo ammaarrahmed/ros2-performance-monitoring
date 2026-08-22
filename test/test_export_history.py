@@ -14,12 +14,22 @@
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 from ros2_performance_monitoring.dataset import build_dataset
 import ros2_performance_monitoring.exporters.history as history
 from ros2_performance_monitoring.exporters.history import HistoryIndexError
 from ros2_performance_monitoring.exporters.history import load_active_history
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+PROFILE_PATH = (
+    REPOSITORY_ROOT
+    / '.github'
+    / 'benchmark-profiles'
+    / 'rolling-workflow-smoke-v2.json'
+)
 
 
 def test_two_and_three_bundle_histories_preserve_index_order_and_bound(tmp_path):
@@ -127,6 +137,18 @@ def test_history_can_mix_report_and_threshold_only_evidence(tmp_path, monkeypatc
     assert bundles[1].authoritative is False
 
 
+def test_report_history_rejects_a_reduced_profile_before_bundle_validation(tmp_path):
+    report = _report_bundle(tmp_path, 'comparison', 'report-run')
+    report['profile'] = {
+        key: report['profile'][key]
+        for key in ('name', 'authoritative', 'notice')
+    }
+    index = _write_index(tmp_path, [report], limit=1)
+
+    with pytest.raises(HistoryIndexError, match='producer profile is malformed'):
+        load_active_history(index)
+
+
 def _threshold_bundle(root, bundle_id, run_id):
     bundle = root / bundle_id
     source = bundle / 'source.jsonl'
@@ -141,7 +163,9 @@ def _report_bundle(root, bundle_id, run_id):
     bundle = root / bundle_id
     (bundle / history.REPORT_PATH).write_text('{}\n', encoding='utf-8')
     (bundle / history.MANIFEST_FILENAME).write_text('{}\n', encoding='utf-8')
-    return _finish_bundle(root, bundle, bundle_id, history.REPORT_EVIDENCE)
+    entry = _finish_bundle(root, bundle, bundle_id, history.REPORT_EVIDENCE)
+    entry['profile'] = json.loads(PROFILE_PATH.read_text(encoding='utf-8'))
+    return entry
 
 
 def _finish_bundle(root, bundle, bundle_id, evidence):
@@ -179,6 +203,9 @@ def _write_index(root, entries, limit):
 
 
 def _fake_validate_bundle(root, profile):
+    assert profile['source_dependencies']['repositories']['ros2/rcl']['version'] == (
+        'rolling'
+    )
     commit = 'b' * 40 if root.name in ('comparison-one', 'comparison') else 'c' * 40
     run_id = (
         'report-run'
