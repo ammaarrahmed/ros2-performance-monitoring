@@ -101,8 +101,11 @@ ros2-performance-monitoring dashboard pull-github \
   --restart-hook /usr/local/libexec/ros2-performance-restart-dashboard
 ```
 
-Use `--run-id` to pin one completed successful workflow run instead of selecting
-the latest. `--github-api-url` can select a GitHub Enterprise API endpoint. The
+Without `--run-id`, the adapter checks successful runs newest first and skips
+runs that have no unexpired matching artifact. This allows an unchanged-upstream
+workflow to complete successfully without hiding the preceding artifact-bearing
+comparison. Use `--run-id` to require one specific completed successful workflow
+run instead. `--github-api-url` can select a GitHub Enterprise API endpoint. The
 adapter needs outbound HTTPS only. Give its fine-grained token
 read-only repository Metadata and Actions access. Store only the token in the
 token file, make the file owned by the service account, and set mode `0600`:
