@@ -162,6 +162,11 @@ class GitHubAPI:
 def load_profile(path):
     """Load and strictly validate one immutable producer profile."""
     profile = _read_json(path, 'producer profile')
+    return validate_profile(profile)
+
+
+def validate_profile(profile):
+    """Strictly validate one already decoded immutable producer profile."""
     required = {
         'schema_version', 'name', 'authoritative', 'notice', 'rclcpp',
         'source_dependencies', 'benchmark_container', 'comparison',

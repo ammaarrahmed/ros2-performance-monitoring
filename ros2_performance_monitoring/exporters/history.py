@@ -26,7 +26,9 @@ from ros2_performance_monitoring.dataset import verify_dataset_bundle
 from ros2_performance_monitoring.exporters.prometheus import load_records
 from ros2_performance_monitoring.scheduled_comparison import CHECKSUM_FILENAME
 from ros2_performance_monitoring.scheduled_comparison import MANIFEST_FILENAME
+from ros2_performance_monitoring.scheduled_comparison import ScheduledComparisonError
 from ros2_performance_monitoring.scheduled_comparison import validate_bundle
+from ros2_performance_monitoring.scheduled_comparison import validate_profile
 
 
 HISTORY_SCHEMA_VERSION = 1
@@ -115,7 +117,7 @@ def _load_entry(index_root, entry, position):
         expected_checksum
     ):
         raise HistoryIndexError(f'active bundle {bundle_id!r} has an invalid checksum')
-    profile = _validate_profile(entry['profile'], bundle_id)
+    profile = _validate_profile(entry['profile'], bundle_id, evidence)
     root = _relative_path(index_root, entry['path'], f'active bundle {bundle_id!r}')
     if not root.is_dir():
         raise HistoryIndexError(f'active bundle directory does not exist: {root}')
@@ -185,7 +187,14 @@ def _load_entry(index_root, entry, position):
     )
 
 
-def _validate_profile(profile, bundle_id):
+def _validate_profile(profile, bundle_id, evidence):
+    if evidence == REPORT_EVIDENCE:
+        try:
+            return validate_profile(profile)
+        except ScheduledComparisonError as exc:
+            raise HistoryIndexError(
+                f'active bundle {bundle_id!r} producer profile is malformed: {exc}'
+            ) from exc
     required = {'name', 'authoritative', 'notice'}
     if not isinstance(profile, dict) or set(profile) != required:
         raise HistoryIndexError(f'active bundle {bundle_id!r} profile is malformed')

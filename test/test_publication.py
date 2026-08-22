@@ -60,6 +60,9 @@ def test_valid_bundle_activates_only_after_candidate_validation(tmp_path, monkey
     index = json.loads(result.index_path.read_text(encoding='utf-8'))
     assert index['history_limit'] == 10
     assert [entry['bundle_id'] for entry in index['bundles']] == [result.bundle_id]
+    assert index['bundles'][0]['profile'] == json.loads(
+        PROFILE_PATH.read_text(encoding='utf-8')
+    )
     assert (deployment / index['bundles'][0]['path']).is_dir()
     audit = _audit_records(deployment)
     assert audit[-1]['outcome'] == 'activated'
