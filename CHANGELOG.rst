@@ -2,6 +2,15 @@
 Changelog for package ros2_performance_monitoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.2 (2026-08-22)
+------------------
+* Fixed statistical active-history entries to retain and revalidate the full
+  pinned producer profile, including exact dependency and benchmark contracts.
+* Fixed hosted Rolling artifact publication to preserve checksummed hidden
+  benchmark configurations and use supported Node 24 workflow actions.
+* Activated exact Rolling dependency snapshots in the scheduled comparison
+  producer and fixed its dependency manifest path evaluation.
+
 0.1.1 (2026-08-21)
 ------------------
 * Added provider-neutral transactional dashboard publication with safe archive
