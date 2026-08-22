@@ -81,8 +81,63 @@ class GitHubArtifactClient:
                 return _valid_run_id(str(run.get('id', '')))
         raise GitHubArtifactError('no successful completed workflow run was found')
 
+    def completed_run_artifact(
+        self,
+        repository,
+        workflow,
+        name_prefix,
+        run_id=None,
+    ):
+        """Select an artifact-bearing successful run and its matching artifact."""
+        if run_id is not None:
+            selected_run = self.completed_run_id(repository, workflow, run_id)
+            return selected_run, self.artifact(
+                repository,
+                selected_run,
+                name_prefix,
+            )
+
+        workflow_path = quote(workflow, safe='')
+        response = self._get_json(
+            f'repos/{repository}/actions/workflows/{workflow_path}/runs'
+            '?status=completed&per_page=100'
+        )
+        runs = response.get('workflow_runs') if isinstance(response, dict) else None
+        if not isinstance(runs, list):
+            raise GitHubArtifactError('GitHub workflow run response is malformed')
+
+        successful_run_found = False
+        for run in runs:
+            if (
+                not isinstance(run, dict)
+                or run.get('status') != 'completed'
+                or run.get('conclusion') != 'success'
+            ):
+                continue
+            successful_run_found = True
+            selected_run = _valid_run_id(str(run.get('id', '')))
+            matches = self._matching_artifacts(
+                repository,
+                selected_run,
+                name_prefix,
+            )
+            if not matches:
+                continue
+            return selected_run, _select_artifact(matches, name_prefix)
+
+        if not successful_run_found:
+            raise GitHubArtifactError('no successful completed workflow run was found')
+        raise GitHubArtifactError(
+            'no successful completed workflow run has one unexpired artifact '
+            f'with prefix {name_prefix!r}'
+        )
+
     def artifact(self, repository, run_id, name_prefix):
         """Select one unexpired artifact from a completed run by name prefix."""
+        matches = self._matching_artifacts(repository, run_id, name_prefix)
+        return _select_artifact(matches, name_prefix)
+
+    def _matching_artifacts(self, repository, run_id, name_prefix):
         response = self._get_json(
             f'repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100'
         )
@@ -96,15 +151,7 @@ class GitHubArtifactClient:
             and artifact['name'].startswith(name_prefix)
             and artifact.get('expired') is False
         ]
-        if len(matches) != 1:
-            raise GitHubArtifactError(
-                f'expected one unexpired artifact with prefix {name_prefix!r}, '
-                f'found {len(matches)}'
-            )
-        artifact = matches[0]
-        if not isinstance(artifact.get('archive_download_url'), str):
-            raise GitHubArtifactError('GitHub artifact omitted its archive download URL')
-        return artifact
+        return matches
 
     def download(self, artifact, output_path):
         """Stream one selected ZIP archive to a local file."""
@@ -170,8 +217,12 @@ def pull_and_publish_dashboard_bundle(
         raise GitHubArtifactError('workflow and artifact prefix must be non-empty')
     token = _read_restricted_token(token_file)
     client = GitHubArtifactClient(token, api_url=api_url)
-    selected_run = client.completed_run_id(repository, workflow, run_id)
-    artifact = client.artifact(repository, selected_run, artifact_prefix)
+    _selected_run, artifact = client.completed_run_artifact(
+        repository,
+        workflow,
+        artifact_prefix,
+        run_id,
+    )
     with tempfile.TemporaryDirectory(prefix='ros2-dashboard-artifact-') as temporary:
         archive = Path(temporary) / 'artifact.zip'
         client.download(artifact, archive)
@@ -206,6 +257,18 @@ def _valid_run_id(value):
     if not _RUN_ID_PATTERN.fullmatch(value):
         raise GitHubArtifactError('GitHub workflow run ID is invalid')
     return value
+
+
+def _select_artifact(matches, name_prefix):
+    if len(matches) != 1:
+        raise GitHubArtifactError(
+            f'expected one unexpired artifact with prefix {name_prefix!r}, '
+            f'found {len(matches)}'
+        )
+    artifact = matches[0]
+    if not isinstance(artifact.get('archive_download_url'), str):
+        raise GitHubArtifactError('GitHub artifact omitted its archive download URL')
+    return artifact
 
 
 def _require_completed_run(run, run_id, workflow_id):

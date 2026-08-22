@@ -78,6 +78,72 @@ def test_latest_completed_run_and_artifact_are_selected_without_exposing_token()
     assert all('secret-token' not in request.full_url for request, _timeout in requests)
 
 
+def test_latest_artifact_skips_successful_runs_without_matching_artifacts():
+    responses = [
+        {'workflow_runs': [
+            {'id': 101, 'status': 'completed', 'conclusion': 'success'},
+            {'id': 100, 'status': 'completed', 'conclusion': 'success'},
+        ]},
+        {'artifacts': []},
+        {'artifacts': [{
+            'name': 'rclcpp-dashboard-abc-100',
+            'expired': False,
+            'archive_download_url': 'https://api.github.test/artifacts/1/zip',
+        }]},
+    ]
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request.full_url)
+        return FakeResponse(responses.pop(0))
+
+    client = GitHubArtifactClient(
+        'secret-token',
+        api_url='https://api.github.test',
+        opener=opener,
+    )
+
+    run_id, artifact = client.completed_run_artifact(
+        'owner/repository',
+        'producer.yml',
+        'rclcpp-dashboard-',
+    )
+
+    assert run_id == '100'
+    assert artifact['name'] == 'rclcpp-dashboard-abc-100'
+    assert requests == [
+        'https://api.github.test/repos/owner/repository/actions/workflows/'
+        'producer.yml/runs?status=completed&per_page=100',
+        'https://api.github.test/repos/owner/repository/actions/runs/101/'
+        'artifacts?per_page=100',
+        'https://api.github.test/repos/owner/repository/actions/runs/100/'
+        'artifacts?per_page=100',
+    ]
+
+
+def test_latest_artifact_reports_successful_runs_without_matching_artifacts():
+    responses = [
+        {'workflow_runs': [
+            {'id': 101, 'status': 'completed', 'conclusion': 'success'},
+        ]},
+        {'artifacts': []},
+    ]
+    client = GitHubArtifactClient(
+        'token',
+        opener=lambda request, timeout: FakeResponse(responses.pop(0)),
+    )
+
+    with pytest.raises(
+        GitHubArtifactError,
+        match='no successful completed workflow run has one unexpired artifact',
+    ):
+        client.completed_run_artifact(
+            'owner/repository',
+            'producer.yml',
+            'rclcpp-dashboard-',
+        )
+
+
 def test_explicit_run_must_be_successfully_completed():
     responses = [
         {'id': 50},
@@ -145,17 +211,11 @@ def test_downloaded_archive_passes_through_the_local_publisher(tmp_path, monkeyp
             assert token == 'secret-token'
             assert api_url == 'https://api.github.com'
 
-        def completed_run_id(self, repository, workflow, run_id):
-            assert (repository, workflow, run_id) == (
-                'owner/repository', 'producer.yml', None,
+        def completed_run_artifact(self, repository, workflow, prefix, run_id):
+            assert (repository, workflow, prefix, run_id) == (
+                'owner/repository', 'producer.yml', 'rclcpp-dashboard-', None,
             )
-            return '100'
-
-        def artifact(self, repository, run_id, prefix):
-            assert (repository, run_id, prefix) == (
-                'owner/repository', '100', 'rclcpp-dashboard-',
-            )
-            return {'archive_download_url': 'unused'}
+            return '100', {'archive_download_url': 'unused'}
 
         def download(self, artifact, output_path):
             Path(output_path).write_bytes(b'PK\x05\x06' + b'\x00' * 18)
