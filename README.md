@@ -1,12 +1,29 @@
 # ROS 2 Performance Monitoring
 
-This repository turns local ROS 2 benchmark output into something you can inspect
-quickly: normalized JSONL, Prometheus metrics, and a Grafana dashboard running on
-your machine.
+This repository turns ROS 2 benchmark output into normalized JSONL, verified
+comparison evidence, Prometheus metrics, and Grafana dashboards. You can run the
+complete workflow locally or publish completed GitHub Actions artifacts to a
+long-running Linux dashboard host.
 
-The current path is intentionally small and local-first. It runs reduced
-`rclcpp` pub/sub and service benchmark suites, normalizes the resulting
-artifacts, and makes those results visible in Grafana.
+The project runs reduced `rclcpp` Pub/Sub and Service benchmark suites. It
+supports packaged ROS installations, exact source commits, controlled repeated
+experiments, and non-authoritative scheduled Rolling smoke comparisons.
+
+## Table Of Contents
+
+- [What This Does](#what-this-does)
+- [Choose A Workflow](#choose-a-workflow)
+- [Prerequisites](#prerequisites)
+- [Container-First Workflow](#container-first-workflow)
+- [Host-Installed Workflow](#host-installed-workflow)
+- [Hosted Rolling Workflow](#hosted-rolling-workflow)
+- [Calibration Workflow](#calibration-workflow)
+- [Inspect And Visualize Results](#inspect-and-visualize-results)
+- [Useful Commands](#useful-commands)
+- [Troubleshooting](#troubleshooting)
+- [Repository Boundary](#repository-boundary)
+- [Development Checks](#development-checks)
+- [License](#license)
 
 ## What This Does
 
@@ -16,8 +33,8 @@ benchmark container run
   -> normalized_metrics.jsonl
   -> dataset build
   -> dashboard-data.jsonl
-  -> optional comparison-report.json
-  -> local Prometheus exporter
+  -> optional repeat-aware comparison-report.json
+  -> Prometheus exporter
   -> Prometheus
   -> Grafana
 ```
@@ -25,9 +42,30 @@ benchmark container run
 The dashboard compares runs and reports separate latency, throughput, resource,
 reliability, and overall statuses. Missing required results and non-applicable
 service metrics are explicit rather than treated as passing measurements. The
-project does not enforce a CI-gating regression policy or run a long-lived
-hosted monitoring stack. Comparisons can be scoped by ROS client library ref,
-ROS distro, RMW implementation, communication mode, and payload size.
+project does not treat its uncalibrated smoke profile as a CI gate and does not
+provision cloud infrastructure. Comparisons can be scoped by history bundle,
+ROS client library ref, ROS distribution, RMW implementation, communication
+mode, topology, and payload size.
+
+## Choose A Workflow
+
+Most users should start with the container-first workflow. It keeps Python, ROS
+2, `vcstool`, and the project CLI inside versioned images while continuing to
+run the measured ROS workload in the upstream benchmark container.
+
+| Goal | Recommended path | Start here |
+| --- | --- | --- |
+| Verify the project on one machine | Container-first short benchmark | [Container-First Workflow](#container-first-workflow) |
+| Compare two exact rclcpp commits | Controlled repeated comparison | [Compare Exact rclcpp Commits](#compare-exact-rclcpp-commits) |
+| Develop or debug the Python/ROS package | Host-installed workflow | [Host-Installed Workflow](#host-installed-workflow) |
+| Produce periodic Rolling evidence | GitHub Actions producer | [Hosted Rolling Workflow](#hosted-rolling-workflow) |
+| Measure normal same-commit variation | Controlled A/A calibration | [Calibration Workflow](#calibration-workflow) |
+| Publish verified bundles to a Linux host | Transactional publisher | [`doc/dashboard-publication.md`](doc/dashboard-publication.md) |
+
+Benchmark runs are intentionally invasive: they use privileged containers and
+temporarily change CPU-governor settings. Results from different machines,
+kernels, power states, thermal conditions, or background loads are not directly
+comparable.
 
 ## Prerequisites
 
@@ -79,8 +117,10 @@ Project releases publish matching `linux/amd64` runtime images at:
 - `ghcr.io/ammaarrahmed/ros2-performance-monitoring-cli`
 - `ghcr.io/ammaarrahmed/ros2-performance-monitoring-exporter`
 
-Use the manifest digests recorded in the GitHub release notes and workflow
-summary. Check out the same project release, then pin both images by digest:
+Use the manifest digests recorded in the
+[GitHub release notes](https://github.com/ammaarrahmed/ros2-performance-monitoring/releases)
+and workflow summary. Check out the same project release, then pin both images
+by digest:
 
 ```bash
 git switch --detach <release-version>
@@ -100,12 +140,11 @@ removed automatically. Release-version and full 40-character commit tags are
 also published for discovery, but deployments should use digests. There is no
 `latest` release contract.
 
-After the first successful workflow creates both package entries, a repository
-owner must open each package's settings in GitHub Container Registry and change
-its visibility to **Public**. This is a one-time setting required before the
-`docker pull` commands above work without registry credentials. The OCI source
-label links each package to this repository. See GitHub's
+The repository's two GHCR packages are public and can be pulled without
+registry credentials. Fork maintainers publishing under a different namespace
+must make their new package entries public once; see GitHub's
 [package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+The OCI source label links each package to its repository.
 
 To test unreleased changes or a non-`amd64` host, build the targets locally as
 described below.
@@ -128,7 +167,12 @@ records the current Git revision. Start with the short service benchmark:
 ```
 
 `smoke` is resolved under the controller's `/results` mount and is written to
-`./results/smoke` on the host. A repeated comparison uses the same CLI syntax:
+`./results/smoke` on the host. It verifies benchmark execution and
+normalization, but one run alone is not a comparison dataset.
+
+### Compare Exact rclcpp Commits
+
+A repeated comparison uses the same CLI syntax:
 
 ```bash
 ./scripts/container-workflow experiment compare \
@@ -229,6 +273,13 @@ coupling the core publisher to GitHub. See
 [`doc/dashboard-publication.md`](doc/dashboard-publication.md) for the full
 contract and generic systemd/container examples.
 
+When no workflow run is pinned, the GitHub adapter checks successful runs from
+newest to oldest and selects the first run containing exactly one unexpired
+artifact with the configured prefix. Successful no-op runs that intentionally
+produce no artifact, such as an unchanged-upstream skip, do not hide the most
+recent publishable comparison. An explicit `--run-id` remains strict and never
+falls back to a different run.
+
 The exporter target runs as a non-root user with a read-only root filesystem,
 a read-only evidence mount, all capabilities dropped, and no Docker tooling or
 socket. Ports, host directories, data paths, image references, and dashboard
@@ -251,7 +302,7 @@ reference controller for controlled A/B diagnostics.
 
 Run these commands from the repository root.
 
-### 1. Start With A Short Benchmark
+### Start With A Short Benchmark
 
 The first run fetches the external benchmark repository and builds a large ROS 2
 container image. Even a one-second benchmark can therefore take several minutes
@@ -275,7 +326,7 @@ sets the governor to `powersave` when it finishes; it does not restore a
 different original governor. Run it only on a machine where those host-level
 changes are acceptable.
 
-### 2. Run The Full Benchmark
+### Run The Full Benchmark
 
 This fetches the benchmark container repo if needed, builds the Docker image,
 runs the reduced `rclcpp` pub/sub and service benchmarks, and writes raw
@@ -534,10 +585,10 @@ or unrelated report therefore fails instead of being displayed beside a
 different dataset. Add `--start-dashboard` to the comparison invocation to run
 that command automatically after successful validation.
 
-### Pilot The Latest rclcpp Producer
+## Hosted Rolling Workflow
 
 The `Produce latest rclcpp comparison` GitHub Actions workflow is the hosted
-producer for issue-driven history. It resolves the exact current
+producer for bounded dashboard history. It resolves the exact current
 `ros2/rclcpp` Rolling SHA, compares it with the last successfully published
 candidate, and skips before dependency installation or image builds when the
 SHA is unchanged. If several upstream commits arrive between runs, it produces
@@ -567,9 +618,10 @@ times before target preparation starts.
 > not calibrated for authoritative performance claims and its outcome is not a
 > CI gate.
 
-Run the required first end-to-end pilot manually on the default branch. Supply
-an exact bootstrap SHA when a specific initial baseline is required; otherwise
-the workflow records and uses the candidate's first parent:
+Before enabling the schedule in a new deployment or fork, run the first
+end-to-end pilot manually on the default branch. Supply an exact bootstrap SHA
+when a specific initial baseline is required; otherwise the workflow records
+and uses the candidate's first parent:
 
 ```bash
 gh workflow run scheduled-rclcpp-comparison.yml --ref main
@@ -580,11 +632,11 @@ gh workflow run scheduled-rclcpp-comparison.yml \
   -f bootstrap_sha=<exact-rclcpp-commit>
 ```
 
-The off-hours Monday schedule is present but gated. After a successful manual
-pilot, a repository administrator can enable it by setting the repository
-Actions variable `ENABLE_RCLCPP_SCHEDULE` to `true`. A single concurrency group
-serializes manual and scheduled producers, so two runs cannot race while
-advancing the baseline.
+The off-hours Monday schedule is gated by the repository Actions variable
+`ENABLE_RCLCPP_SCHEDULE`; this repository enables it after the successful
+pilot. A fork should leave the variable unset until its own pilot succeeds. A
+single concurrency group serializes manual and scheduled producers, so two runs
+cannot race while advancing the baseline.
 
 Completed comparison outcomes with exit codes `0`, `1`, or `2` publish two
 14-day artifacts and advance state. Invalid or operational outcomes with exit
@@ -626,7 +678,7 @@ job has read-only repository permission; the separate state job downloads and
 revalidates the compact artifact before receiving `contents: write`. The
 workflow never runs for pull requests and does not publish benchmark images.
 
-### Calibrate Same-Commit Benchmark Noise
+## Calibration Workflow
 
 Use the separate calibration workflow before treating comparison outcomes as a
 required gate. It resolves one exact rclcpp target, measures it as two distinct
@@ -664,7 +716,14 @@ them to the exporter or dashboard. Rerun the identical command to resume or
 verify the immutable bundle. See [`doc/calibration.md`](doc/calibration.md) for
 the method, report fields, controlled-host checklist, and interpretation.
 
-### 3. Inspect Or Reprocess The Artifacts
+## Inspect And Visualize Results
+
+The `run` and `experiment compare` commands already normalize their results.
+Use the following commands when reprocessing old artifacts, composing a dataset
+manually, checking the exporter, or opening Grafana without rerunning a
+benchmark.
+
+### Reprocess Existing Artifacts
 
 The `run` command automatically creates the normalized JSONL consumed by the
 exporter and dashboard. To reprocess existing raw benchmark files, run:
@@ -686,7 +745,7 @@ versions show their resolved commit; packaged versions are identified as
 `packaged`. The adjacent run metadata also records the verified image name, ID,
 digest, and complete target key.
 
-### 4. Build A Comparison Dataset
+### Build A Comparison Dataset
 
 The dashboard needs at least two runs in one JSONL input. Run the benchmark in
 separate result directories, then combine their normalized files:
@@ -727,7 +786,7 @@ two measured runs with identical provenance and scenario/metric coverage.
 Dashboard selectors distinguish measured runs from median aggregates and show
 the aggregate repeat count.
 
-### 5. Check The Exporter Directly
+### Check The Exporter Directly
 
 This step is optional, but useful when you want to verify the metrics before
 starting Grafana:
@@ -768,7 +827,7 @@ http://localhost:9108/metrics
 
 Stop the exporter with `Ctrl+C`.
 
-### 6. Start Grafana And Prometheus
+### Start Grafana And Prometheus
 
 Start the local dashboard stack:
 
@@ -808,7 +867,7 @@ analysis method is visibly labelled `Threshold-only`; see
 [`doc/dashboard.md`](doc/dashboard.md#comparison-policy) for the policy and
 missing-data rules.
 
-### 7. Stop The Dashboard
+### Stop The Dashboard
 
 Press `Ctrl+C` in the terminal running `dashboard up`, then stop the containers:
 
@@ -859,14 +918,11 @@ Run the dashboard from that file:
 ros2-performance-monitoring dashboard up --input ./results/benchmark/lyrical/pub-sub_single_process/normalized_metrics.jsonl
 ```
 
-The local dashboard stack is defined by:
-
-- `compose.dashboard.yml` for the Prometheus and Grafana containers.
-- `config/prometheus/prometheus.yml` for the Prometheus scrape target.
-- `config/grafana/provisioning/` for automatic Grafana datasource and
-  dashboard provisioning.
-- `config/grafana/dashboards/rclcpp_pubsub_overview.json` for the current
-  pub/sub and service dashboard.
+The host-installed dashboard uses `compose.dashboard.yml` and
+`config/prometheus/prometheus.yml`. The container-first stack uses `compose.yml`
+and `config/prometheus/prometheus.container.yml`. Both use
+`config/grafana/provisioning/` and the tracked dashboards under
+`config/grafana/dashboards/`.
 
 ## Troubleshooting
 
@@ -918,9 +974,10 @@ This repository does not vendor the benchmark engines.
   into derived local images; they are not vendored in this repository.
 - No iRobot benchmark source code or result files are committed to this project.
 
-The repository owns exact local image preparation and provenance verification
-in addition to artifact parsing, normalization, export, and dashboards. It does
-not own the external benchmark implementations or hosted infrastructure.
+The repository owns exact image preparation, provenance verification, artifact
+parsing, normalization, export, dashboards, and provider-neutral publication
+logic. It does not own the external benchmark implementations or provision a
+VM, DNS, tunnel, or other cloud infrastructure.
 
 ## Development Checks
 
@@ -933,7 +990,6 @@ From a clean checkout, create a virtual environment, install the development
 dependencies, and install the package:
 
 ```bash
-source /opt/ros/lyrical/setup.bash
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
@@ -941,30 +997,12 @@ python3 -m pip install -r requirements.txt
 python3 -m pip install .
 ```
 
-Run the CLI:
+Confirm that the installed CLI is the expected checkout:
 
 ```bash
+ros2-performance-monitoring --version
 ros2-performance-monitoring help
-ros2-performance-monitoring run
-ros2-performance-monitoring build-container
-ros2-performance-monitoring experiment compare \
-  --reference-ref <reference-commit> \
-  --candidate-ref <candidate-commit> \
-  --results-dir ./experiments/example
-ros2-performance-monitoring experiment calibrate \
-  --target-ref <commit> \
-  --results-dir ./experiments/calibration
-ros2-performance-monitoring experiment report ./experiments/example
-ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
-ros2-performance-monitoring dataset build \
-  ./results/run-1.jsonl ./results/run-2.jsonl \
-  --output ./results/dashboard-data.jsonl
-ros2-performance-monitoring serve-prometheus --input ./results/normalized_metrics.jsonl
-ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
 ```
-
-Pass `--comparison-report <path>` to either exporter command to use a matching
-schema-v3 statistical report instead of the legacy threshold-only statuses.
 
 The `doctor` subcommand is currently a placeholder and does not perform
 environment checks yet.
@@ -1055,7 +1093,8 @@ Place this package inside a ROS 2 workspace, build it with `colcon`, and source
 the workspace:
 
 ```bash
-source /opt/ros/lyrical/setup.bash
+ROS_DISTRO=lyrical  # Replace this with an installed ROS 2 distribution.
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
 mkdir -p ~/ros2_performance_ws/src
 cd ~/ros2_performance_ws/src
 git clone https://github.com/ammaarrahmed/ros2-performance-monitoring.git
@@ -1077,275 +1116,14 @@ ros2 run ros2_performance_monitoring ros2-performance-monitoring dataset build \
 ros2 run ros2_performance_monitoring ros2-performance-monitoring dashboard up --input ./results/normalized_metrics.jsonl
 ```
 
-### Benchmark container build
+### Benchmark And Container Integration Checks
 
-The `build-container` command prepares a verified local benchmark image. It
-requires Docker and Docker Buildx to be installed and available on `PATH` in the
-same shell that runs the command:
-
-```bash
-docker version
-docker buildx version
-```
-
-It uses `vcstool` to fetch the external benchmark container repository and to
-validate optional exact source dependency manifests. Git resolves rclcpp and
-dependency source targets. For pip installs, `vcstool` and PyYAML are Python
-package dependencies. For ROS 2 workspace installs, `rosdep` installs
-`python3-vcstool` and `python3-yaml`. The Docker build pulls and exports a large
-ROS 2 base image, so make sure Docker has several GB of free disk space
-available.
-
-The upstream benchmark Dockerfile remains in the external repository. The
-command fetches or updates that checkout before starting Docker. By default it
-is stored at:
-
-```bash
-~/.cache/ros2-performance-monitoring
-```
-
-Managed rclcpp and source dependency mirrors, immutable worktrees, and prepared
-benchmark script contexts are stored beside it under:
-
-```text
-~/.cache/ros2-performance-monitoring-targets
-```
-
-The final image identity includes the ROS distribution, Docker architecture,
-benchmark-container commit, rclcpp source and commit, exact source dependency
-snapshot, and build configuration. The image tag and retained-container name
-contain a prefix of that identity key. Full inputs are recorded in Docker labels and in
-`/etc/ros2-performance-monitoring/target-manifest.json` inside the image.
-
-On a fresh machine, `build-container` can be run directly:
-
-```bash
-ros2-performance-monitoring build-container
-```
-
-That command builds a packaged-rclcpp image. Add the same source options used by
-`run` to build a derived rclcpp image:
-
-```bash
-ros2-performance-monitoring build-container \
-  --client-library-source build \
-  --client-library-ref <branch-tag-or-commit>
-```
-
-With a ROS 2 workspace build, use the equivalent `ros2 run` commands:
-
-```bash
-ros2 run ros2_performance_monitoring ros2-performance-monitoring build-container
-```
-
-If Docker is not installed, Docker is not available on `PATH`, or the current
-user cannot access the Docker daemon, the command exits with an error instead of
-printing a successful build message.
-
-If `build-container` is not listed as an available command, rebuild or reinstall
-this package in the active environment. That usually means the shell is still
-finding an older installed `ros2-performance-monitoring` executable.
-
-### Minimal benchmark run
-
-The `run` command executes the current local benchmark path:
-
-1. Resolve the requested packaged or source-built rclcpp target.
-2. Fetch and resolve the external `ros2-benchmark-container` checkout.
-3. Build an image keyed by all target inputs and store its provenance manifest.
-4. Verify image labels, manifest, rclcpp prefix, and linked dynamic library.
-5. Write metadata from the resolved and verified target.
-6. Start the container, repeat runtime verification, and run the selected suite.
-7. Write raw outputs and normalize them to `normalized_metrics.jsonl`.
-
-The default run uses ROS `lyrical`, a 60 second duration, the
-`EventsCBGExecutor` executor, the `rclcpp-minimal` suite, `./results` for
-outputs, and
-`~/.cache/ros2-performance-monitoring` for the external container checkout:
-
-```bash
-ros2-performance-monitoring run
-```
-
-The run options are:
-
-```bash
-ros2-performance-monitoring run \
-  -t <duration> \
-  -d <ros-distro> \
-  -x <executor> \
-  <results-dir>
-```
-
-The container repository is cached under
-`~/.cache/ros2-performance-monitoring` by default. Use `--cache-dir` to place
-the checkout elsewhere, such as on a persistent CI cache volume.
-
-By default, `run` creates a benchmark container and removes it when the command
-finishes. Pass `--keep-container` to retain it. A later `run --keep-container`
-for the exact same target reuses that container and skips the image build:
-
-```bash
-ros2-performance-monitoring run --keep-container ./results/repeats/1-lyrical
-ros2-performance-monitoring run --keep-container ./results/repeats/2-lyrical
-```
-
-Results directories used with one retained container must have the same parent
-directory. This keeps every run separate while allowing the original results
-root to remain mounted in the container. The command rejects an incompatible
-results path instead of writing artifacts to the wrong location. Remove a
-retained container when the repeated runs are complete, using the exact name
-printed by `run`:
-
-```bash
-docker rm -f ros2-performance-monitoring-<distro>-<architecture>-<target-key>
-```
-
-Retaining the container avoids repeated Buildx work. A different ROS
-distribution, architecture, benchmark commit, rclcpp commit, source type, or
-build configuration produces a different image and container name. Labels and
-the actual image ID are still checked before reuse, so modifying a matching-name
-container does not bypass target verification.
-
-If the required image has already been built, `--skip-build` prevents the first
-retained run from invoking Buildx as well:
-
-```bash
-ros2-performance-monitoring run \
-  --skip-build \
-  --keep-container \
-  ./results/repeats/1-lyrical
-```
-
-The command checks that the exact target image exists and verifies its labels,
-manifest, package prefix, and linked library. It fails if any value is missing
-or mismatched. Omit `--skip-build` when the requested target has not been built.
-
-Supported suites are:
-
-```bash
-ros2-performance-monitoring run --suite rclcpp-minimal
-ros2-performance-monitoring run --suite pubsub-rclcpp-minimal
-ros2-performance-monitoring run --suite service-rclcpp-minimal
-```
-
-For repeatability work, `--cpuset-cpus` restricts the benchmark container to a
-Docker CPU-set expression. Select cores that are appropriate for the benchmark
-host. For example:
-
-```bash
-ros2-performance-monitoring run \
-  --cpuset-cpus 0,2,4,6,8,10
-```
-
-The executor argument is passed directly to the benchmark container. Supported
-values are `SingleThreadedExecutor`, `MultiThreadedExecutor`,
-`EventsExecutor`, and `EventsCBGExecutor`.
-
-The currently supported ROS distributions are `jazzy`, `lyrical`, and
-`rolling`. Other distributions are rejected before the container repository is
-fetched, run metadata is created, or an image build starts.
-
-The default `rclcpp-minimal` suite runs the reduced pub/sub and service
-topologies covered by the parser: single-process and multi-process pub/sub, plus
-single-process and multi-process client/service. It covers `10b`, `100kb`,
-`1mb`, and `4mb` payloads.
-
-The benchmark runner requires Docker with the Buildx plugin and a running
-Docker daemon. The current user must be able to run Docker commands without
-`sudo`. The runner starts a privileged container and mounts
-`/var/run/docker.sock` into it.
-
-### Parse benchmark artifacts
-
-The `run` command invokes normalization automatically. The `parse` command can
-also read existing raw benchmark outputs and write normalized JSONL metrics:
-
-```bash
-ros2-performance-monitoring parse ./results --output ./results/normalized_metrics.jsonl
-```
-
-When a results directory contains metadata from multiple runs, parsing selects
-the newest metadata file and only discovers artifacts for that run's recorded
-ROS distribution. This prevents retained artifacts from another distribution
-from being labelled as part of the newest run.
-
-The parser targets the reduced `ros2-benchmark-container` pub/sub and service
-matrix. It
-looks under the results directory for a benchmark artifact root named
-`benchmark`, then discovers single-process and multi-process pub/sub leaves plus
-initial client/service leaves for `10b`, `100kb`, `1mb`, and `4mb` payloads,
-including Fast DDS and Cyclone DDS result directories where present. Each
-discovered leaf must include these files:
-
-```text
-metadata.txt
-resources.txt
-latency_all.txt
-latency_total.txt
-```
-
-Each JSONL record keeps the dimensions needed for local analysis:
-
-- ROS distro.
-- RMW implementation normalized to ROS identifiers such as `rmw_fastrtps_cpp`
-  and `rmw_cyclonedds_cpp`.
-- executor.
-- topology as `pub-sub` or `service`.
-- process mode as `single_process` or `multi_process`.
-- communication mode as `ipc_on`, `ipc_off`, or `loaned`.
-- payload size in bytes, such as `10` for `10b`, `102400` for `100kb`,
-  `1048576` for `1mb`, and `4194304` for `4mb`.
-- frequency as numeric Hz for pub/sub records, or `0.0` for service records.
-- metric name, value, unit, and aggregation.
-- source artifact file.
-
-If required artifact files are missing or the directory layout is unsupported,
-the command exits with a clear error instead of silently producing partial
-metrics.
-
-### Build a comparison dataset
-
-`dataset build` accepts normalized JSONL files, validates every non-empty line,
-and creates the multi-run input expected by the dashboard. It rejects
-unsupported schemas, non-finite metric values, conflicting run provenance,
-duplicate metric identities, run IDs split across files, and output/input path
-collisions before replacing an existing dataset.
-
-```bash
-ros2-performance-monitoring dataset build \
-  <run-1>/normalized_metrics.jsonl \
-  <run-2>/normalized_metrics.jsonl \
-  --output dashboard-data.jsonl
-```
-
-Rows have stable ordering, so reversing the input arguments produces the same
-JSONL. The adjacent `dashboard-data.manifest.json` records each resolved input
-path, SHA-256 checksum, included run IDs, and the final dataset checksum.
-Publication removes the old completion marker, atomically replaces the dataset,
-and writes the new manifest last, so an interrupted update is never accepted as
-complete.
-
-Use `--aggregate median` for repeated measurements. Runs only share an
-aggregate when their schema, ROS distribution, benchmark and client-library
-provenance, platform, executor, benchmark layout, and complete metric identity
-sets match. Commits, payloads, topologies, RMW implementations, communication
-modes, and partial metric coverage are never mixed. For an even repeat count,
-the median is the arithmetic mean of the two middle values after sorting. The
-command reports compatible groups with fewer than two measured runs without
-creating an aggregate for them.
-
-Aggregate rows use a stable `aggregate-median-...` run ID and expose
-`run_kind="aggregate"`, `aggregation_method="median"`, and `repeat_count` to
-`ros2_perf_run_info`. Source run IDs and input checksums are stored once in the
-sidecar manifest instead of being repeated on every metric row. Schema v4
-measured records remain accepted; new parser output and aggregate records use
-schema v5.
-
-Service support includes request/response latency, CPU, and RSS visibility for
-the local `10b`, `100kb`, `1mb`, and `4mb` layouts. Long-running actions,
-multiple-client service sweeps, a full Zenoh matrix, remote-host tests, executor
-sweeps, and CI-gating regression policy are deferred.
+The user-facing build, run, parse, and dataset commands are documented in
+[Host-Installed Workflow](#host-installed-workflow),
+[Inspect And Visualize Results](#inspect-and-visualize-results), and
+[Useful Commands](#useful-commands). Use `ros2-performance-monitoring
+<command> --help` for the complete option reference. The checks below focus on
+ROS package and container integration instead of repeating those workflows.
 
 Run the ROS 2 package tests:
 
