@@ -2,6 +2,12 @@
 Changelog for package ros2_performance_monitoring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.3 (2026-08-23)
+------------------
+* Fixed GitHub Actions artifact discovery to skip successful no-op workflow
+  runs and select the newest successful run containing one matching unexpired
+  dashboard artifact.
+
 0.1.2 (2026-08-22)
 ------------------
 * Fixed statistical active-history entries to retain and revalidate the full
