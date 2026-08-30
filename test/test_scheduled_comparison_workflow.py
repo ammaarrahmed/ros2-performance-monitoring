@@ -128,6 +128,10 @@ def test_benchmark_uses_one_digest_pinned_container_controller():
         in compare
     )
     assert '"${CONTROLLER_IMAGE}" experiment compare' in compare
+    assert benchmark['env']['MAX_OPERATIONAL_ATTEMPTS'] == '2'
+    assert 'scripts/run-comparison-with-retry' in compare
+    assert '"${MAX_OPERATIONAL_ATTEMPTS}"' in compare
+    assert 'comparison_exit=$?' in compare
 
 
 def test_smoke_command_uses_exact_refs_and_every_pinned_profile_setting():
@@ -260,4 +264,6 @@ def test_documentation_keeps_smoke_results_non_authoritative_and_schedule_gated(
         assert '14' in text
     assert 'not calibrated for authoritative performance claims' in README_TEXT
     assert 'ENABLE_RCLCPP_SCHEDULE' in README_TEXT
+    assert 'one same-run resume attempt' in README_TEXT
+    assert 'rclcpp-failure-<candidate-sha>-<run-id>-<run-attempt>' in README_TEXT
     assert 'exit codes `3` or `4` fail without changing the baseline' in normalized_readme

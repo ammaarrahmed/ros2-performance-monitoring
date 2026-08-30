@@ -614,6 +614,14 @@ remain sibling containers on the runner's daemon, and the inspected controller
 digest is recorded in run provenance. A failed controller pull is retried three
 times before target preparation starts.
 
+An operational comparison failure receives one same-run resume attempt with
+the identical plan and results directory. Verified trials are reused and failed
+attempts remain in the experiment evidence. If the resume also fails, the job
+prints the nested trial logs and uploads a seven-day
+`rclcpp-failure-<candidate-sha>-<run-id>-<run-attempt>` diagnostic artifact.
+This artifact never uses the dashboard prefix and cannot advance the durable
+baseline.
+
 > This profile produces non-authoritative pipeline smoke evidence only. It is
 > not calibrated for authoritative performance claims and its outcome is not a
 > CI gate.

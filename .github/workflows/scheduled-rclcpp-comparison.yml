@@ -89,6 +89,7 @@ jobs:
       COMPACT_DIR: ${{ github.workspace }}/results/dashboard-bundle
       CONTROLLER_CACHE_DIR: benchmark
       CONTROLLER_RESULTS_DIR: scheduled-comparison
+      MAX_OPERATIONAL_ATTEMPTS: 2
       FULL_ARTIFACT_NAME: rclcpp-evidence-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
       DASHBOARD_ARTIFACT_NAME: rclcpp-dashboard-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
       FAILURE_ARTIFACT_NAME: rclcpp-failure-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -174,47 +175,52 @@ jobs:
         run: |
           set -o pipefail
           benchmark_ref=$(jq -r '.benchmark_container.ref' "${PROFILE_PATH}")
+          comparison_log="${RUNNER_TEMP}/comparison.log"
           set +e
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            --group-add "$(stat -c %g /var/run/docker.sock)" \
-            --read-only \
-            --tmpfs /tmp \
-            --env HOME=/cache/home \
-            --env ROS2_PERFORMANCE_CONTROLLER_MODE=container \
-            --env ROS2_PERFORMANCE_CONTROLLER_RESULTS_ROOT=/results \
-            --env ROS2_PERFORMANCE_HOST_RESULTS_ROOT="${GITHUB_WORKSPACE}/results" \
-            --env ROS2_PERFORMANCE_CONTROLLER_CACHE_ROOT=/cache \
-            --env ROS2_PERFORMANCE_HOST_CACHE_ROOT="${GITHUB_WORKSPACE}/.scheduled-cache" \
-            --env ROS2_PERFORMANCE_HOST_UID="$(id -u)" \
-            --env ROS2_PERFORMANCE_HOST_GID="$(id -g)" \
-            --env ROS2_PERFORMANCE_CONTROLLER_IMAGE="${CONTROLLER_IMAGE}" \
-            --volume "${GITHUB_WORKSPACE}/results:/results" \
-            --volume "${GITHUB_WORKSPACE}/.scheduled-cache:/cache" \
-            --volume "${SOURCE_DEPENDENCIES_FILE}:/source-dependencies.repos:ro" \
-            --volume /var/run/docker.sock:/var/run/docker.sock \
-            "${CONTROLLER_IMAGE}" experiment compare \
-            --reference-ref "${REFERENCE_SHA}" \
-            --candidate-ref "${CANDIDATE_SHA}" \
-            --rclcpp-repo-url https://github.com/ros2/rclcpp.git \
-            --source-dependencies /source-dependencies.repos \
-            --container-repo-url https://github.com/ros2/ros2-benchmark-container.git \
-            --container-ref "${benchmark_ref}" \
-            --ros-distro rolling \
-            --suite rclcpp-minimal \
-            --executor EventsCBGExecutor \
-            --duration 1 \
-            --warmups 0 \
-            --repeats 3 \
-            --order balanced \
-            --seed 0 \
-            --bootstrap-repeats 100 \
-            --bootstrap-seed 0 \
-            --minimum-trials 3 \
-            --cache-dir "${CONTROLLER_CACHE_DIR}" \
-            --results-dir "${CONTROLLER_RESULTS_DIR}" \
-            2>&1 | tee "${RUNNER_TEMP}/comparison.log"
-          comparison_exit=${PIPESTATUS[0]}
+          scripts/run-comparison-with-retry \
+            "${comparison_log}" \
+            "${RESULTS_DIR}" \
+            "${MAX_OPERATIONAL_ATTEMPTS}" \
+            -- \
+            docker run --rm \
+              --user "$(id -u):$(id -g)" \
+              --group-add "$(stat -c %g /var/run/docker.sock)" \
+              --read-only \
+              --tmpfs /tmp \
+              --env HOME=/cache/home \
+              --env ROS2_PERFORMANCE_CONTROLLER_MODE=container \
+              --env ROS2_PERFORMANCE_CONTROLLER_RESULTS_ROOT=/results \
+              --env ROS2_PERFORMANCE_HOST_RESULTS_ROOT="${GITHUB_WORKSPACE}/results" \
+              --env ROS2_PERFORMANCE_CONTROLLER_CACHE_ROOT=/cache \
+              --env ROS2_PERFORMANCE_HOST_CACHE_ROOT="${GITHUB_WORKSPACE}/.scheduled-cache" \
+              --env ROS2_PERFORMANCE_HOST_UID="$(id -u)" \
+              --env ROS2_PERFORMANCE_HOST_GID="$(id -g)" \
+              --env ROS2_PERFORMANCE_CONTROLLER_IMAGE="${CONTROLLER_IMAGE}" \
+              --volume "${GITHUB_WORKSPACE}/results:/results" \
+              --volume "${GITHUB_WORKSPACE}/.scheduled-cache:/cache" \
+              --volume "${SOURCE_DEPENDENCIES_FILE}:/source-dependencies.repos:ro" \
+              --volume /var/run/docker.sock:/var/run/docker.sock \
+              "${CONTROLLER_IMAGE}" experiment compare \
+              --reference-ref "${REFERENCE_SHA}" \
+              --candidate-ref "${CANDIDATE_SHA}" \
+              --rclcpp-repo-url https://github.com/ros2/rclcpp.git \
+              --source-dependencies /source-dependencies.repos \
+              --container-repo-url https://github.com/ros2/ros2-benchmark-container.git \
+              --container-ref "${benchmark_ref}" \
+              --ros-distro rolling \
+              --suite rclcpp-minimal \
+              --executor EventsCBGExecutor \
+              --duration 1 \
+              --warmups 0 \
+              --repeats 3 \
+              --order balanced \
+              --seed 0 \
+              --bootstrap-repeats 100 \
+              --bootstrap-seed 0 \
+              --minimum-trials 3 \
+              --cache-dir "${CONTROLLER_CACHE_DIR}" \
+              --results-dir "${CONTROLLER_RESULTS_DIR}"
+          comparison_exit=$?
           set -e
           echo "exit_code=${comparison_exit}" >> "${GITHUB_OUTPUT}"
           case "${comparison_exit}" in
