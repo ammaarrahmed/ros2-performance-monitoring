@@ -1,29 +1,29 @@
 {
-  "advanced_at": "2026-08-21T13:17:23.869732Z",
-  "candidate_sha": "5cda40123062ecfb023e6267ed3464e1b4f09216",
+  "advanced_at": "2026-08-30T02:20:55.896276Z",
+  "candidate_sha": "90a1e565ee6870c13b21f6c1a58fbc9f7dfcde9d",
   "comparison": {
-    "artifact": "rclcpp-dashboard-5cda40123062ecfb023e6267ed3464e1b4f09216-32481690014",
+    "artifact": "rclcpp-dashboard-90a1e565ee6870c13b21f6c1a58fbc9f7dfcde9d-33285911244",
     "exit_code": 1,
-    "experiment_id": "experiment-d11b65871a5e45119d6273740ff36c0a",
+    "experiment_id": "experiment-08ecf88ae95f4010b0772c5dc091f154",
     "outcome": "Regression",
-    "reference_sha": "b48b3a3d93d492f730ac3d1ca3580df0a6ac80eb",
+    "reference_sha": "5cda40123062ecfb023e6267ed3464e1b4f09216",
     "repository": "ammaarrahmed/ros2-performance-monitoring",
     "run_attempt": "1",
-    "run_id": "32481690014",
+    "run_id": "33285911244",
     "run_ids": [
-      "candidate-measured-001-25925fb7d1bc",
-      "candidate-measured-002-25925fb7d1bc",
-      "candidate-measured-003-25925fb7d1bc",
-      "reference-measured-001-99d28df4610f",
-      "reference-measured-002-99d28df4610f",
-      "reference-measured-003-99d28df4610f"
+      "candidate-measured-001-7de05566cd38",
+      "candidate-measured-002-7de05566cd38",
+      "candidate-measured-003-7de05566cd38",
+      "reference-measured-001-3ec3517cf83c",
+      "reference-measured-002-3ec3517cf83c",
+      "reference-measured-003-3ec3517cf83c"
     ],
     "source_dependencies": {
       "repositories": {
         "ros2/rcl": {
           "type": "git",
           "url": "https://github.com/ros2/rcl.git",
-          "version": "db3d1c8ea6eb22235494cfc03249155e35c47511"
+          "version": "85ccfb5abf190aaaf89af0c68df671550267e353"
         }
       }
     }
