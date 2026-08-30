@@ -128,6 +128,10 @@ def test_benchmark_uses_one_digest_pinned_container_controller():
         in compare
     )
     assert '"${CONTROLLER_IMAGE}" experiment compare' in compare
+    assert benchmark['env']['MAX_OPERATIONAL_ATTEMPTS'] == '2'
+    assert 'scripts/run-comparison-with-retry' in compare
+    assert '"${MAX_OPERATIONAL_ATTEMPTS}"' in compare
+    assert 'comparison_exit=$?' in compare
 
 
 def test_smoke_command_uses_exact_refs_and_every_pinned_profile_setting():
@@ -190,15 +194,26 @@ def test_both_checksum_bound_bundles_are_short_lived_and_state_uses_compact_one(
         step for step in benchmark['steps']
         if step.get('uses', '').startswith('actions/upload-artifact@')
     ]
+    completed_uploads = [step for step in uploads if 'if' not in step]
+    failure_upload = next(step for step in uploads if step.get('if') == 'failure()')
 
-    assert len(uploads) == 2
-    assert {step['with']['name'] for step in uploads} == {
+    assert len(completed_uploads) == 2
+    assert {step['with']['name'] for step in completed_uploads} == {
         '${{ env.FULL_ARTIFACT_NAME }}',
         '${{ env.DASHBOARD_ARTIFACT_NAME }}',
     }
-    assert all(step['with']['retention-days'] == '14' for step in uploads)
-    assert all(step['with']['if-no-files-found'] == 'error' for step in uploads)
-    assert all(step['with']['include-hidden-files'] == 'true' for step in uploads)
+    assert all(step['with']['retention-days'] == '14' for step in completed_uploads)
+    assert all(step['with']['if-no-files-found'] == 'error' for step in completed_uploads)
+    assert all(step['with']['include-hidden-files'] == 'true' for step in completed_uploads)
+    assert failure_upload['name'] == 'Upload failed comparison evidence'
+    assert failure_upload['with'] == {
+        'name': '${{ env.FAILURE_ARTIFACT_NAME }}',
+        'path': '${{ env.RESULTS_DIR }}',
+        'if-no-files-found': 'warn',
+        'include-hidden-files': 'true',
+        'retention-days': '7',
+    }
+    assert benchmark['env']['FAILURE_ARTIFACT_NAME'].startswith('rclcpp-failure-')
     assert 'scheduled_comparison bundle' in WORKFLOW_TEXT
     assert 'scheduled_comparison state' in WORKFLOW_TEXT
     assert 'scheduled_comparison validate' in WORKFLOW_TEXT
@@ -213,7 +228,9 @@ def test_summary_and_failure_diagnostics_report_required_cost_and_identity():
 
     assert 'Record initial runtime and storage diagnostics' in names
     assert 'Collect failure diagnostics' in names
+    assert 'Upload failed comparison evidence' in names
     assert 'Clean runner containers and temporary images' in names
+    assert 'scripts/report-comparison-failure "${RESULTS_DIR}"' in WORKFLOW_TEXT
     for value in (
         'Reference:',
         'Candidate:',
@@ -247,4 +264,6 @@ def test_documentation_keeps_smoke_results_non_authoritative_and_schedule_gated(
         assert '14' in text
     assert 'not calibrated for authoritative performance claims' in README_TEXT
     assert 'ENABLE_RCLCPP_SCHEDULE' in README_TEXT
+    assert 'one same-run resume attempt' in README_TEXT
+    assert 'rclcpp-failure-<candidate-sha>-<run-id>-<run-attempt>' in README_TEXT
     assert 'exit codes `3` or `4` fail without changing the baseline' in normalized_readme

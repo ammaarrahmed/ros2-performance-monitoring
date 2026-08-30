@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+# Copyright 2026 Ammaar Ahmed
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -euo pipefail
+
+if [[ "$#" -ne 1 ]]; then
+  echo "Usage: scripts/report-comparison-failure RESULTS_DIR" >&2
+  exit 2
+fi
+
+results_dir=$1
+trials_dir=${results_dir}/trials
+
+if [[ ! -d "${trials_dir}" ]]; then
+  echo "No trial diagnostics directory exists at ${trials_dir}"
+  exit 0
+fi
+
+found=0
+while IFS= read -r -d '' attempt_dir; do
+  found=1
+  echo "::group::Failed trial diagnostics: ${attempt_dir#${results_dir}/}"
+  if [[ -f "${attempt_dir}/status.json" ]]; then
+    echo "status.json"
+    jq . "${attempt_dir}/status.json" || true
+  fi
+  if [[ -f "${attempt_dir}/trial.log" ]]; then
+    echo "trial.log (last 500 lines)"
+    tail -n 500 "${attempt_dir}/trial.log" || true
+  fi
+  echo "::endgroup::"
+done < <(
+  find "${trials_dir}" -type d \
+    \( -name '*-failed' -o -name '*-incomplete' -o -name '*-incomplete-*' \) \
+    -print0 | sort -z
+)
+
+if [[ "${found}" -eq 0 ]]; then
+  echo "No failed or incomplete trial attempts were found below ${trials_dir}"
+fi

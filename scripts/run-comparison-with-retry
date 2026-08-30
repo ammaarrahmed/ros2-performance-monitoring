@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+# Copyright 2026 Ammaar Ahmed
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -euo pipefail
+
+if [[ "$#" -lt 5 ]] || [[ "$4" != '--' ]]; then
+  echo "Usage: scripts/run-comparison-with-retry LOG RESULTS MAX_ATTEMPTS -- COMMAND..." >&2
+  exit 2
+fi
+
+comparison_log=$1
+results_dir=$2
+max_attempts=$3
+shift 4
+
+if [[ ! "${max_attempts}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "MAX_ATTEMPTS must be a positive integer" >&2
+  exit 2
+fi
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+: > "${comparison_log}"
+
+attempt=1
+while (( attempt <= max_attempts )); do
+  echo "Comparison operational attempt ${attempt}/${max_attempts}"
+  set +e
+  "$@" 2>&1 | tee -a "${comparison_log}"
+  comparison_exit=${PIPESTATUS[0]}
+  set -e
+
+  if [[ "${comparison_exit}" -ne 4 ]] || [[ "${attempt}" -eq "${max_attempts}" ]]; then
+    exit "${comparison_exit}"
+  fi
+
+  echo "Operational comparison failure; preserving diagnostics and resuming once."
+  "${script_dir}/report-comparison-failure" "${results_dir}"
+  attempt=$((attempt + 1))
+done
