@@ -91,6 +91,7 @@ jobs:
       CONTROLLER_RESULTS_DIR: scheduled-comparison
       FULL_ARTIFACT_NAME: rclcpp-evidence-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
       DASHBOARD_ARTIFACT_NAME: rclcpp-dashboard-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}
+      FAILURE_ARTIFACT_NAME: rclcpp-failure-${{ needs.discover.outputs.candidate_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
       SOURCE_DEPENDENCIES_B64: ${{ needs.discover.outputs.source_dependencies_b64 }}
       SOURCE_DEPENDENCIES_SHA256: ${{ needs.discover.outputs.source_dependencies_sha256 }}
       SOURCE_DEPENDENCIES_FILE: ${{ github.workspace }}/.rolling-source-dependencies.repos
@@ -313,6 +314,17 @@ jobs:
           docker system df -v || true
           docker ps -a --size || true
           test ! -f "${RUNNER_TEMP}/comparison.log" || tail -n 500 "${RUNNER_TEMP}/comparison.log"
+          scripts/report-comparison-failure "${RESULTS_DIR}"
+
+      - name: Upload failed comparison evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.FAILURE_ARTIFACT_NAME }}
+          path: ${{ env.RESULTS_DIR }}
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 7
 
       - name: Clean runner containers and temporary images
         if: always()
