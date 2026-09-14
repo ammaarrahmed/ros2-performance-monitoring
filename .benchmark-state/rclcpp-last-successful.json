@@ -1,22 +1,22 @@
 {
-  "advanced_at": "2026-09-07T08:22:35.623090Z",
-  "candidate_sha": "26d08f283f34e05810c497e11243e12db54b9ae6",
+  "advanced_at": "2026-09-14T08:53:22.151306Z",
+  "candidate_sha": "e47c08484b44549aa2348880e94303bf6a3a807f",
   "comparison": {
-    "artifact": "rclcpp-dashboard-26d08f283f34e05810c497e11243e12db54b9ae6-34095877378",
+    "artifact": "rclcpp-dashboard-e47c08484b44549aa2348880e94303bf6a3a807f-34820932345",
     "exit_code": 1,
-    "experiment_id": "experiment-5a74d8a8c558414ba323089b27f441aa",
+    "experiment_id": "experiment-89de0909b2bb4145a44bef694cca6f6c",
     "outcome": "Regression",
-    "reference_sha": "90a1e565ee6870c13b21f6c1a58fbc9f7dfcde9d",
+    "reference_sha": "26d08f283f34e05810c497e11243e12db54b9ae6",
     "repository": "ammaarrahmed/ros2-performance-monitoring",
     "run_attempt": "1",
-    "run_id": "34095877378",
+    "run_id": "34820932345",
     "run_ids": [
-      "candidate-measured-001-a2f9a4403057",
-      "candidate-measured-002-a2f9a4403057",
-      "candidate-measured-003-a2f9a4403057",
-      "reference-measured-001-5d24b59aa40b",
-      "reference-measured-002-5d24b59aa40b",
-      "reference-measured-003-5d24b59aa40b"
+      "candidate-measured-001-571258d2abd9",
+      "candidate-measured-002-571258d2abd9",
+      "candidate-measured-003-571258d2abd9",
+      "reference-measured-001-a2f9a4403057",
+      "reference-measured-002-a2f9a4403057",
+      "reference-measured-003-a2f9a4403057"
     ],
     "source_dependencies": {
       "repositories": {
